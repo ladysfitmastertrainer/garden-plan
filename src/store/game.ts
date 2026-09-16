@@ -39,7 +39,7 @@ import {
 } from '../engine/rewards'
 import { createRng } from '../engine/rng'
 import { selectQuestion, selectQuestions, type SelectionContext } from '../engine/selector'
-import { localRepository } from '../data/local'
+import { apiRepository } from '../data/api'
 import {
   emptyProgress,
   migrateClearedNodes,
@@ -52,11 +52,13 @@ import {
 import { playEffect } from '../audio/synth'
 
 /**
- * Tầng lưu trữ đang dùng. Để thay được lúc chạy vì hai lý do:
- *  - test chạy vòng lặp game với repository trong bộ nhớ, không cần IndexedDB;
- *  - giai đoạn sau cắm Supabase vào mà không phải sửa store.
+ * Tầng lưu trữ đang dùng.
+ *
+ * Chỉ còn một bản thật - `apiRepository`, gọi `/api`. Chỗ thay được lúc chạy vẫn
+ * giữ, vì test chạy trọn vòng lặp game với repository trong bộ nhớ
+ * (`data/memory.ts`) mà không cần máy chủ nào.
  */
-let repository: Repository = localRepository
+let repository: Repository = apiRepository
 
 export function getRepository(): Repository {
   return repository

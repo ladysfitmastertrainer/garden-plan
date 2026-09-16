@@ -115,7 +115,6 @@ export function MapScreen() {
         <MuteButton compact={inRegion} />
       </nav>
 
-      <SyncBadge />
       <InstallPrompt />
 
       {region === null ? (
@@ -159,38 +158,6 @@ function ExitButton({ onLeave }: { onLeave: () => void }) {
       style={{ background: 'var(--color-paper-sunk)' }}
     >
       {isChild ? 'Thoát' : mode === 'adult' ? 'Đăng xuất' : 'Đổi\nngười chơi'}
-    </button>
-  )
-}
-
-/**
- * Trạng thái đồng bộ. Chỉ hiện khi có chuyện đáng nói - lúc mọi thứ trơn tru thì
- * im lặng, không làm phiền trẻ.
- */
-function SyncBadge() {
-  const mode = useAuth((s) => s.mode)
-  const status = useAuth((s) => s.syncStatus)
-  const syncNow = useAuth((s) => s.syncNow)
-
-  if (mode === 'offline') return null
-  if (!status.syncing && status.pending === 0 && !status.lastError) return null
-
-  const warning = Boolean(status.lastError)
-  return (
-    <button
-      type="button"
-      onClick={() => void syncNow()}
-      className="rounded-2xl px-4 py-2 text-left text-base font-bold"
-      style={{
-        background: warning ? 'var(--color-warn-soft)' : 'var(--color-brand-soft)',
-        color: warning ? 'var(--color-warn)' : 'var(--color-brand-dark)',
-      }}
-    >
-      {status.syncing
-        ? '⏳ Đang đồng bộ...'
-        : warning
-          ? `📴 Chưa gửi lên được (${status.pending} mục đang chờ). Bài của con vẫn được lưu trên máy — chạm để thử lại.`
-          : `📴 ${status.pending} mục chờ gửi lên khi có mạng`}
     </button>
   )
 }

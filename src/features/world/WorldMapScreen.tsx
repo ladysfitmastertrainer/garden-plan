@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMeasureOnLayout } from '../../app/useMeasureOnLayout'
+import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import { SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from '../../content/types'
 import { creatureFromAvatar, viewFor } from '../pixel/creatures'
 import {

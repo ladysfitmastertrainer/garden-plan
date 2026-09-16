@@ -1,15 +1,18 @@
+'use client'
+
 /**
  * Trang quản trị: cân bằng game, soi nội dung, vẽ bản đồ, quản lý hồ sơ.
  *
  * TRANG RIÊNG, ẨN VỚI TRẺ. Không có nút nào trong giao diện trẻ dẫn tới đây -
- * vào bằng `#admin` trên thanh địa chỉ. Đây là công cụ của người lớn, và một
- * cái nút ở màn chơi thì trẻ sẽ bấm, đúng như trẻ bấm mọi cái nút khác.
+ * vào bằng đường dẫn `/admin`. Đây là công cụ của người lớn, và một cái nút ở
+ * màn chơi thì trẻ sẽ bấm, đúng như trẻ bấm mọi cái nút khác.
  *
  * Không phải cơ chế bảo mật, và không giả vờ là thế: ai gõ được địa chỉ thì vào
  * được. Nó chỉ nằm ngoài đường đi của trẻ, giống `ParentGate` ở trang phụ huynh.
  */
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { ClassManager } from '../dashboard/ClassManager'
 import { AccountsPanel } from './AccountsPanel'
 import { ContentPanel } from './ContentPanel'
@@ -50,12 +53,14 @@ export function AdminScreen() {
             Học Viện Trí Tuệ · thiết lập lưu trên máy này
           </p>
         </div>
-        {/* `#game` chứ không phải `#`: quản trị viên vào thẳng đây khi đăng nhập,
-            nên phải có một dấu nói rõ "lần này tôi muốn xuống game" - không thì
-            bấm xong tải lại trang là bị hất ngược lên đây. */}
-        <a href="#game" className="btn btn-ghost">
+        {/* `<Link>` chứ không phải `<a>`: Next chuyển màn ngay trong trang, không
+            tải lại từ đầu, nên không phải dựng lại toàn bộ gói game một lần nữa.
+
+            Quản trị viên đăng nhập là rơi thẳng vào đây (xem `GameShell`), nên
+            đây là lối ra duy nhất xuống phần chơi. */}
+        <Link href="/" className="btn btn-ghost">
           ← Về game
-        </a>
+        </Link>
       </header>
 
       {/* Một dòng duy nhất, cuộn ngang khi không đủ chỗ - xem `TabStrip`. */}

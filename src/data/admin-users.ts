@@ -1,13 +1,17 @@
 /**
- * Gọi Edge Function quản lý tài khoản người lớn.
+ * Gọi API quản lý tài khoản người lớn.
  *
- * Mọi việc thật xảy ra phía máy chủ - xem `supabase/functions/admin-users`. File
- * này chỉ gửi yêu cầu kèm token của người đang đăng nhập và dịch lỗi sang tiếng
- * Việt. Nó KHÔNG tự kiểm ai là admin: kiểm ở trình duyệt chỉ để giao diện gọn
- * mắt, còn chặn thật thì phải chặn ở nơi người dùng không sửa được.
+ * Mọi việc thật xảy ra phía máy chủ - xem `src/server/accounts.ts`. File này chỉ
+ * gửi yêu cầu. Nó KHÔNG tự kiểm ai là admin: kiểm ở trình duyệt chỉ để giao diện
+ * gọn mắt, còn chặn thật thì phải chặn ở nơi người dùng không sửa được.
+ *
+ * Bản trước gọi Edge Function qua `supabase.functions.invoke`, và phải tự moi
+ * lời nhắn lỗi ra khỏi lớp vỏ mà `invoke` bọc quanh nó - không moi thì admin chỉ
+ * thấy "Edge Function returned a non-2xx status". Giờ lỗi về thẳng dưới dạng câu
+ * tiếng Việt, nên cả đoạn đó biến mất.
  */
 
-import { getSupabase } from './supabase-client'
+import { request } from './request'
 
 export interface AdultAccount {
   id: string
@@ -26,51 +30,8 @@ export interface CreatedAccount {
   user: { id: string; email: string; displayName: string; role: string }
 }
 
-/** Dịch những lỗi hay gặp; còn lại giữ nguyên còn hơn đoán sai. */
-function translate(raw: string): string {
-  if (/failed to fetch|network/i.test(raw)) {
-    return 'Không gọi được máy chủ. Kiểm tra mạng, và kiểm tra hàm admin-users đã được triển khai chưa.'
-  }
-  if (/not found|404/i.test(raw)) {
-    return 'Chưa có hàm admin-users trên Supabase. Xem hướng dẫn triển khai trong supabase/README.md.'
-  }
-  return raw
-}
-
-async function call<T>(body: Record<string, unknown>): Promise<T> {
-  const supabase = await getSupabase()
-  if (!supabase) throw new Error('Máy này chưa cấu hình Supabase.')
-
-  const { data: session } = await supabase.auth.getSession()
-  if (!session.session) throw new Error('Bạn cần đăng nhập trước.')
-
-  const { data, error } = await supabase.functions.invoke('admin-users', { body })
-
-  if (error) {
-    // `invoke` gói lỗi HTTP lại, nên lời nhắn thật của hàm nằm trong phần thân -
-    // không moi ra thì admin chỉ thấy "Edge Function returned a non-2xx status".
-    const detail = await readError(error)
-    throw new Error(translate(detail ?? error.message))
-  }
-
-  const payload = data as { error?: string } & T
-  if (payload?.error) throw new Error(translate(payload.error))
-  return payload
-}
-
-async function readError(error: unknown): Promise<string | null> {
-  const response = (error as { context?: Response }).context
-  if (!response || typeof response.json !== 'function') return null
-  try {
-    const body = (await response.json()) as { error?: string }
-    return body.error ?? null
-  } catch {
-    return null
-  }
-}
-
 export async function listAccounts(): Promise<AdultAccount[]> {
-  const { users } = await call<{ users: AdultAccount[] }>({ action: 'list' })
+  const { users } = await request<{ users: AdultAccount[] }>('/api/admin/users')
   return users
 }
 
@@ -79,11 +40,13 @@ export async function createAccount(input: {
   displayName: string
   role: string
 }): Promise<CreatedAccount> {
-  return call<CreatedAccount>({ action: 'create', ...input })
+  return request<CreatedAccount>('/api/admin/users', { method: 'POST', body: input })
 }
 
 export async function resetAccountPassword(userId: string): Promise<string> {
-  const { password } = await call<{ password: string }>({ action: 'reset', userId })
+  const { password } = await request<{ password: string }>(`/api/admin/users/${userId}/password`, {
+    method: 'POST',
+  })
   return password
 }
 
@@ -93,7 +56,8 @@ export async function updateAccount(input: {
   email: string
   role: string
 }): Promise<void> {
-  await call<{ ok: true }>({ action: 'update', ...input })
+  const { userId, ...rest } = input
+  await request(`/api/admin/users/${userId}`, { method: 'PATCH', body: rest })
 }
 
 /**
@@ -103,5 +67,5 @@ export async function updateAccount(input: {
  * tầng. Nơi gọi PHẢI hỏi lại người dùng kèm con số cụ thể trước khi chạm vào đây.
  */
 export async function deleteAccount(userId: string): Promise<void> {
-  await call<{ ok: true }>({ action: 'delete', userId })
+  await request(`/api/admin/users/${userId}`, { method: 'DELETE' })
 }

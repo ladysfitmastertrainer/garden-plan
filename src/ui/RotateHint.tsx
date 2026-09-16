@@ -1,7 +1,7 @@
 /**
  * Dòng nhắc xoay ngang máy.
  *
- * Trang web KHÔNG tự xoay được máy của người dùng (xem `app/orientation.ts`).
+ * Trang web KHÔNG tự xoay được máy của người dùng (xem `shell/orientation.ts`).
  * Trên Android đã cài app thì manifest lo được; còn trên iPhone thì không có
  * cách nào - nên chỗ duy nhất còn lại là nhờ chính đứa trẻ xoay hộ.
  *
@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { isPhoneSized } from '../app/orientation'
+import { isPhoneSized } from '../shell/orientation'
 import { useUi } from '../store/ui'
 
 export function RotateHint() {

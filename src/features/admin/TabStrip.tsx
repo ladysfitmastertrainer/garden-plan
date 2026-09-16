@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { useMeasureOnLayout } from '../../app/useMeasureOnLayout'
+import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 
 export type TabItem<T extends string | number> = {
   readonly id: T

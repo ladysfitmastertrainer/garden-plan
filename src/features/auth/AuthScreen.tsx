@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useAuth, type AdultRole, type RosterEntry } from '../../store/auth'
+import { useAuth, type RosterEntry } from '../../store/auth'
 
 type Tab = 'child' | 'adult'
 
@@ -226,17 +226,22 @@ function ChildLogin() {
 
 // --- Lối vào của người lớn -------------------------------------------------------
 
-/** Ba việc người lớn làm ở màn này, mỗi việc một bộ ô nhập. */
-type Doing = 'signIn' | 'register' | 'forgot'
+/**
+ * Hai việc người lớn làm ở màn này.
+ *
+ * Bản cũ có ba, việc thứ ba là "quên mật khẩu" - gửi một liên kết qua email. Nó
+ * đi rồi: luồng đó phụ thuộc vào SMTP, thứ hỏng thường xuyên nhất ở dự án này,
+ * mà app vốn đã có sẵn một lối chắc chắn hơn và nhanh hơn - quản trị viên của
+ * trường đặt lại mật khẩu hộ, mật khẩu mới hiện ngay trên màn hình. Xem
+ * `src/server/accounts.ts`.
+ */
+type Doing = 'signIn' | 'register'
 
 function AdultLogin() {
   const signIn = useAuth((s) => s.signIn)
   const signUp = useAuth((s) => s.signUp)
-  const requestPasswordReset = useAuth((s) => s.requestPasswordReset)
-  const resendConfirmation = useAuth((s) => s.resendConfirmation)
   const busy = useAuth((s) => s.busy)
   const notice = useAuth((s) => s.notice)
-  const error = useAuth((s) => s.error)
 
   const [doing, setDoing] = useState<Doing>('signIn')
   const registering = doing === 'register'
@@ -248,17 +253,12 @@ function AdultLogin() {
     if (notice) setDoing('signIn')
   }, [notice])
 
-  // Chưa xác nhận email là lỗi DUY NHẤT người dùng tự gỡ được ngay tại chỗ, nên
-  // nút gửi lại thư chỉ hiện đúng lúc đó.
-  const needsConfirm = Boolean(error && /chưa xác nhận/i.test(error))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [role, setRole] = useState<AdultRole>('parent')
 
   const submit = () => {
-    if (doing === 'forgot') void requestPasswordReset(email)
-    else if (doing === 'register') void signUp({ email, password, displayName, role })
+    if (registering) void signUp({ email, password, displayName })
     else void signIn({ email, password })
   }
 
@@ -281,25 +281,20 @@ function AdultLogin() {
               style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
             />
           </label>
-          <div className="grid gap-2">
-            <span className="font-bold">Bạn là</span>
-            <div className="grid grid-cols-2 gap-2">
-              {(['parent', 'teacher'] as AdultRole[]).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setRole(value)}
-                  className="rounded-2xl border-4 py-3 font-bold"
-                  style={{
-                    borderColor: role === value ? 'var(--color-brand)' : 'transparent',
-                    background: role === value ? 'var(--color-brand-soft)' : 'var(--color-paper-sunk)',
-                  }}
-                >
-                  {value === 'parent' ? 'Phụ huynh' : 'Giáo viên'}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/*
+            Không còn ô tự chọn "Phụ huynh / Giáo viên".
+
+            Bản cũ để người đăng ký tự chọn ngay trên biểu mẫu công khai, nghĩa là
+            ai cũng tự phong mình làm giáo viên - mà giáo viên thì tạo được tài
+            khoản cho người khác. Tài khoản tạo ở đây luôn là phụ huynh; giáo viên
+            nhận tài khoản từ quản trị viên của trường.
+          */}
+          <p
+            className="rounded-xl p-3 text-base leading-snug"
+            style={{ background: 'var(--color-paper-sunk)' }}
+          >
+            Tài khoản này dành cho phụ huynh. Thầy cô nhận tài khoản từ quản trị viên của trường nhé.
+          </p>
         </>
       )}
 
@@ -315,78 +310,34 @@ function AdultLogin() {
         />
       </label>
 
-      {doing !== 'forgot' && (
-        <label className="grid gap-2">
-          <span className="font-bold">Mật khẩu</span>
-          <input
-            type="password"
-            autoComplete={registering ? 'new-password' : 'current-password'}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
-            style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
-          />
-        </label>
-      )}
-
-      {doing === 'forgot' && (
-        <div className="grid gap-2">
-          <p className="text-base leading-snug opacity-70">
-            Nhập địa chỉ email của tài khoản. Chúng tôi sẽ gửi một liên kết để bạn chọn mật khẩu mới.
-          </p>
-          {/* Lối ra thứ hai, nói TRƯỚC chứ không đợi thư không tới rồi mới nói.
-              Ở trường thì hỏi thầy cô quản trị thường nhanh hơn chờ hộp thư. */}
-          <p
-            className="rounded-xl p-2 text-base leading-snug"
-            style={{ background: 'var(--color-paper-sunk)' }}
-          >
-            Không nhận được thư? Quản trị viên của trường đặt lại mật khẩu hộ bạn được ngay, không
-            cần chờ.
-          </p>
-        </div>
-      )}
+      <label className="grid gap-2">
+        <span className="font-bold">Mật khẩu</span>
+        <input
+          type="password"
+          autoComplete={registering ? 'new-password' : 'current-password'}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
+          style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
+        />
+      </label>
 
       <button
         type="submit"
-        disabled={
-          busy ||
-          !email ||
-          (doing !== 'forgot' && password.length < 6) ||
-          (registering && !displayName)
-        }
+        disabled={busy || !email || password.length < 6 || (registering && !displayName)}
         className="btn btn-primary text-xl"
       >
-        {busy
-          ? 'Đang xử lý...'
-          : doing === 'forgot'
-            ? 'Gửi thư đặt lại mật khẩu'
-            : registering
-              ? 'Tạo tài khoản'
-              : 'Đăng nhập'}
+        {busy ? 'Đang xử lý...' : registering ? 'Tạo tài khoản' : 'Đăng nhập'}
       </button>
 
-      {/* Chỉ hiện khi đúng là đang mắc ở chỗ chưa xác nhận email - đây là lỗi duy
-          nhất người dùng tự gỡ được, và gỡ ngay tại đây. */}
-      {needsConfirm && email && (
-        <button
-          type="button"
-          onClick={() => void resendConfirmation(email)}
-          disabled={busy}
-          className="btn btn-ghost text-base"
-        >
-          ✉️ Gửi lại thư xác nhận
-        </button>
-      )}
-
       <div className="grid gap-2 text-center">
-        {doing === 'signIn' && (
-          <button
-            type="button"
-            onClick={() => setDoing('forgot')}
-            className="text-base font-bold underline opacity-70"
-          >
-            Quên mật khẩu?
-          </button>
+        {/* Thay cho nút "Quên mật khẩu?" cũ. Nói thẳng lối ra thật, thay vì gửi
+            người ta đi chờ một lá thư có thể không bao giờ tới. */}
+        {!registering && (
+          <p className="text-base leading-snug opacity-70">
+            Quên mật khẩu? Nhờ quản trị viên của trường đặt lại hộ — mật khẩu mới hiện ra ngay, không
+            phải chờ thư.
+          </p>
         )}
 
         <button
@@ -396,16 +347,6 @@ function AdultLogin() {
         >
           {registering ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}
         </button>
-
-        {doing === 'forgot' && (
-          <button
-            type="button"
-            onClick={() => setDoing('signIn')}
-            className="text-base font-bold underline opacity-70"
-          >
-            ← Quay lại đăng nhập
-          </button>
-        )}
       </div>
     </form>
   )

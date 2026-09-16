@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useMeasureOnLayout } from '../../app/useMeasureOnLayout'
+import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import { creatureFromAvatar, monsterSpriteFor, viewFor } from '../pixel/creatures'
 import { PixelSprite } from '../pixel/sprite'
 import type { TileKind, TileSet } from '../pixel/tiles'

@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useReduceMotion } from '../../app/useReduceMotion'
+import { useReduceMotion } from '../../shell/useReduceMotion'
 import type { Subject } from '../../content/types'
 import type { BattleState } from '../../engine/battle'
 import { creatureFromAvatar, monsterSpriteFor, HERO_CREATURES } from '../pixel/creatures'

@@ -7,39 +7,29 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { GRADES, type Grade } from '../../content/types'
-import { createClassApi, type ClassApi, type ClassRow, type ClassStudent } from '../../data/classes'
-import { getSupabase } from '../../data/supabase-client'
+import { classApi as api, type ClassRow, type ClassStudent } from '../../data/classes'
 import { ConfirmModal } from '../../ui/ConfirmModal'
 
 const AVATARS = ['🦊', '🐼', '🐯', '🐨', '🦁', '🐸', '🐧', '🦄', '🐢', '🐙', '🦉', '🐝']
 
 export function ClassManager() {
-  const [api, setApi] = useState<ClassApi | null>(null)
   const [classes, setClasses] = useState<ClassRow[]>([])
   const [selected, setSelected] = useState<ClassRow | null>(null)
   const [students, setStudents] = useState<ClassStudent[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    void getSupabase().then((client) => {
-      if (client) setApi(createClassApi(client))
-    })
-  }, [])
-
   const refreshClasses = useCallback(async () => {
-    if (!api) return
     try {
       setClasses(await api.listClasses())
       setError(null)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     }
-  }, [api])
+  }, [])
 
   const refreshStudents = useCallback(
     async (classId: string) => {
-      if (!api) return
       try {
         setStudents(await api.listStudents(classId))
         setError(null)
@@ -47,7 +37,7 @@ export function ClassManager() {
         setError(cause instanceof Error ? cause.message : String(cause))
       }
     },
-    [api],
+    [],
   )
 
   useEffect(() => {
@@ -70,14 +60,9 @@ export function ClassManager() {
     }
   }
 
-  if (!api) {
-    return (
-      <div className="card">
-        <p>Quản lý lớp cần cấu hình Supabase. Xem hướng dẫn trong `supabase/README.md`.</p>
-      </div>
-    )
-  }
-
+  // Không còn nhánh "chưa cấu hình Supabase" như bản cũ: giờ chỉ có một tầng lưu
+  // trữ, và nếu máy chủ chưa được cấu hình thì chính nó nói ra điều đó - lời báo
+  // hiện ở ô `error` phía dưới, kèm đúng tên biến môi trường còn thiếu.
   return (
     <div className="grid gap-5">
       {error && (

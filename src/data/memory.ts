@@ -1,9 +1,10 @@
 /**
  * Repository trong bộ nhớ.
  *
- * Dùng cho test (chạy được vòng lặp game mà không cần IndexedDB) và cho chế độ
- * chơi thử không lưu gì. Cùng interface với `localRepository` nên store không
- * phân biệt được.
+ * Dùng cho test: chạy được trọn vòng lặp game mà không cần máy chủ nào. Cùng
+ * interface `Repository` với `apiRepository` nên store không phân biệt được -
+ * đó chính là lý do `configureRepository` vẫn tồn tại sau khi tầng lưu trữ rút
+ * xuống còn một bản thật.
  */
 
 import type { Grade } from '../content/types'

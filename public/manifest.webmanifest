@@ -1,0 +1,16 @@
+{
+  "name": "Học Viện Trí Tuệ",
+  "short_name": "Trí Tuệ",
+  "description": "Game học tập cho học sinh tiểu học: Toán, Tiếng Việt, Đạo đức, Âm nhạc",
+  "lang": "vi",
+  "theme_color": "#6d4aff",
+  "background_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "landscape",
+  "start_url": "/",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,14 +1,18 @@
 /**
- * Đồng bộ nội dung tự soạn với Supabase.
+ * Đồng bộ nội dung tự soạn với máy chủ.
  *
- * Khác hẳn `syncing.ts`: ở đó là dữ liệu học tập của TRẺ, ghi liên tục giữa trận
- * và tuyệt đối không được chờ mạng. Ở đây là nội dung do NGƯỜI LỚN soạn - vài
- * lần một buổi, ngồi trước bàn phím, và chờ một giây là chấp nhận được. Nên
- * không cần hàng đợi ngoài: đẩy thẳng, lỗi thì báo thẳng.
+ * Đây là thứ DUY NHẤT còn giữ luật hợp nhất ở phía trình duyệt, và có lý do: nội
+ * dung tự soạn nằm trong kho cục bộ (`content/custom.ts`) để trang quản trị sửa
+ * được ngay không phải chờ mạng, nên hai bên vẫn có thể lệch nhau.
+ *
+ * Nó khác hẳn dữ liệu học tập của TRẺ - thứ đó ghi thẳng qua API, không hàng đợi,
+ * không hợp nhất (xem `api.ts`). Ở đây là nội dung do NGƯỜI LỚN soạn: vài lần một
+ * buổi, ngồi trước bàn phím, và chờ một giây là chấp nhận được. Nên không cần
+ * hàng đợi ngoài: đẩy thẳng, lỗi thì báo thẳng.
  *
  * Một lần đồng bộ gồm ba bước, theo đúng thứ tự:
  *
- *   1. KÉO VỀ  - lấy mọi dòng của những người mình được phép đọc.
+ *   1. KÉO VỀ  - lấy mọi dòng máy chủ cho phép mình đọc.
  *   2. HỢP NHẤT - `mergeContent` quyết bản nào thắng, theo mốc thời gian.
  *   3. ĐẨY LÊN  - gửi những dòng CỦA MÌNH mà máy chủ chưa có hoặc đang cũ hơn.
  *
@@ -16,7 +20,6 @@
  * trước khi máy này kịp đẩy bản cũ của câu ấy lên lại.
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   getCustomContent,
   keyId,
@@ -28,6 +31,7 @@ import {
   type CustomContent,
   type CustomRow,
 } from '../content/custom'
+import { request } from './request'
 
 export interface ContentSyncResult {
   /** Số câu còn sống sau khi hợp nhất. */
@@ -38,17 +42,32 @@ export interface ContentSyncResult {
   pulled: number
 }
 
-/** Hàng lấy từ máy chủ, trước khi ép về dạng của kho cục bộ. */
-interface RemoteRow {
-  id: string
-  owner_id: string
-  skill_id: string
-  updated_at: string
-  deleted_at: string | null
-}
-
-interface RemoteQuestion extends RemoteRow {
-  entry: unknown
+/** Hình dạng máy chủ trả về - vẫn giữ tên cột của bảng. */
+interface PullResponse {
+  /** Id của chính người đang gọi; `null` khi là trẻ trên máy dùng chung. */
+  ownerId: string | null
+  questions: Array<{
+    id: string
+    owner_id: string
+    skill_id: string
+    entry: unknown
+    updated_at: string
+    deleted_at: string | null
+  }>
+  hidden: Array<{
+    owner_id: string
+    skill_id: string
+    prompt: string
+    updated_at: string
+    deleted_at: string | null
+  }>
+  skillNames: Array<{
+    owner_id: string
+    skill_id: string
+    name: string
+    updated_at: string
+    deleted_at: string | null
+  }>
 }
 
 const millis = (iso: string | null): number | null => {
@@ -60,89 +79,58 @@ const millis = (iso: string | null): number | null => {
 const iso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString())
 
 /**
- * Kéo mọi dòng đọc được về.
+ * Ép dữ liệu máy chủ về dạng của kho cục bộ.
  *
- * KHÔNG lọc theo `owner_id`: RLS đã lo việc đó, và lọc thêm ở client thì trẻ
- * trên máy dùng chung sẽ không nhận được nội dung cô giáo soạn - các em đọc
- * được chính là nhờ luật lớp học trong `can_read_content`.
+ * `hidden` và `custom_skill_names` không có cột id riêng - khoá chính là
+ * (owner, skill, prompt). Dựng lại id cục bộ từ khoá đó, để hai máy cùng sinh ra
+ * đúng một id cho cùng một dòng và `mergeContent` khớp được chúng.
  */
-async function pullAll(supabase: SupabaseClient): Promise<CustomContent> {
-  const [questions, hidden, names] = await Promise.all([
-    supabase.from('custom_questions').select('id, owner_id, skill_id, entry, updated_at, deleted_at'),
-    supabase.from('custom_hidden').select('owner_id, skill_id, prompt, updated_at, deleted_at'),
-    supabase.from('custom_skill_names').select('owner_id, skill_id, name, updated_at, deleted_at'),
-  ])
-
-  const failure = questions.error ?? hidden.error ?? names.error
-  if (failure) throw new Error(failure.message)
-
-  // `hidden` và `custom_skill_names` không có cột id riêng - khoá chính là
-  // (owner, skill, prompt). Dựng lại id cục bộ từ khoá đó, để hai máy cùng sinh
-  // ra đúng một id cho cùng một dòng và `mergeContent` khớp được chúng.
+function toLocal(remote: PullResponse): CustomContent {
   return sanitiseContent({
-    questions: (questions.data ?? []).map((row) => {
-      const remote = row as unknown as RemoteQuestion
-      return {
-        id: remote.id,
-        skillId: remote.skill_id,
-        value: remote.entry,
-        updatedAt: millis(remote.updated_at) ?? 0,
-        deletedAt: millis(remote.deleted_at),
-        ownerId: remote.owner_id,
-      }
-    }),
-    hidden: (hidden.data ?? []).map((row) => {
-      const remote = row as unknown as RemoteRow & { prompt: string }
-      return {
-        id: keyId('hidden', remote.skill_id, remote.prompt),
-        skillId: remote.skill_id,
-        value: remote.prompt,
-        updatedAt: millis(remote.updated_at) ?? 0,
-        deletedAt: millis(remote.deleted_at),
-        ownerId: remote.owner_id,
-      }
-    }),
-    skillNames: (names.data ?? []).map((row) => {
-      const remote = row as unknown as RemoteRow & { name: string }
-      return {
-        id: keyId('name', remote.skill_id, ''),
-        skillId: remote.skill_id,
-        value: remote.name,
-        updatedAt: millis(remote.updated_at) ?? 0,
-        deletedAt: millis(remote.deleted_at),
-        ownerId: remote.owner_id,
-      }
-    }),
+    questions: remote.questions.map((row) => ({
+      id: row.id,
+      skillId: row.skill_id,
+      value: row.entry,
+      updatedAt: millis(row.updated_at) ?? 0,
+      deletedAt: millis(row.deleted_at),
+      ownerId: row.owner_id,
+    })),
+    hidden: remote.hidden.map((row) => ({
+      id: keyId('hidden', row.skill_id, row.prompt),
+      skillId: row.skill_id,
+      value: row.prompt,
+      updatedAt: millis(row.updated_at) ?? 0,
+      deletedAt: millis(row.deleted_at),
+      ownerId: row.owner_id,
+    })),
+    skillNames: remote.skillNames.map((row) => ({
+      id: keyId('name', row.skill_id, ''),
+      skillId: row.skill_id,
+      value: row.name,
+      updatedAt: millis(row.updated_at) ?? 0,
+      deletedAt: millis(row.deleted_at),
+      ownerId: row.owner_id,
+    })),
   })
 }
 
-export async function syncCustomContent(supabase: SupabaseClient): Promise<ContentSyncResult> {
-  const { data: auth } = await supabase.auth.getUser()
-  const ownerId = auth.user?.id
-  if (!ownerId) throw new Error('Chưa đăng nhập')
+export async function syncCustomContent(): Promise<ContentSyncResult> {
+  const response = await request<PullResponse>('/api/content')
 
-  setContentOwner(ownerId)
   const before = getCustomContent()
-  const remote = await pullAll(supabase)
+  const remote = toLocal(response)
   const merged = mergeContent(before, remote)
   replaceContent(merged)
 
   const pulled = countNew(before, remote)
+  const ownerId = response.ownerId
 
-  // Chỉ người lớn mới có hồ sơ trong `profiles`, và RLS chỉ cho họ ghi. Trẻ trên
-  // máy dùng chung kéo về là xong - đẩy lên sẽ bị từ chối, mà từ chối thì màn
-  // hình lại báo lỗi cho một việc vốn không phải lỗi.
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', ownerId)
-    .maybeSingle()
+  // Trẻ trên máy dùng chung kéo về là xong. Máy chủ cũng từ chối nếu cố đẩy, mà
+  // từ chối thì màn hình lại báo lỗi cho một việc vốn không phải lỗi.
+  if (!ownerId) return { questions: alive(merged.questions).length, pushed: 0, pulled }
 
-  if (!profile) {
-    return { questions: alive(merged.questions).length, pushed: 0, pulled }
-  }
-
-  const pushed = await pushAll(supabase, ownerId, merged, remote)
+  setContentOwner(ownerId)
+  const pushed = await pushAll(ownerId, merged, remote)
   return { questions: alive(merged.questions).length, pushed, pulled }
 }
 
@@ -173,7 +161,6 @@ function countNew(mine: CustomContent, theirs: CustomContent): number {
  * chuyện có thật.
  */
 async function pushAll(
-  supabase: SupabaseClient,
   ownerId: string,
   merged: CustomContent,
   remote: CustomContent,
@@ -188,8 +175,9 @@ async function pushAll(
    *
    * Vế thứ hai mới là vế quan trọng. Máy này còn giữ cả nội dung kéo về của
    * người khác - học sinh có câu cô giáo soạn, phụ huynh có câu của chính mình
-   * gửi từ máy khác. Đẩy bừa lên dưới tên mình thì hoặc là chép trộm bài người
-   * khác, hoặc bị máy chủ từ chối và cả lần đồng bộ hỏng theo.
+   * gửi từ máy khác. Máy chủ cũng đóng dấu `owner_id` lại một lần nữa khi ghi,
+   * nên đây chỉ là lọc cho đỡ tốn đường truyền; nhưng lọc đúng thì một cô giáo
+   * không vô tình gửi bài của đồng nghiệp lên dưới tên mình.
    */
   const canPush = <T>(row: CustomRow<T>) => {
     if (row.ownerId !== null && row.ownerId !== ownerId) return false
@@ -199,7 +187,6 @@ async function pushAll(
 
   const questions = merged.questions.filter(canPush).map((row) => ({
     id: row.id,
-    owner_id: ownerId,
     skill_id: row.skillId,
     entry: row.value,
     updated_at: new Date(row.updatedAt).toISOString(),
@@ -207,37 +194,25 @@ async function pushAll(
   }))
 
   const hidden = merged.hidden.filter(canPush).map((row) => ({
-    owner_id: ownerId,
     skill_id: row.skillId,
     prompt: row.value,
     updated_at: new Date(row.updatedAt).toISOString(),
     deleted_at: iso(row.deletedAt),
   }))
 
-  const names = merged.skillNames.filter(canPush).map((row) => ({
-    owner_id: ownerId,
+  const skillNames = merged.skillNames.filter(canPush).map((row) => ({
     skill_id: row.skillId,
     name: row.value,
     updated_at: new Date(row.updatedAt).toISOString(),
     deleted_at: iso(row.deletedAt),
   }))
 
-  if (questions.length > 0) {
-    const { error } = await supabase.from('custom_questions').upsert(questions, { onConflict: 'id' })
-    if (error) throw new Error(error.message)
-  }
-  if (hidden.length > 0) {
-    const { error } = await supabase
-      .from('custom_hidden')
-      .upsert(hidden, { onConflict: 'owner_id,skill_id,prompt' })
-    if (error) throw new Error(error.message)
-  }
-  if (names.length > 0) {
-    const { error } = await supabase
-      .from('custom_skill_names')
-      .upsert(names, { onConflict: 'owner_id,skill_id' })
-    if (error) throw new Error(error.message)
-  }
+  if (questions.length + hidden.length + skillNames.length === 0) return 0
+
+  const { pushed } = await request<{ pushed: number }>('/api/content', {
+    method: 'POST',
+    body: { questions, hidden, skillNames },
+  })
 
   // Đóng dấu những dòng vừa gửi đi. Lần đồng bộ sau chúng đã có chủ, nên không
   // bị đẩy lại, và trang quản trị biết đây là của mình chứ không phải hàng kéo
@@ -251,5 +226,5 @@ async function pushAll(
     ownerId,
   )
 
-  return questions.length + hidden.length + names.length
+  return pushed
 }

@@ -1,8 +1,11 @@
 # Dựng Supabase
 
-App **chạy được mà không cần Supabase** — bỏ trống `.env.local` là vào chế độ
-offline hoàn toàn, lưu trên máy. Chỉ làm phần này khi cần nhiều thiết bị, nhiều
-lớp học hoặc màn hình theo dõi của phụ huynh / giáo viên.
+App này là một **máy chủ Next.js** đứng trước một **database Postgres của
+Supabase**. Trình duyệt không nói chuyện với Supabase: nó gọi `/api` trên chính
+tên miền của app, và máy chủ Node là thứ duy nhất cầm khoá vào database.
+
+Nghĩa là Supabase ở đây chỉ còn đóng hai vai: **Postgres** và **kho mật khẩu**.
+Không Edge Function, không cần bật đăng nhập ẩn danh, không cần cắm SMTP.
 
 ## 1. Tạo dự án
 
@@ -15,6 +18,9 @@ Dashboard → **SQL Editor** → dán lần lượt **theo đúng thứ tự**:
 
 1. `migrations/0001_init.sql` — hồ sơ, lớp, tiến độ học tập.
 2. `migrations/0002_custom_content.sql` — nội dung tự soạn ở trang quản trị.
+3. `migrations/0003_pgcrypto_search_path.sql`
+4. `migrations/0004_admin_role.sql` — vai `admin`.
+5. `migrations/0005_lock_profile_role.sql`
 
 Hoặc dùng CLI:
 
@@ -23,45 +29,50 @@ supabase link --project-ref <ref>
 supabase db push
 ```
 
-## 3. Bật đăng nhập ẩn danh
+**Không có migration nào mới cho bản Next.js.** Lược đồ giữ nguyên, kể cả dữ
+liệu đang có. Vài thứ trong đó giờ không còn ai gọi tới - bảng `student_sessions`,
+các hàm `claim_student()`, `list_class_roster()`, `set_student_pin()` - nhưng cứ
+để yên: chúng vô hại, và giữ lại thì bộ kiểm chứng RLS vẫn chạy nguyên vẹn.
 
-Dashboard → **Authentication → Providers → Anonymous Sign-ins** → bật.
+## 3. Điền biến môi trường
 
-Trẻ dùng máy chung ở lớp cần phiên ẩn danh để gọi được `claim_student()`. Không
-bật thì luồng "mã lớp + mã PIN" sẽ không hoạt động (luồng gia đình vẫn chạy bình
-thường vì phụ huynh đăng nhập bằng email).
+Dashboard → **Project Settings → API**. Chép `.env.example` thành `.env.local`
+rồi điền:
 
-## 4. Tài khoản người lớn: admin tạo hộ, không tự đăng ký
-
-Giống hệt app **Diet Plan** và **Training Plan**: người lớn không tự đăng ký, mà
-quản trị viên tạo tài khoản cho họ và đưa mật khẩu. Tài khoản tạo ra **đã xác
-nhận sẵn**, nên cả luồng này KHÔNG gửi lá thư nào và không phụ thuộc vào SMTP.
-
-Khác biệt duy nhất so với hai app kia là chỗ đặt mã. Chúng là Next.js nên có sẵn
-máy chủ, và việc này nằm ở `app/api/admin/users/route.ts`. App này là trang tĩnh,
-không có máy chủ nào, nên đúng đoạn mã ấy ở trong
-`supabase/functions/admin-users`. Cùng một thiết kế, cùng `auth.admin.createUser`,
-cùng quy tắc "khoá service_role không bao giờ xuống trình duyệt".
-
-### 4.1 Chạy migration vai trò
-
-SQL Editor → chạy `migrations/0004_admin_role.sql`.
-
-### 4.2 Triển khai hàm
-
-Cách nhanh: Dashboard → **Edge Functions** → **Deploy a new function** → đặt tên
-`admin-users` → dán toàn bộ `supabase/functions/admin-users/index.ts` → Deploy.
-
-Hoặc bằng CLI:
-
-```bash
-supabase functions deploy admin-users
+```
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...      # ô "service_role", KHÔNG phải "anon"
+SESSION_SECRET=...                     # sinh bằng lệnh dưới đây
 ```
 
-Không phải khai biến môi trường nào: Supabase tự cấp `SUPABASE_URL` và
-`SUPABASE_SERVICE_ROLE_KEY` cho mọi Edge Function.
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
 
-### 4.3 Phong quản trị viên đầu tiên
+**Khoá `anon` không còn được dùng nữa.** Trước đây nó nằm trong gói JavaScript
+gửi xuống trình duyệt và phân quyền trông cậy hoàn toàn vào RLS. Giờ cả ba giá
+trị trên chỉ sống trong tiến trình Node; `src/server/` được chốt bằng
+`import 'server-only'` nên lỡ tay nhập từ mã client là build hỏng ngay.
+
+`SESSION_SECRET` ký cookie đăng nhập. Đổi chuỗi này là mọi người bị đăng xuất -
+đó cũng chính là cách đá tất cả ra ngoài khi cần.
+
+Thiếu biến nào thì route liên quan trả về đúng tên biến còn thiếu, không phải đi
+mò log.
+
+## 4. Tài khoản người lớn: admin tạo hộ
+
+Giống app **Diet Plan** và **Training Plan**: người lớn nhận tài khoản từ quản
+trị viên, và tài khoản tạo ra **đã xác nhận sẵn** nên cả luồng này KHÔNG gửi lá
+thư nào.
+
+Chỗ đặt mã giờ cũng giống hai app kia luôn. Chúng là Next.js nên có sẵn máy chủ,
+và việc này nằm ở `app/api/admin/users/route.ts`. App này bây giờ cũng vậy - xem
+`app/api/admin/users/` và `src/server/accounts.ts`. Bản trước app là trang tĩnh,
+không có máy chủ nào, nên đoạn mã ấy phải sống nhờ trong một Edge Function viết
+bằng Deno và deploy riêng. Nó đã bị xoá.
+
+### 4.1 Phong quản trị viên đầu tiên
 
 Con gà và quả trứng: chưa có admin nào thì không ai tạo được tài khoản. Gỡ bằng
 tay đúng một lần ở SQL Editor, sau khi bạn đã có một tài khoản:
@@ -72,10 +83,10 @@ update public.profiles set role = 'admin' where id = (
 );
 ```
 
-### 4.4 Dùng
+### 4.2 Dùng
 
-Đăng nhập bằng tài khoản đó → mở `#admin` → tab **🔑 Tài khoản**. Điền tên và
-email, bấm Tạo tài khoản, **mật khẩu hiện ngay trên màn hình** — chép rồi đưa cho
+Đăng nhập → app tự đưa bạn vào `/admin` → tab **🔑 Tài khoản**. Điền tên và
+email, bấm Tạo tài khoản, **mật khẩu hiện ngay trên màn hình** - chép rồi đưa cho
 người ta qua Zalo hay đọc trực tiếp.
 
 Mật khẩu chỉ hiện **một lần**. Mất thì bấm "Đặt lại mật khẩu" để sinh cái khác;
@@ -83,120 +94,45 @@ không có cách nào xem lại cái cũ, và đó là điều đúng đắn.
 
 Ai làm được gì:
 
-| | Tạo phụ huynh | Tạo giáo viên / quản trị | Đặt lại mật khẩu |
-|---|---|---|---|
-| Quản trị | ✓ | ✓ | ✓ |
-| Giáo viên | ✓ | ✕ (xin vai gì cũng ra phụ huynh) | ✕ |
-| Còn lại | ✕ | ✕ | ✕ |
+| | Tạo phụ huynh | Tạo giáo viên / quản trị | Đặt lại mật khẩu | Sửa / xoá tài khoản |
+|---|---|---|---|---|
+| Quản trị | ✓ | ✓ | ✓ | ✓ |
+| Giáo viên | ✓ | ✕ (xin vai gì cũng ra phụ huynh) | ✕ | ✕ |
+| Còn lại | ✕ | ✕ | ✕ | ✕ |
 
-## 5. Cắm máy chủ thư (SMTP): dùng Brevo
+Hai cái chốt cuối cùng luôn đứng đó: không ai tự bỏ quyền quản trị của chính
+mình, và **quản trị viên cuối cùng** không bị hạ vai hay xoá - nếu không thì gỡ
+ra lại phải mở SQL Editor.
 
-**Bỏ qua bước này là mọi thứ liên quan tới email đều hỏng khi có người thật
-dùng.** Supabase có sẵn một đường gửi thư dùng chung, nhưng đó là hạ tầng để
-chạy thử: vài lá một giờ cho cả dự án, không hơn. Đăng ký vài tài khoản giáo
-viên là hết lượt.
+## 5. Không cần SMTP nữa
 
-### Vì sao không dùng Gmail nữa
+Cả một chương dài về Brevo, khoá SMTP, hạn ngạch 30 thư/giờ và địa chỉ quay về
+đã được xoá khỏi tài liệu này, vì app không còn gửi lá thư nào:
 
-Đã thử và đã hỏng. Gmail gửi được khi `nodemailer` gọi thẳng từ máy mình — app
-Diet Plan làm thế và chạy tốt — nhưng Supabase gọi thì trả `Error sending
-confirmation email`. Lý do nằm ở bản chất hai cái cổng khác nhau:
-`smtp.gmail.com` là hộp thư CÁ NHÂN, Google canh chừng từng phiên đăng nhập lạ,
-còn Supabase gửi từ máy chủ của họ ở một quốc gia khác và không có cách nào trả
-lời thử thách bảo mật. Chính Supabase cũng cảnh báo ngay trên màn hình: *"the
-SMTP provider you entered is designed for sending personal rather than
-transactional email"*.
+| Việc | Trước | Bây giờ |
+|---|---|---|
+| Đăng ký | thư xác nhận | tạo xong là dùng được ngay |
+| Quên mật khẩu | liên kết gửi qua thư | quản trị viên đặt lại hộ, hiện ngay trên màn hình |
+| Admin tạo tài khoản | (vốn đã không gửi thư) | không đổi |
+| Đổi mật khẩu | qua liên kết trong thư | tự đổi, nhập lại mật khẩu cũ |
 
-Brevo (tên cũ: Sendinblue) là cổng gửi thư GIAO DỊCH, sinh ra đúng cho việc này:
-300 thư mỗi ngày miễn phí, không cần thẻ.
+Đây là thứ hỏng thường xuyên nhất của bản trước, và nó hỏng vào đúng lúc tệ
+nhất - lúc một cô giáo đang cần vào tài khoản. Lối "quản trị viên đặt lại hộ"
+vốn đã có sẵn, nhanh hơn, và không phụ thuộc vào ai ngoài trường.
 
-### 5.1 Lấy khoá SMTP ở Brevo
-
-1. Lập tài khoản ở [brevo.com](https://www.brevo.com) (miễn phí).
-2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: điền địa chỉ
-   sẽ đứng tên gửi, rồi mở hộp thư đó bấm xác nhận. Chưa xác nhận thì mọi lá thư
-   đều bị từ chối.
-3. Góc trên phải → tên tài khoản → **SMTP & API → SMTP**. Màn này cho hai thứ:
-   - **Login**: dạng `8xxxxx001@smtp-brevo.com`
-   - **SMTP key**: bấm *Generate a new SMTP key*, chuỗi bắt đầu bằng
-     `xsmtpsib-...`. Nó chỉ hiện đúng một lần.
-
-   Khoá SMTP **không phải** mật khẩu đăng nhập Brevo.
-
-### 5.2 Điền vào Supabase
-
-Dashboard → **Authentication → Emails → SMTP Settings** → bật *Enable Custom
-SMTP*:
-
-| Ô | Điền |
-|---|---|
-| Host | `smtp-relay.brevo.com` |
-| Port | `587` |
-| Username | Login lấy ở bước 3 (`...@smtp-brevo.com`) |
-| Password | SMTP key `xsmtpsib-...` |
-| Sender email | đúng địa chỉ đã xác nhận ở bước 2 |
-| Sender name | `Học Viện Trí Tuệ` |
-
-Cổng 587 là STARTTLS — Brevo đỡ cả 587 lẫn 2525; đừng dùng 465.
-
-### 5.3 Nới hạn ngạch
-
-Dashboard → **Authentication → Rate Limits → Emails**. Mặc định Supabase chỉ cho
-**30 thư/giờ** kể cả khi đã cắm SMTP riêng. Nâng lên cho khớp sức của Brevo
-(300/ngày).
-
-### 5.4 Thử
-
-```bash
-node scripts/smtp-check.mjs
-```
-
-Kịch bản này gọi đúng đường mà app gọi (`resetPasswordForEmail`) rồi đọc câu trả
-lời của Supabase, nên nó phân biệt được ba tình huống mà nhìn bằng mắt hay nhầm
-vào nhau: gửi được, **hạn ngạch**, và **SMTP hỏng**.
-
-### Khi thư vào mục spam
-
-Địa chỉ gửi kết thúc bằng `@gmail.com` thì thư đi qua Brevo vẫn tới, nhưng dễ
-rơi vào spam: Gmail công bố cho cả thế giới biết thư gmail.com phải xuất phát từ
-máy chủ của Google, mà lá này thì không. Đó là chuyện uy tín người gửi, không
-phải cấu hình sai. Muốn sạch hẳn thì dùng một tên miền riêng và khai ba bản ghi
-DNS Brevo đưa cho (**Domains → Authenticate**).
-
-## 6. Đặt đúng địa chỉ quay về
-
-Dashboard → **Authentication → URL Configuration**:
-
-- **Site URL**: địa chỉ thật của app (ví dụ `https://hocvientritue.vercel.app`).
-  Mặc định là `http://localhost:3000` — sai, vì app này chạy ở cổng 5173.
-- **Redirect URLs**: thêm mọi địa chỉ app chạy, mỗi dòng một cái:
-  ```
-  http://localhost:5173
-  http://localhost:5174
-  https://<địa-chỉ-thật-của-bạn>
-  ```
-
-Đây là bước hay bị bỏ sót nhất, và triệu chứng của nó rất dễ nhầm sang lỗi khác:
-người dùng bấm "xác nhận email" trong thư, Supabase xác nhận xong rồi trả họ về
-**một địa chỉ chẳng có gì** — nên quay lại app vẫn thấy như chưa làm gì.
-
-Mã nguồn đã truyền `emailRedirectTo` trỏ về đúng trang đang mở, nhưng địa chỉ đó
-vẫn phải nằm trong danh sách trên thì Supabase mới chịu dùng; không thì nó lẳng
-lặng rơi về Site URL.
-
-## 7. Điền biến môi trường
-
-Dashboard → **Project Settings → API**, chép vào `.env.local`:
-
-```
-VITE_SUPABASE_URL=https://xxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
-```
-
-Khoá `anon` là khoá công khai, để trong frontend là đúng thiết kế — phân quyền
-thật nằm ở Row Level Security phía server.
+Cái mất: người dùng không tự phục hồi được tài khoản khi không liên lạc được với
+quản trị viên. Với một trường thì đó là đánh đổi đúng; nếu sau này bán cho người
+dùng lẻ thì phải dựng lại luồng gửi thư, và lúc đó nó sẽ nằm ở `src/server/`
+chứ không phải trong bảng điều khiển của Supabase.
 
 ## Mô hình phân quyền
+
+Luật này giờ sống ở **hai nơi, nói cùng một điều**:
+
+1. `src/server/guard.ts` - nơi VIẾT luật. TypeScript, đọc được, test được ở
+   `src/server/guard.test.ts`.
+2. `migrations/*.sql` (RLS) - **lớp phòng thủ thứ hai**. Không còn ai dựa vào nó
+   để chạy, nhưng nếu khoá `anon` có lọt ra ngoài thì nó vẫn đứng đó.
 
 | Vai trò | Thấy gì | Sửa được gì |
 |---|---|---|
@@ -214,25 +150,32 @@ Thiết kế bám Nghị định 13/2023:
 - Trẻ **không có email, không có mật khẩu, không tự tạo tài khoản**.
 - Dữ liệu duy nhất về trẻ: tên hiển thị, emoji đại diện, khối lớp, kết quả học
   tập. Không ngày sinh, không ảnh thật, không thông tin liên lạc, không chat.
-- Mã PIN được băm bằng bcrypt phía server, không bao giờ lưu dạng thô.
-- Hồ sơ mới **không có mã PIN mặc định**. Chưa đặt mã thì chưa dùng được trên
-  máy dùng chung — mã mặc định kiểu `0000` mà không ai đổi còn tệ hơn không có.
-- `list_class_roster()` chỉ trả về tên + emoji + khối lớp, không kèm bất kỳ kết
+- Mã PIN được băm bằng bcrypt **trên máy chủ Node** (`bcryptjs`), không bao giờ
+  lưu dạng thô. Cùng thuật toán và cùng định dạng `$2a$...` với `crypt()` của
+  pgcrypto trước đây, nên **mã PIN đã đặt từ trước vẫn đăng nhập được** - không
+  phải bắt cả trường đặt lại.
+- Hồ sơ mới **không có mã PIN mặc định**. Chưa đặt mã thì chưa dùng được trên máy
+  dùng chung — mã mặc định kiểu `0000` mà không ai đổi còn tệ hơn không có.
+- `POST /api/auth/roster` chỉ trả về tên + emoji + khối lớp, không kèm bất kỳ kết
   quả học tập nào, vì nó chạy trước khi trẻ nhập mã PIN.
+- Sai mã PIN, hồ sơ không tồn tại, hồ sơ chưa đặt mã: **một câu trả lời duy
+  nhất**. Tách ra thì lời báo lỗi trở thành công cụ dò.
 
-**Mã lớp là thông tin nhạy cảm**: ai có mã sẽ xem được danh sách tên và emoji
-của lớp đó. Vẫn cần mã PIN mới vào được hồ sơ, nhưng đừng dán mã lớp nơi công
-cộng.
+**Phiên của trẻ sống 12 tiếng**, của người lớn 30 ngày. Máy tính bảng ở lớp
+truyền tay nhau; một phiên sống qua đêm nghĩa là sáng hôm sau em khác cầm máy lên
+và đang ở trong hồ sơ của bạn mình.
+
+**Mã lớp là thông tin nhạy cảm**: ai có mã sẽ xem được danh sách tên và emoji của
+lớp đó. Vẫn cần mã PIN mới vào được hồ sơ, nhưng đừng dán mã lớp nơi công cộng.
 
 ## Kiểm chứng
 
-`npm test` chạy 40 test RLS trên Postgres thật (PGlite, WASM) — migration được
-thi hành rồi từng vai trò được đóng thử. Không cần Docker, không cần kết nối
-mạng tới Supabase.
-
 ```bash
-npx vitest run supabase
+npx vitest run supabase          # 67 test RLS trên Postgres thật (PGlite, WASM)
+npx vitest run src/server        # luật phân quyền trong TypeScript
 ```
+
+Không cần Docker, không cần kết nối mạng tới Supabase.
 
 ## Nội dung tự soạn đi tới đâu
 
@@ -245,10 +188,12 @@ Bảng ở `0002_custom_content.sql` thuộc về **người lớn**, khác mọ
 | Người lớn khác | **Không gì cả** — kể cả giáo viên dạy con họ |
 
 Nội dung soạn cho lớp là để **học sinh** dùng, không phải để phụ huynh khác chép
-về. Luật này chạy thử trên Postgres thật ở `tests/content-rls.test.ts`.
+về. Luật này nằm ở `src/server/content.ts` (hàm `readableOwners`) và vẫn được
+chạy thử trên Postgres thật ở `tests/content-rls.test.ts`.
 
-Ghi thì chỉ chính người soạn. Trẻ không bao giờ soạn được nội dung — các em không
-có hồ sơ trong `profiles`, nên khoá ngoại chặn từ đầu.
+Ghi thì chỉ chính người soạn, và `owner_id` do **máy chủ đóng dấu** chứ không lấy
+từ thứ trình duyệt gửi lên - tin client nghĩa là một cô giáo đẩy được bài dưới
+tên đồng nghiệp.
 
 ### Vì sao chia thành từng dòng
 
@@ -256,6 +201,11 @@ Cô giáo soạn mười câu trên laptop buổi tối, sáng hôm sau sửa th
 bảng ở lớp. Nếu cả bộ nội dung là một khối JSON thì máy nào gửi sau sẽ ghi đè máy
 kia — mất trắng một buổi tối mà không ai được báo. Mỗi câu một dòng, có `id` và
 `updated_at`, thì hai máy hợp nhất được.
+
+Đây cũng là lý do **nội dung tự soạn là thứ duy nhất còn giữ luật hợp nhất** sau
+khi tầng đồng bộ offline bị gỡ bỏ: nó sống trong kho cục bộ để trang quản trị sửa
+được ngay không phải chờ mạng, nên hai bên vẫn có thể lệch nhau. Dữ liệu học tập
+của trẻ thì không - nó ghi thẳng qua `/api`.
 
 Xoá thì đánh dấu `deleted_at` chứ không xoá hẳn: xoá hẳn thì lần đồng bộ sau máy
 kia lại đẩy câu đó quay về. Dòng đã đánh dấu được dọn sau 90 ngày bằng

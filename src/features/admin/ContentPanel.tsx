@@ -41,7 +41,6 @@ import {
   type Subject,
 } from '../../content/types'
 import { syncCustomContent } from '../../data/content-sync'
-import { getSupabase, isSupabaseConfigured } from '../../data/supabase-client'
 import { createRng } from '../../engine/rng'
 import { useAuth } from '../../store/auth'
 import { ConfirmModal } from '../../ui/ConfirmModal'
@@ -114,9 +113,7 @@ export function ContentPanel() {
     setSyncing(true)
     setNotice(null)
     try {
-      const supabase = await getSupabase()
-      if (!supabase) throw new Error('Chưa cấu hình Supabase trên máy này.')
-      const result = await syncCustomContent(supabase)
+      const result = await syncCustomContent()
       setNotice(
         `✓ Đã đồng bộ: gửi lên ${result.pushed} dòng, nhận về ${result.pulled} dòng. ` +
           `Hiện có ${result.questions} câu tự soạn.`,
@@ -190,9 +187,7 @@ export function ContentPanel() {
         <p className="text-base opacity-70">
           {mode === 'adult'
             ? 'Đã đăng nhập: phần tự soạn được đồng bộ sang các máy khác của bạn, và học sinh trong lớp bạn dạy cũng nhận được.'
-            : isSupabaseConfigured()
-              ? 'Chưa đăng nhập nên phần tự soạn chỉ nằm trong máy này. Đăng nhập để đồng bộ, hoặc xuất ra tệp để mang đi.'
-              : 'Máy này chạy hoàn toàn ngoại tuyến nên phần tự soạn chỉ nằm ở đây. Muốn mang đi thì xuất ra tệp rồi nạp vào máy kia.'}{' '}
+            : 'Chưa đăng nhập nên phần tự soạn chỉ nằm trong trình duyệt này. Đăng nhập để đồng bộ, hoặc xuất ra tệp để mang đi.'}{' '}
           Ngân hàng gốc trong mã không bao giờ bị sửa.
         </p>
 

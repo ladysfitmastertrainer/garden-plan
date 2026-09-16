@@ -1,0 +1,1028 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens.
+ *
+ * Nguyên tắc cho người dùng 6-10 tuổi:
+ *  - Chữ to: cỡ nền 18px thay vì 16px, đề bài còn lớn hơn nữa.
+ *  - Nút to: tối thiểu 56px chiều cao để ngón tay trẻ chạm không trượt.
+ *  - Màu tương phản cao, mỗi môn một màu riêng để trẻ nhận ra ngay.
+ */
+@theme {
+  /*
+    Hai biến `--font-baloo` và `--font-vt323` do `next/font/google` sinh ra trong
+    `app/layout.tsx`. Next tải file font về và phục vụ từ chính tên miền của app,
+    nên không còn thẻ <link> tới fonts.googleapis.com như bản Vite: chữ không phải
+    chờ một vòng sang máy chủ Google mới hiện, và địa chỉ IP của trẻ không đi sang
+    bên thứ ba.
+  */
+  --font-sans: var(--font-baloo), 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Font pixel cho khung game. Xem ghi chú trong `app/layout.tsx` về lý do chọn VT323. */
+  --font-pixel: var(--font-vt323), 'Courier New', monospace;
+
+  --color-ink: #1e1b4b;
+  --color-ink-soft: #4c4a7a;
+  --color-paper: #fdfbff;
+  --color-paper-sunk: #f1edfb;
+
+  --color-brand: #6d4aff;
+  --color-brand-dark: #5333e0;
+  --color-brand-soft: #ede8ff;
+
+  /* Mỗi môn một màu - dùng thống nhất ở bản đồ, trận đấu và bảng tiến độ. */
+  --color-math: #f59e0b;
+  --color-vietnamese: #ef4476;
+  --color-music: #8b5cf6;
+  --color-ethics: #0ea5e9;
+
+  --color-good: #16a34a;
+  --color-good-soft: #dcfce7;
+  --color-warn: #f97316;
+  --color-warn-soft: #ffedd5;
+  --color-gold: #eab308;
+
+  --radius-card: 1.25rem;
+  --shadow-pop: 0 10px 0 0 rgb(0 0 0 / 0.12);
+}
+
+html {
+  font-size: 18px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  /* Trẻ hay chạm hai lần liên tiếp - chặn trình duyệt hiểu nhầm thành zoom. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+/*
+ * Vòng viền khi điều hướng bằng bàn phím. Dùng :focus-visible nên chuột chạm
+ * vào không hiện vòng này - trẻ dùng cảm ứng không thấy gì lạ, còn người dùng
+ * bàn phím luôn biết mình đang ở đâu.
+ */
+:focus-visible {
+  outline: 4px solid var(--color-brand);
+  outline-offset: 3px;
+  border-radius: 0.75rem;
+}
+
+@layer base {
+  /*
+   * Ô nhập có bề rộng BẨM SINH theo thuộc tính size (mặc định 20 ký tự). Nằm
+   * trong lưới hoặc hàng co giãn, bề rộng đó thành bề rộng TỐI THIỂU của cả cột,
+   * nên ô nhập cỡ chữ lớn ở cổng phụ huynh (30px) đòi 477px trong một cái thẻ
+   * chỉ rộng 419px - và lòi hẳn ra ngoài thẻ.
+   *
+   * Cho phép co lại là hết. Đặt trong @layer base để lớp tiện ích min-w-* vẫn
+   * đè lên được khi có chỗ thật sự cần một bề rộng tối thiểu.
+   */
+  input,
+  select,
+  textarea {
+    min-width: 0;
+  }
+}
+
+@layer components {
+  /* Nút kiểu game: có "chân" đổ bóng, nhấn xuống thì lún - phản hồi rõ cho trẻ. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-6 font-bold;
+    @apply transition-transform select-none;
+    min-height: 56px;
+    box-shadow: 0 5px 0 0 rgb(0 0 0 / 0.18);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 0 rgb(0 0 0 / 0.18);
+  }
+  .btn:disabled {
+    @apply opacity-50;
+  }
+
+  .btn-primary {
+    background: var(--color-brand);
+    @apply text-white;
+  }
+  .btn-ghost {
+    background: var(--color-paper-sunk);
+    color: var(--color-ink);
+  }
+  .btn-good {
+    background: var(--color-good);
+    @apply text-white;
+  }
+
+  .card {
+    background: var(--color-paper);
+    border-radius: var(--radius-card);
+    @apply border-2 p-5;
+    border-color: color-mix(in srgb, var(--color-ink) 8%, transparent);
+  }
+
+  /* Ô đáp án trắc nghiệm: vùng chạm lớn, viền dày để thấy rõ trạng thái chọn. */
+  .choice {
+    @apply flex w-full items-center gap-3 rounded-2xl border-4 p-4 text-left font-semibold;
+    @apply transition-colors;
+    min-height: 64px;
+    border-color: color-mix(in srgb, var(--color-ink) 12%, transparent);
+    background: var(--color-paper);
+  }
+  .choice:hover:not(:disabled) {
+    border-color: var(--color-brand);
+  }
+  .choice-selected {
+    border-color: var(--color-brand);
+    background: var(--color-brand-soft);
+  }
+  .choice-correct {
+    border-color: var(--color-good);
+    background: var(--color-good-soft);
+  }
+  .choice-poor {
+    border-color: var(--color-warn);
+    background: var(--color-warn-soft);
+  }
+}
+
+/* Tôn trọng cài đặt giảm chuyển động của hệ thống - TRỪ KHI người dùng đã chọn
+   "Luôn bật" trong trang quản trị.
+ *
+ * Máy tính trường học và máy chạy tiết kiệm pin thường bị tắt sẵn hiệu ứng động
+ * ở mức hệ điều hành mà người dùng không biết. Với game cho trẻ thì hoạt cảnh
+ * không phải trang trí - nó là thứ nói cho trẻ biết vừa có chuyện gì xảy ra.
+ * Thuộc tính `data-motion` trên thẻ <html> do `App.tsx` đặt. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) *,
+  :root:not([data-motion='full']) *::before,
+  :root:not([data-motion='full']) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Giao diện kiểu máy điện tử cầm tay
+ *
+ * Chỉ áp dụng bên trong `.pixel-ui` để không ảnh hưởng các màn hình khác. Đặc
+ * trưng của thời đó: viền dày đặc, góc gần như vuông, KHÔNG có gradient và
+ * KHÔNG có bóng mờ - mọi thứ đều là mảng màu phẳng, cạnh sắc.
+ * ---------------------------------------------------------------------------
+ */
+.pixel-ui {
+  --pixel-ink: #1b2432;
+  --pixel-paper: #f8f8f0;
+  --pixel-shade: #d8d8c8;
+}
+
+.pixel-panel {
+  background: var(--pixel-paper);
+  border: 4px solid var(--pixel-ink);
+  border-radius: 6px;
+  /* Đường viền trong nhạt hơn - đúng kiểu hộp thoại hai lớp của game GBA. */
+  box-shadow: inset 0 0 0 3px var(--pixel-shade);
+  padding: 14px 16px;
+}
+
+.pixel-font {
+  font-family: var(--font-pixel);
+  letter-spacing: 0.02em;
+}
+
+/* Đáp án trắc nghiệm trong trận: ô vuông viền dày thay cho thẻ bo tròn. */
+.pixel-ui .choice {
+  border-width: 4px;
+  border-radius: 6px;
+  border-color: var(--pixel-ink);
+  background: var(--pixel-paper);
+  box-shadow: inset 0 0 0 2px var(--pixel-shade);
+}
+.pixel-ui .choice-selected {
+  background: #fff3c4;
+  border-color: #b8860b;
+}
+.pixel-ui .choice-correct {
+  background: #d7f5d0;
+  border-color: #2f7d32;
+}
+.pixel-ui .choice-poor {
+  background: #ffe0d0;
+  border-color: #b4521f;
+}
+
+.pixel-ui .btn {
+  border-radius: 6px;
+  border: 4px solid var(--pixel-ink);
+  box-shadow: 0 4px 0 0 var(--pixel-ink);
+}
+
+/* Con trỏ ▼ nhấp nháy ở cuối hộp thoại, báo "chạm để đi tiếp". */
+@keyframes pixel-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.pixel-cursor {
+  animation: pixel-blink 0.9s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) .pixel-cursor { animation: none; }
+}
+
+/* Con trùm đứng ngoài sân đấu nhún nhẹ hai khung hình - đủ để mắt bắt được là
+   nó còn sống, mà không biến thành hoạt cảnh mượt phá mất chất pixel. */
+@keyframes boss-bob {
+  0%, 49% { transform: translateY(0); }
+  50%, 100% { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) [style*="boss-bob"] { animation: none !important; }
+}
+
+/* Thanh đồng hồ của trận trùm. Chạy bằng CSS chứ không bằng state React: nếu vẽ
+   lại theo từng khung hình thì cả màn trận đấu render 60 lần một giây, đúng thứ
+   vừa phải dọn đi ở màn đi cảnh. React chỉ còn giữ con số giây. */
+@keyframes battle-timer {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) [style*="battle-timer"] { animation-timing-function: step-end !important; }
+}
+
+/* Bụi cỏ rung trước khi con quái hoang nhảy ra. Hai khung hình, giật cục - đúng
+   kiểu hoạt cảnh của máy điện tử ngày xưa, và đủ để mắt trẻ bắt được. */
+@keyframes grass-rustle {
+  0%, 49% { transform: translateX(-1px); }
+  50%, 100% { transform: translateX(1px); }
+}
+
+/* Con quái nhô lên khỏi bụi cỏ. */
+@keyframes ambush-pop {
+  0% { transform: translateY(8px); }
+  50% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) [style*="grass-rustle"],
+  :root:not([data-motion='full']) [style*="ambush-pop"] { animation: none !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   ĐIỆN THOẠI NẰM NGANG
+
+   Màn hình lùn và rộng: cao chừng 390px mà rộng 840px. Bố cục dọc mặc định xếp
+   khung trận (230px) chồng lên đội thú rồi mới tới đề bài, nên ở đây riêng khung
+   trận đã ăn hết hơn nửa chiều cao và đề bài bị đẩy khuất - trẻ phải cuộn mới
+   đọc được câu hỏi.
+
+   Ngưỡng 560px chọn theo chiều cao, không theo chiều ngang: máy tính bảng nằm
+   ngang vẫn cao hơn thế nhiều và giữ nguyên bố cục dọc, vốn hợp với nó hơn.
+   --------------------------------------------------------------------------- */
+
+/* Khung game KHÔNG được phép kéo rộng cái cột chứa nó.
+
+   Ô lưới mặc định là min-width:auto nên nó phình theo nội dung. Bản đồ to lên
+   thì cột phình theo, mà Overworld.tsx lại đo chính cột đó để chọn bội số phóng -
+   nó đọc phải con số đã phình, giữ nguyên bội số lớn, và bản đồ tràn khỏi mép
+   màn hình. Trên điện thoại dựng đứng thì đây là thanh cuộn ngang ai cũng thấy. */
+.overworld-layout,
+.region-layout > * {
+  min-width: 0;
+}
+
+/*
+  Cả màn trận phải vừa ĐÚNG MỘT KHUNG HÌNH, ở mọi hướng máy.
+
+  Trước đây trang cứ dài ra theo nội dung: trên điện thoại dọc là thừa 72px lúc
+  bình thường và 260px lúc hiện phản hồi, nên câu nào trẻ cũng phải vuốt xuống
+  mới bấm được "Tiếp tục". Với trẻ 6-10 tuổi thì mỗi lần vuốt là một lần mất
+  mạch - và nó lặp lại mười lần mỗi trận.
+
+  Cách chia: khung hỏi giữ nguyên chiều cao thật của nó (đề bài và đáp án không
+  được co), khung trận nuốt hết phần còn lại. Máy càng cao thì sân đấu càng
+  rộng, chứ không sinh ra thanh cuộn.
+*/
+.battle-layout {
+  overflow: hidden;
+}
+
+.battle-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  /* Chiếm hết chỗ trống còn lại sau khung hỏi. */
+  flex: 1 1 auto;
+  min-height: 0;
+  --arena-height: 100%;
+}
+
+.battle-arena {
+  flex: 1 1 auto;
+  /* Dưới mức này thì thanh máu treo trên đầu nhân vật bắt đầu bị cắt cụt. */
+  min-height: 200px;
+}
+
+.battle-ask {
+  flex: 0 0 auto;
+  min-height: 0;
+  /* Đề bài dài bất thường thì RIÊNG khung hỏi cuộn, không kéo cả trang theo. */
+  max-height: 58dvh;
+  overflow-y: auto;
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .battle-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 44fr) minmax(0, 56fr);
+    align-items: stretch;
+    max-width: none;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Khung trận cao bằng cột - xem `--arena-height` trong PixelBattle.tsx. */
+  .battle-stage {
+    --arena-height: 100%;
+    min-height: 0;
+  }
+
+  .battle-arena {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* Đề bài dài thì CỘT PHẢI tự cuộn, không kéo cả trang - khung trận bên trái
+     phải đứng yên tại chỗ. */
+  .battle-ask {
+    min-height: 0;
+    overflow-y: auto;
+    /* Bỏ trần 58dvh của màn hình dọc: ở đây cột phải đã cao bằng cả màn hình,
+       giữ trần đó là cắt cụt mất dòng "TOÁN" trên đầu đề bài. */
+    max-height: none;
+  }
+
+  /* Cột phải phải vừa MỘT MÀN, không để trẻ cuộn mới thấy đáp án cuối. Chữ và
+     khoảng đệm co lại; ô chạm vẫn giữ 52px, trên mức 44px tối thiểu cho ngón tay. */
+  .battle-ask {
+    padding: 10px 12px;
+  }
+
+  .battle-prompt {
+    font-size: 1.125rem;
+    line-height: 1.35;
+    margin-bottom: 0.6rem;
+  }
+
+  .battle-ask .choice {
+    /* 46px: vẫn trên mức 44px tối thiểu cho ngón tay trẻ. Ở 52px thì bốn ô đáp
+       án dài của Đạo đức lớp 5 đội khung hỏi lên quá một màn. */
+    min-height: 46px;
+    padding: 0.4rem 0.7rem;
+    gap: 0.5rem;
+  }
+
+}
+
+/* Đi cảnh: D-pad đứng CẠNH khung game trên mọi màn hình đủ rộng - điện thoại
+   nằm ngang lẫn máy tính.
+
+   Xếp dưới thì nó ăn 195px chiều cao. Trên điện thoại nằm ngang nó rơi khỏi tầm
+   nhìn; trên máy tính nó ép khung game co xuống bội số 3, bé tí giữa màn hình
+   rộng. Đứng cạnh thì cả hai chỗ đều được thoải mái. */
+@media (min-width: 820px) {
+  .overworld-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  /* Khung ngoài rộng ra để khung game phóng được to hơn. Ở mức max-w-3xl (768px)
+     thì trừ đi 200px cho D-pad chỉ còn 568px - vừa đúng bội số 3, và bội số 4
+     không bao giờ với tới được dù màn hình rộng bao nhiêu. */
+  .map-layout.map-layout {
+    max-width: 1280px;
+  }
+}
+
+/*
+  Máy tính: phần đầu trang của màn đi cảnh nén lại để khung game phóng to hơn.
+
+  Chiều cao là thứ quyết định bội số phóng, và trên laptop 720px thì thanh hồ sơ,
+  hàng nút, tên vùng và hàng thẻ cộng lại đã ăn 329px - đủ để đẩy khung game từ
+  bội số 4 xuống 3, tức bé đi một phần tư theo mỗi chiều.
+
+  Tên vùng và hàng thẻ đứng CHUNG một hàng: cả hai đều thấp, mà xếp dọc thì tốn
+  thêm 68px chỉ để chừa khoảng trắng hai bên. Chỉ áp dụng từ 900px trở lên và
+  màn cao trên 600px, để không đụng vào điện thoại nằm ngang.
+*/
+@media (min-width: 900px) and (min-height: 600px) {
+  .map-layout.map-layout {
+    gap: 0.65rem;
+  }
+
+  .map-layout:has(.region-layout) {
+    row-gap: 0.5rem;
+  }
+
+  .region-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem 1rem;
+  }
+
+  .region-head {
+    grid-column: 1;
+  }
+
+  .region-tabs {
+    grid-column: 2;
+    /* Không giãn hết bề ngang nữa: hai thẻ chỉ cần đủ rộng để đọc. */
+    flex: 0 0 auto;
+  }
+
+  .region-tabs .btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding-inline: 1.1rem;
+  }
+
+  .region-layout > *:not(.region-head):not(.region-tabs) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Điện thoại dọc: đề bài và bốn ô đáp án dài nhất (Đạo đức lớp 5) phải nằm gọn
+   trong trần 58dvh của khung hỏi, không thì riêng khung đó lại sinh thanh cuộn. */
+@media (max-width: 480px) {
+  .battle-prompt {
+    font-size: 1.3rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .battle-ask .choice {
+    min-height: 52px;
+    /* Đệm 16px của .choice mới là thứ quyết định chiều cao, không phải
+       min-height - nhãn đáp án dài tự xuống hai dòng. */
+    padding: 0.6rem 0.75rem;
+  }
+}
+
+/* Màn tổng kết: chỉ BẢNG PHẦN THƯỞNG được cuộn, nút "Về bản đồ" đứng yên. */
+.summary-layout {
+  overflow: hidden;
+}
+
+.summary-stats {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+  Đang đứng TRONG một vùng đất: mọi thứ phía trên bản đồ phải nhường chỗ.
+
+  Trên điện thoại dọc, thanh hồ sơ (149px) cộng hàng nút (127px) cộng tên vùng
+  (99px) cộng hàng thẻ (62px) ăn mất 437px trên tổng 844px - hơn nửa màn hình
+  chỉ để nói những thứ trẻ đang không nhìn. Bản đồ và D-pad thì tràn xuống dưới.
+
+  Ở bản đồ THẾ GIỚI (không có .region-layout) thì giữ nguyên cỡ chữ lớn: đó là
+  màn hình trẻ dừng lại lâu để chọn, không phải màn hình đang chơi.
+*/
+.map-layout:has(.region-layout) > header {
+  padding: 6px 10px;
+  gap: 0.6rem;
+}
+
+.map-layout:has(.region-layout) > header canvas {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.map-layout:has(.region-layout) > header p:first-child {
+  font-size: 1rem;
+}
+
+.map-layout:has(.region-layout) > header p + p {
+  font-size: 0.9rem;
+}
+
+/* Nút thoát: chữ nhỏ và không xuống dòng, nếu không nó tự bẻ thanh hồ sơ thành
+   hai hàng và cao thêm 60px. */
+.map-layout:has(.region-layout) > header > button {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  padding: 4px 8px;
+}
+
+/* Tên vùng: một hàng chữ vừa phải thay vì hai hàng chữ to. */
+.map-layout:has(.region-layout) .region-head h2 {
+  font-size: 1.25rem;
+}
+
+.map-layout:has(.region-layout) .region-head p {
+  font-size: 0.9rem;
+}
+
+.map-layout:has(.region-layout) .region-tabs .btn {
+  min-height: 44px;
+}
+
+/* Màn đi cảnh khi máy nằm ngang: thanh hồ sơ, hàng nút và hàng thẻ co lại để cả
+   bản đồ lẫn D-pad nằm gọn trong một màn, không phải cuộn. Chiều cao là thứ khan
+   hiếm ở đây, nên mọi thứ không phải bản đồ đều phải nhường chỗ. */
+@media (orientation: landscape) and (max-height: 560px) {
+  /* Nhân đôi tên lớp để thắng tiện ích `min-h-dvh` của Tailwind mà không cần
+     !important: nội dung đã vừa một màn, giữ chiều cao tối thiểu 100dvh chỉ tổ
+     dư vài điểm ảnh và đẻ ra thanh cuộn dọc. */
+  .map-layout.map-layout {
+    max-width: none;
+    gap: 0.4rem;
+    padding-block: 0.4rem;
+    min-height: 0;
+  }
+
+  /* Thanh hồ sơ và hàng nút dồn sang CỘT TRÁI hẹp, bản đồ chiếm trọn cột phải.
+     Xếp dọc như màn hình đứng thì riêng phần đầu trang đã ăn 180px trên tổng
+     390px, và bản đồ bị đẩy xuống dưới tầm nhìn.
+
+     Áp dụng cho CẢ HAI bản đồ. Trước đây bản đồ thế giới được để một cột vì nó
+     vốn là bức tranh nằm ngang - nhưng nằm ngang thì nó cần bề ngang, còn thứ
+     khan hiếm ở đây là chiều cao, và một cột làm nó thừa ra 300px. */
+  .map-layout {
+    display: grid;
+    grid-template-columns: 230px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 0.6rem;
+  }
+
+  .map-layout > * {
+    grid-column: 1;
+  }
+
+  /* Khoảng cách giữa các hàng phải bằng 0, và bù lại bằng lề dưới của từng ô
+     cột trái.
+
+     Cột phải trải dài qua 20 hàng để luôn phủ hết cột trái, nhưng 18 hàng cuối
+     rỗng - mà row-gap vẫn tính đủ 19 khoảng, cộng lại thành hơn 120px trống
+     chen vào giữa lưới. Đó chính là chỗ thừa đẩy trang vượt quá một màn. */
+  /* Tên lớp nhân đôi để thắng `.map-layout.map-layout` ở trên - nếu không,
+     row-gap 0.4rem nhân 19 hàng rỗng của cột phải cộng thành 121px trống. */
+  .map-layout.map-layout {
+    row-gap: 0;
+  }
+
+  .map-layout > *:not(.region-layout):not(.world-layout) {
+    margin-bottom: 0.4rem;
+  }
+
+  .map-layout > .region-layout,
+  .map-layout > .world-layout {
+    grid-column: 2;
+    grid-row: 1 / span 20;
+    min-width: 0;
+  }
+
+  /* Ba nút xếp dọc trong cột trái hẹp. */
+  .map-layout > nav {
+    flex-direction: column;
+  }
+
+  /* Ảnh nhân vật trên thanh hồ sơ: 32px thay vì 48px. Vẫn là bội số nguyên của
+     16 nên điểm ảnh không bị méo. */
+  .map-layout > header canvas {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  /* Cột trái chỉ rộng 230px, nên thanh hồ sơ phải XUỐNG DÒNG: ảnh nhân vật và
+     tên đứng một hàng, nút thoát chiếm trọn hàng dưới. Ép cả ba nằm cùng hàng
+     thì tên bị bó thành một cột chữ cao ngoằng và đẩy bản đồ khỏi màn hình. */
+  .map-layout > header {
+    padding: 6px 10px;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+  }
+
+  .map-layout > header > div {
+    min-width: 0;
+  }
+
+  .map-layout > header > button {
+    flex: 1 0 100%;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .map-layout > header p {
+    font-size: 0.9rem;
+    line-height: 1.15;
+  }
+
+  .map-layout > nav .btn {
+    min-height: 34px;
+    padding-block: 0.2rem;
+    font-size: 0.85rem;
+  }
+
+  /* Màn tổng kết: hai cột. Xếp dọc thì cúp vàng cỡ text-7xl, dòng chúc mừng và
+     bảng phần thưởng cộng lại 631px trên màn hình 390px, và nút "Về bản đồ" -
+     lối ra duy nhất - nằm ngoài màn hình. */
+  .summary-layout.summary-layout {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: center;
+    column-gap: 0.75rem;
+    row-gap: 0.4rem;
+    max-width: none;
+    padding-block: 0.5rem;
+  }
+
+  .summary-cheer {
+    grid-area: 1 / 1 / 2 / 2;
+    font-size: 2.5rem;
+    line-height: 1;
+  }
+
+  .summary-title {
+    grid-area: 2 / 1 / 3 / 2;
+    font-size: 1.15rem;
+  }
+
+  .summary-say {
+    grid-area: 3 / 1 / 4 / 2;
+  }
+
+  .summary-say p {
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+
+  .summary-stats {
+    grid-area: 1 / 2 / 4 / 3;
+    font-size: 0.95rem;
+    gap: 0.25rem;
+    padding: 8px 10px;
+  }
+
+  .summary-go {
+    grid-area: 4 / 1 / 5 / -1;
+  }
+
+  .summary-go .btn {
+    padding-block: 0.45rem;
+    font-size: 1.05rem;
+  }
+
+  /* Màn tạo hồ sơ: hai cột. Xếp dọc thì nó cao 742px trên màn hình 390px, và
+     chính nút "Bắt đầu chơi!" - thứ duy nhất phải bấm - rơi khỏi tầm nhìn.
+     Bên trái là chọn bạn đồng hành, bên phải là tên và lớp. */
+  .create-layout.create-layout {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    column-gap: 0.75rem;
+    row-gap: 0.4rem;
+    max-width: none;
+    min-height: 0;
+    padding-block: 0.5rem;
+  }
+
+  .create-title {
+    grid-area: 1 / 1 / 2 / -1;
+    font-size: 1.3rem;
+  }
+
+  .create-intro {
+    grid-area: 2 / 1 / 3 / 2;
+  }
+
+  .create-pets {
+    grid-area: 3 / 1 / 4 / 2;
+    gap: 0.4rem;
+  }
+
+  .create-form {
+    grid-area: 2 / 2 / 4 / 3;
+    gap: 0.5rem;
+    padding: 8px 10px;
+  }
+
+  .create-go {
+    grid-area: 4 / 2 / 5 / 3;
+  }
+
+  .create-intro p {
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+
+  .create-layout .pixel-font {
+    font-size: 0.95rem;
+  }
+
+  .create-form input {
+    padding: 0.35rem 0.75rem;
+    font-size: 1.05rem;
+  }
+
+  .create-form .grid-cols-5 button {
+    padding-block: 0.3rem;
+    font-size: 1.05rem;
+  }
+
+  .create-go .btn {
+    padding-block: 0.45rem;
+    font-size: 1.05rem;
+  }
+
+  /* Tên quần đảo: chữ vừa phải. Ở khổ text-3xl hàng tiêu đề cao 57px, bằng
+     gần một phần ba chỗ mà bản đồ được chia. */
+  .world-layout {
+    gap: 0.35rem;
+  }
+
+  .world-layout h2 {
+    font-size: 1.1rem;
+  }
+
+  .world-layout h2 + p {
+    font-size: 0.85rem;
+  }
+
+  .region-layout {
+    gap: 0.4rem;
+  }
+
+  .region-head h2 {
+    font-size: 1.1rem;
+  }
+
+  .region-head p {
+    font-size: 0.85rem;
+  }
+
+  .region-tabs .btn {
+    min-height: 34px !important;
+    padding-block: 0.2rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* Cái điện thoại trong lời nhắc nghiêng qua nghiêng lại. Hai khung hình, giật
+   cục - cùng ngôn ngữ với mọi hoạt cảnh khác trong game. */
+@keyframes rotate-hint {
+  0%, 49% { transform: rotate(0deg); }
+  50%, 100% { transform: rotate(-90deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) [style*="rotate-hint"] { animation: none !important; }
+}
+
+/* Ghim "con đang ở đây" nhấp nhô lên xuống.
+ *
+ * BỐN NẤC chứ không phải hai. Hai nấc là một cái công tắc bật/tắt - mắt đọc ra
+ * "đổi chỗ", không đọc ra "đang nhún". Bốn nấc (0 → 1 → 2 → 1) là một nhịp lên
+ * rồi xuống, và đó mới là chuyển động.
+ *
+ * Vẫn nhảy theo NẤC (`steps`) chứ không trượt mượt: cả game là pixel, một vật
+ * trôi mượt giữa những thứ khác nhảy từng khung hình thì lạc quẻ ngay.
+ *
+ * Biên độ đi theo `--bob`, do chỗ gọi đặt bằng bội số phóng - nếu để cứng một
+ * con số thì ở bội số 3 cái ghim nhún gần như không thấy. */
+@keyframes pin-bob {
+  0% { transform: translateY(0); }
+  25% { transform: translateY(calc(var(--bob, 3px) * -1)); }
+  50% { transform: translateY(calc(var(--bob, 3px) * -2)); }
+  75% { transform: translateY(calc(var(--bob, 3px) * -1)); }
+  100% { transform: translateY(0); }
+}
+
+/* Máy bật "giảm chuyển động" thì ghim NHÚN CHẬM VÀ NHỎ LẠI, chứ không đứng im.
+ *
+ * Khác mọi hoạt cảnh khác trong game ở một điểm: ghim là thứ CHỈ ĐƯỜNG, không
+ * phải trang trí. Tắt hẳn là mất luôn cái tín hiệu "con đang ở đây" - trên bản
+ * đồ lớp 5 hơn trăm ô đất thì đó là mất thật, không phải mất cho đẹp.
+ *
+ * Biên độ 2px trong 2.4 giây nằm xa dưới ngưỡng gây chóng mặt mà tuỳ chọn này
+ * sinh ra để tránh (trôi lớn, cuộn thị sai, vật bay ngang màn hình). Còn con
+ * trùm nhún, cỏ rung, quái nhảy ra - những thứ thuần trang trí - vẫn tắt hẳn. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) [style*="pin-bob"] {
+    animation-duration: 2.4s !important;
+    /* PHẢI ghi đè cả SỐ VÒNG LẶP, không chỉ thời lượng.
+     *
+     * Luật toàn cục ở đầu file ép animation-iteration-count về 1 cho MỌI phần
+     * tử. Ghi đè mỗi thời lượng thì ghim nhún đúng một vòng rồi đứng im -
+     * trông y như hỏng, và đó chính là lỗi đã lọt ra tới người dùng.
+     *
+     * Selector [style*=...] mạnh hơn * nên hai dòng này thắng. */
+    animation-iteration-count: infinite !important;
+    --bob: 2px !important;
+  }
+}
+
+/* Nhân vật nhún trong lúc chờ lượt, để trận đấu không thành hai bức tượng nhìn
+   nhau. Ba nấc (0 → 1 → 2) rồi về, nhảy theo bậc - cùng ngôn ngữ với mọi hoạt
+   cảnh khác. Hai bên lệch pha nhau để không nhún như hai con rối.
+
+   BIÊN ĐỘ THEO BỘI SỐ PHÓNG, qua `--idle`. Bản đầu để cứng 3px, mà sprite trong
+   trận vẽ ở bội số 6 và 8 - tức cao 96 và 128 điểm ảnh. Nhún 3px trên đó là 2%,
+   mắt không thấy được, và nhìn y như đứng im. Đúng cái lỗi đã mắc với cái ghim
+   trên bản đồ thế giới. */
+@keyframes battle-idle {
+  0% { transform: translateY(0); }
+  33% { transform: translateY(calc(var(--idle, 6px) * -1)); }
+  66% { transform: translateY(calc(var(--idle, 6px) * -2)); }
+  100% { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) [style*="battle-idle"] { animation: none !important; }
+}
+
+/* Người dùng chọn "Luôn tắt" trong trang quản trị: chặn cả khi máy không yêu cầu
+   giảm chuyển động. Cùng bộ thuộc tính với luật theo hệ thống ở đầu file. */
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Ô nhập của trang quản trị.
+
+   Không dùng kiểu ô nhập của trẻ: chỗ này là người lớn ngồi soạn hàng chục câu,
+   nên ưu tiên gõ nhanh và nhìn được nhiều dòng, chứ không phải nút to dễ chạm. */
+.admin-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.4rem 0.6rem;
+  border: 3px solid color-mix(in srgb, var(--color-ink) 15%, transparent);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.35;
+  outline: none;
+}
+
+.admin-input:focus {
+  border-color: var(--color-brand);
+}
+
+textarea.admin-input {
+  resize: vertical;
+}
+
+/* ===========================================================================
+   Hàng danh mục trong trang quản trị - xem `TabStrip.tsx`.
+
+   Luôn MỘT dòng. Thừa chỗ thì cuộn ngang chứ không xuống dòng: sáu thẻ của
+   trang quản trị cộng lại rộng hơn khung trang, mà cho xuống dòng thì thẻ bị
+   bóp méo và hàng thứ hai ăn mất chỗ của nội dung bên dưới.
+   =========================================================================== */
+.tab-strip {
+  position: relative;
+  /*
+    Bắt buộc, không phải cho gọn.
+
+    Ô lưới và thẻ flex mặc định là `min-width: auto` - "đừng hẹp hơn nội dung
+    bên trong". Nội dung ở đây là hàng nút nowrap rộng 405px, nên đặt trong thẻ
+    "Nội dung" nó banh cả thẻ lẫn cả trang ra 82px ngoài màn điện thoại: hàng
+    đúng một dòng thật, nhưng cả trang lại cuộn ngang. Cho phép co về 0 thì hàng
+    mới chịu cuộn bên trong thay vì đẩy mọi thứ rộng ra.
+  */
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tab-rail {
+  /* Mốc toạ độ cho `offsetLeft` lúc kéo thẻ đang chọn vào tầm nhìn. */
+  position: relative;
+  min-width: 0;
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  /* Giấu thanh cuộn: hai dải mờ ở mép đã nói "còn nữa" rồi, mà thanh cuộn ngang
+     lại ăn mất chiều cao và cắt ngang chân nút. */
+  scrollbar-width: none;
+  /* Chừa chỗ cho "chân" đổ bóng 5px của .btn cộng 4px lún khi bấm - không chừa
+     thì overflow cắt cụt mất chân nút. */
+  padding-block: 2px 10px;
+}
+
+.tab-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-rail > .btn {
+  /* Không co, không giãn: thẻ giữ đúng bề ngang của chữ trong nó. */
+  flex: 0 0 auto;
+  white-space: nowrap;
+  scroll-snap-align: start;
+}
+
+/* Dải mờ ở mép nào còn thẻ chưa thấy. */
+.tab-strip::before,
+.tab-strip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 10px;
+  width: 2.5rem;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tab-strip::before {
+  left: 0;
+  background: linear-gradient(to right, var(--color-paper), transparent);
+}
+
+.tab-strip::after {
+  right: 0;
+  background: linear-gradient(to left, var(--color-paper), transparent);
+}
+
+.tab-strip[data-dau='1']::before,
+.tab-strip[data-cuoi='1']::after {
+  opacity: 1;
+}
+
+/* Mũi tên cuộn: chỉ có ích với chuột, nên máy cảm ứng giấu đi (vuốt là xong). */
+.tab-arrow {
+  position: absolute;
+  top: 50%;
+  /* Nửa chiều cao nút, cộng phần chừa cho chân bóng phía dưới. */
+  margin-top: -1.55rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 1.5rem;
+  line-height: 1;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.14);
+}
+
+.tab-arrow-dau {
+  left: 0;
+}
+
+.tab-arrow-cuoi {
+  right: 0;
+}
+
+@media (hover: none) {
+  .tab-arrow {
+    display: none;
+  }
+}
+
+/* Điện thoại: thẻ gọn lại để mỗi lần vuốt thấy được nhiều danh mục hơn, nhưng
+   vẫn giữ 44px chiều cao - ngưỡng chạm tối thiểu, dưới nữa là bấm trượt. */
+@media (max-width: 640px) {
+  .tab-rail > .btn {
+    min-height: 44px;
+    padding-inline: 0.9rem;
+    font-size: 0.95rem;
+  }
+
+  .tab-strip::before,
+  .tab-strip::after {
+    width: 1.6rem;
+  }
+}

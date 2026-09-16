@@ -4,7 +4,16 @@ import { create } from 'zustand'
 
 import type { Grade, Subject } from '../content/types'
 
-export type Screen = 'game' | 'dashboard' | 'inventory'
+/**
+ * Màn hình cấp cao đang mở.
+ *
+ * 'profiles' là màn chọn hồ sơ trẻ. Trước đây nó không phải một giá trị ở đây mà
+ * là hệ quả của việc CHƯA chọn hồ sơ nào - hợp lý với phụ huynh, nhưng giáo viên
+ * thì gần như không bao giờ có hồ sơ trẻ của riêng mình, nên họ mắc kẹt vĩnh
+ * viễn ở màn ấy. Giờ nó là một nơi đi tới được, chứ không phải một ngõ cụt rơi
+ * vào. Xem `GameShell`.
+ */
+export type Screen = 'game' | 'profiles' | 'dashboard' | 'inventory'
 
 /** Vùng đất đang mở. `null` nghĩa là đang đứng ở bản đồ thế giới. */
 export interface Region {
@@ -32,6 +41,15 @@ interface UiState {
    * kiểu khác.
    */
   rotateHintDismissed: boolean
+  /**
+   * Lời mời cài app đang hiện.
+   *
+   * Có mặt ở đây chỉ để lời nhắc xoay máy biết đường nhường chỗ: hai dải xếp
+   * chồng nhau ăn gần một phần năm màn hình điện thoại, mà dải trên đã hứa "tự
+   * nằm ngang" rồi nên dải dưới hoá thừa. Một lời nhắc một lúc là đủ với trẻ sáu
+   * tuổi.
+   */
+  installInviteOpen: boolean
 
   /**
    * Vùng đất đang mở và chỗ nhân vật đang đứng trong từng vùng.
@@ -55,6 +73,7 @@ interface UiState {
   overworldPos: Record<string, { x: number; y: number }>
 
   go: (screen: Screen) => void
+  setInstallInviteOpen: (open: boolean) => void
   unlockAdult: () => void
   setMuted: (muted: boolean) => void
   dismissRotateHint: () => void
@@ -67,11 +86,13 @@ export const useUi = create<UiState>((set) => ({
   adultUnlocked: false,
   muted: false,
   rotateHintDismissed: false,
+  installInviteOpen: false,
   region: null,
   lastRegion: null,
   overworldPos: {},
 
   go: (screen) => set({ screen }),
+  setInstallInviteOpen: (installInviteOpen) => set({ installInviteOpen }),
   unlockAdult: () => set({ adultUnlocked: true }),
   setMuted: (muted) => set({ muted }),
   dismissRotateHint: () => set({ rotateHintDismissed: true }),

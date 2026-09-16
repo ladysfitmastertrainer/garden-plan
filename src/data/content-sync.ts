@@ -21,6 +21,7 @@
  */
 
 import {
+  continentId,
   getCustomContent,
   keyId,
   mergeContent,
@@ -68,6 +69,13 @@ interface PullResponse {
     updated_at: string
     deleted_at: string | null
   }>
+  continents: Array<{
+    owner_id: string
+    grade: number
+    rows: unknown
+    updated_at: string
+    deleted_at: string | null
+  }>
 }
 
 const millis = (iso: string | null): number | null => {
@@ -111,6 +119,16 @@ function toLocal(remote: PullResponse): CustomContent {
       deletedAt: millis(row.deleted_at),
       ownerId: row.owner_id,
     })),
+    // `rows` từ máy chủ là jsonb, tức là dữ liệu lạ như mọi thứ khác ở đây.
+    // `sanitiseContent` nắn nó về đúng 12×12 hoặc bỏ hẳn.
+    continents: (remote.continents ?? []).map((row) => ({
+      id: continentId(row.grade as 1 | 2 | 3 | 4 | 5),
+      grade: row.grade,
+      value: row.rows,
+      updatedAt: millis(row.updated_at) ?? 0,
+      deletedAt: millis(row.deleted_at),
+      ownerId: row.owner_id,
+    })),
   })
 }
 
@@ -139,12 +157,12 @@ const alive = <T>(rows: Array<CustomRow<T>>) => rows.filter((row) => row.deleted
 /** Đếm những dòng máy chủ có mà máy này chưa biết, hoặc đang giữ bản cũ hơn. */
 function countNew(mine: CustomContent, theirs: CustomContent): number {
   const known = new Map<string, number>()
-  for (const group of [mine.questions, mine.hidden, mine.skillNames]) {
+  for (const group of [mine.questions, mine.hidden, mine.skillNames, mine.continents]) {
     for (const row of group) known.set(row.id, row.updatedAt)
   }
 
   let count = 0
-  for (const group of [theirs.questions, theirs.hidden, theirs.skillNames]) {
+  for (const group of [theirs.questions, theirs.hidden, theirs.skillNames, theirs.continents]) {
     for (const row of group) {
       const seen = known.get(row.id)
       if (seen === undefined || row.updatedAt > seen) count++
@@ -166,7 +184,7 @@ async function pushAll(
   remote: CustomContent,
 ): Promise<number> {
   const remoteAt = new Map<string, number>()
-  for (const group of [remote.questions, remote.hidden, remote.skillNames]) {
+  for (const group of [remote.questions, remote.hidden, remote.skillNames, remote.continents]) {
     for (const row of group) remoteAt.set(row.id, row.updatedAt)
   }
 
@@ -207,11 +225,18 @@ async function pushAll(
     deleted_at: iso(row.deletedAt),
   }))
 
-  if (questions.length + hidden.length + skillNames.length === 0) return 0
+  const continents = merged.continents.filter(canPush).map((row) => ({
+    grade: row.grade,
+    rows: row.value,
+    updated_at: new Date(row.updatedAt).toISOString(),
+    deleted_at: iso(row.deletedAt),
+  }))
+
+  if (questions.length + hidden.length + skillNames.length + continents.length === 0) return 0
 
   const { pushed } = await request<{ pushed: number }>('/api/content', {
     method: 'POST',
-    body: { questions, hidden, skillNames },
+    body: { questions, hidden, skillNames, continents },
   })
 
   // Đóng dấu những dòng vừa gửi đi. Lần đồng bộ sau chúng đã có chủ, nên không
@@ -222,6 +247,7 @@ async function pushAll(
       ...merged.questions.filter(canPush).map((row) => row.id),
       ...merged.hidden.filter(canPush).map((row) => row.id),
       ...merged.skillNames.filter(canPush).map((row) => row.id),
+      ...merged.continents.filter(canPush).map((row) => row.id),
     ]),
     ownerId,
   )

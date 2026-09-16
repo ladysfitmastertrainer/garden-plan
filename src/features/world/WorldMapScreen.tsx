@@ -53,7 +53,7 @@ const MAP_MARGIN = 24
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
-  CONTINENTS,
+  continentFor,
   TILE_H,
   TILE_W,
   anchorCell,
@@ -216,7 +216,9 @@ export function WorldMapScreen({ grade, avatar, clearedByRegion, onEnterRegion }
     setView((current) => (current < highest ? highest : current))
   }, [highest])
 
-  const layout = CONTINENTS[view]
+  // `continentFor` chứ không phải `CONTINENTS`: thầy cô vẽ lại bản đồ ở trang
+  // quản trị thì trẻ phải thấy bản mới. Xem `continent.ts`.
+  const layout = continentFor(view)
   const progress = gradeProgress(clearedByRegion, view)
   const canPass = progress.complete
 

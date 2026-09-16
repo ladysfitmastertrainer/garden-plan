@@ -6,6 +6,8 @@ import { useAuth } from '../../store/auth'
 import { useUi } from '../../store/ui'
 import type { StudentProfile, StudentProgress } from '../../data/types'
 import { emptyProgress } from '../../data/types'
+import { AccountLabel, SignOutButton } from '../../ui/account'
+import { ChangePassword } from '../../ui/ChangePassword'
 import { ClassManager } from './ClassManager'
 import { ParentGate } from './ParentGate'
 import { ProgressReport } from './ProgressReport'
@@ -18,8 +20,8 @@ export function DashboardScreen() {
   const go = useUi((s) => s.go)
   const role = useAuth((s) => s.role)
   const mode = useAuth((s) => s.mode)
+  const student = useGame((s) => s.student)
 
-  const [tab, setTab] = useState<Tab>('progress')
   /*
     Quản trị cũng là "nhân viên nhà trường", nên cũng quản lý lớp được.
 
@@ -30,18 +32,57 @@ export function DashboardScreen() {
   */
   const canManageClasses = mode === 'adult' && (role === 'teacher' || role === 'admin')
 
-  if (!unlocked) {
+  // Giáo viên mở màn này ra là để làm việc với lớp, không phải để xem tiến độ một
+  // em lẻ; phụ huynh thì ngược lại. Mở sẵn đúng tab của từng người.
+  const [tab, setTab] = useState<Tab>(canManageClasses ? 'classes' : 'progress')
+
+  /*
+    Nhân viên nhà trường KHÔNG phải giải phép nhân.
+
+    Cổng ấy sinh ra để trẻ trên máy gia đình không tự mò vào xem số liệu về chính
+    mình. Với giáo viên thì màn này là chỗ làm việc, và họ vừa gõ email cùng mật
+    khẩu để vào - bắt họ giải toán mỗi lần mở chỗ làm của mình là phiền mà không
+    chặn thêm được ai.
+  */
+  if (!unlocked && !canManageClasses) {
     return <ParentGate onPass={unlock} onCancel={() => go('game')} />
   }
 
   return (
     <div className="mx-auto grid max-w-3xl gap-5 px-4 py-5">
       <header className="pixel-ui flex items-center gap-3">
-        <button type="button" onClick={() => go('game')} className="btn btn-ghost px-4">
-          ←
-        </button>
+        {/*
+          Đang có em nào được chọn thì "←" là quay lại đúng ván đang dở. Không có
+          thì đây là màn hạ cánh của giáo viên, và mũi tên quay lại chẳng trỏ vào
+          đâu cả - lúc ấy thứ họ cần là một lối ĐI TỚI phần chơi.
+        */}
+        {student ? (
+          <button type="button" onClick={() => go('game')} className="btn btn-ghost px-4">
+            ←
+          </button>
+        ) : (
+          <button type="button" onClick={() => go('profiles')} className="btn btn-ghost px-4">
+            🎮
+          </button>
+        )}
         <h1 className="pixel-font flex-1 text-2xl">KHU VỰC NGƯỜI LỚN</h1>
       </header>
+
+      {/*
+        Ai đang đăng nhập, và lối ra hẳn.
+
+        Chỉ cho người lớn đăng nhập bằng email. Trẻ trên máy dùng chung không bao
+        giờ vào tới đây, và phụ huynh chơi trên máy nhà đã có nút thoát ở màn bản
+        đồ rồi - nhưng giáo viên thì hạ cánh THẲNG xuống màn này, nên nếu đây
+        không có nút Đăng xuất thì họ không có nút Đăng xuất nào cả.
+      */}
+      {mode === 'adult' && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <AccountLabel />
+          <ChangePassword />
+          <SignOutButton />
+        </div>
+      )}
 
       {canManageClasses && (
         <div className="flex gap-2">

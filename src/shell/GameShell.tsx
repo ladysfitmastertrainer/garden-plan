@@ -24,6 +24,7 @@ import { InventoryScreen } from '../features/inventory/InventoryScreen'
 import { useAuth } from '../store/auth'
 import { useGame } from '../store/game'
 import { useUi } from '../store/ui'
+import { InstallPrompt } from '../ui/InstallPrompt'
 import { RotateHint } from '../ui/RotateHint'
 import { useAppChrome } from './useAppChrome'
 
@@ -42,21 +43,31 @@ export function GameShell() {
   useAppChrome()
 
   /*
-    Quản trị viên đăng nhập xong thì đưa thẳng sang trang quản trị.
+    Quản trị viên thì `/` không phải chỗ của họ - đưa thẳng sang trang quản trị.
 
-    Không có nhánh này thì họ rơi vào đúng màn hình của giáo viên, và không có
-    lối nào trên giao diện dẫn tới việc họ vào đây để làm. Bản cũ cũng làm vậy,
-    chỉ khác là nó đổi `#` trong địa chỉ; giờ là một lần chuyển trang thật, nên
-    nút "← Về game" của trình duyệt cũng hoạt động đúng.
+    KHÔNG có ngoại lệ nào, và đó là chủ ý. Bản trước có một lá cờ trong
+    `sessionStorage` để nút "← Về game" trên trang quản trị tạm tắt cái đẩy này;
+    cờ ấy sống theo TAB nên sống dai hơn phiên đăng nhập, và cờ của một phiên đã
+    chết nằm lại trả lời thay cho phiên sau - quản trị viên đăng nhập vào tab đó
+    không được đưa sang `/admin` nữa mà rơi vào khu vực người lớn. Bỏ nút ấy đi
+    thì cả lá cờ lẫn cả lớp lỗi ấy biến mất theo: quản trị viên làm trọn việc của
+    mình ở `/admin`, kể cả lập lớp.
   */
   useEffect(() => {
     if (ready && role === 'admin') router.replace('/admin')
   }, [ready, role, router])
 
-  // Lời nhắc xoay máy nằm NGOÀI `Screen`, trên cùng dòng chảy trang, nên nó có
-  // mặt ở mọi màn và không màn nào phải tự lo cho nó.
+  /*
+    Hai dải nhắc nằm NGOÀI `Screen`, trên cùng dòng chảy trang, nên chúng có mặt
+    ở mọi màn và không màn nào phải tự lo cho chúng.
+
+    Lời mời cài app đứng TRƯỚC lời nhắc xoay máy vì nó giải quyết luôn cả hai
+    việc: bản đã cài tự nằm ngang theo manifest, nên trẻ nào cài rồi thì không
+    bao giờ phải đọc tới dải thứ hai nữa. Xem `shell/orientation.ts`.
+  */
   return (
     <>
+      <InstallPrompt />
       <RotateHint />
       <Screen />
     </>
@@ -67,6 +78,7 @@ export function GameShell() {
 function Screen() {
   const authReady = useAuth((s) => s.ready)
   const mode = useAuth((s) => s.mode)
+  const role = useAuth((s) => s.role)
   const gameReady = useGame((s) => s.ready)
   const student = useGame((s) => s.student)
   const battle = useGame((s) => s.battle)
@@ -75,19 +87,63 @@ function Screen() {
 
   if (!authReady) return <Loading />
   if (mode === 'signed-out') return <AuthScreen />
+
+  /*
+    Sắp sang `/admin` thì đứng yên, đừng vẽ tạm một màn khác.
+
+    Việc chuyển trang ở trên nằm trong `useEffect`, nên React vẽ xong một lượt
+    rồi mới chuyển. Không có nhánh này thì lượt vẽ ấy rơi vào khu vực người lớn -
+    quản trị viên đăng nhập xong thấy chớp qua màn hình của giáo viên rồi mới tới
+    được trang quản trị, và màn hình ấy còn kịp bắn hai lượt gọi máy chủ để lấy
+    dữ liệu mà nó sắp bị bỏ đi.
+  */
+  if (role === 'admin') return <Loading />
+
   if (!gameReady) return <Loading />
+
+  /*
+    Khu vực người lớn được hỏi TRƯỚC câu "đã chọn hồ sơ trẻ nào chưa".
+
+    Thứ tự cũ ngược lại, và nó làm nút "Quản lý lớp" thành nút chết: nút ấy gọi
+    `go('dashboard')`, nhưng giáo viên thì chưa chọn hồ sơ trẻ nào nên nhánh
+    `!student` chặn lại và vẽ đúng màn vừa bấm. Bấm mà không có gì xảy ra.
+
+    Việc quản lý lớp không cần hồ sơ trẻ nào cả, nên nó không việc gì phải đứng
+    sau câu hỏi ấy.
+  */
+  if (screen === 'dashboard') return <DashboardScreen />
 
   // Ở chế độ trẻ dùng máy chung, hồ sơ đã được chọn sẵn lúc nhập mã PIN - không
   // bao giờ hiện danh sách hồ sơ cho trẻ thấy bạn khác trong lớp.
   if (!student) {
-    return mode === 'child' ? <Loading /> : <ProfileScreen />
+    if (mode === 'child') return <Loading />
+
+    /*
+      Giáo viên hạ cánh xuống khu vực người lớn, không phải màn chọn hồ sơ trẻ.
+
+      Màn kia được viết cho phụ huynh, và lời lẽ trên đó nói thẳng với trẻ ("Chào
+      con! Hãy chọn một người bạn đồng hành"). Giáo viên thì gần như không bao giờ
+      có hồ sơ trẻ của riêng mình, nên với họ nó vừa lạc lõng vừa là ngõ cụt - mà
+      tệ hơn, danh sách "Ai đang chơi hôm nay?" chính là sổ điểm danh cả lớp họ
+      vừa lập, kèm nút xoá cạnh từng em.
+
+      Vẫn vào được màn ấy khi họ tự chọn (`screen === 'profiles'`): giáo viên
+      có con riêng dùng app là chuyện có thật, chỉ là nó không phải mặc định.
+
+      Chỉ còn 'teacher' ở đây, không còn 'admin': quản trị viên đã bị nhánh trên
+      đưa sang `/admin` rồi, và TypeScript biết điều đó - thêm `|| role ===
+      'admin'` vào là nó báo so sánh thừa.
+    */
+    if (role === 'teacher' && screen !== 'profiles') return <DashboardScreen />
+
+    return <ProfileScreen />
   }
 
   // Trận đấu và màn tổng kết luôn được ưu tiên: không để trẻ bị kéo ra giữa chừng.
   if (battle) return <BattleScreen />
   if (summary) return <BattleSummaryScreen onDone={() => useGame.setState({ summary: null })} />
 
-  if (screen === 'dashboard') return <DashboardScreen />
+  if (screen === 'profiles') return <ProfileScreen />
   if (screen === 'inventory') return <InventoryScreen />
   return <MapScreen />
 }

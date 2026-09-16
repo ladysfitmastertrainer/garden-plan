@@ -11,7 +11,7 @@
  * và hàm `auth.uid()` đọc từ biến phiên, đủ để chính sách hoạt động như thật.
  */
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
@@ -92,9 +92,21 @@ export async function createHarness(): Promise<Harness> {
   await db.exec(AUTH_STUB)
   await db.exec(DEFAULT_PRIVILEGES)
 
-  // Chạy TẤT CẢ migration theo đúng thứ tự, y như khi triển khai thật. Chỉ chạy
-  // 0001 thì bảng thêm ở các bản sau không có ai canh chừng.
-  for (const file of ['0001_init.sql', '0002_custom_content.sql', '0003_pgcrypto_search_path.sql', '0004_admin_role.sql', '0005_lock_profile_role.sql']) {
+  /*
+    Chạy TẤT CẢ migration theo đúng thứ tự, y như khi triển khai thật.
+
+    ĐỌC THẲNG THƯ MỤC chứ không viết tay danh sách. Bản đầu viết tay, và đúng
+    chuyện phải xảy ra đã xảy ra: 0006 thêm vào mà không ai nhớ thêm tên nó vào
+    đây, nên bảng mới lẫn RLS của nó không có một dòng test nào canh - trong khi
+    chú thích ngay chỗ này vẫn hứa là chạy hết.
+
+    Sắp theo tên tệp là đúng thứ tự, vì mọi migration đều mở đầu bằng số bốn chữ.
+  */
+  const files = readdirSync(resolve(HERE, '..', 'migrations'))
+    .filter((name) => name.endsWith('.sql'))
+    .sort()
+
+  for (const file of files) {
     // Extension đã bật ở trên; dòng trong migration là no-op nhưng vẫn chạy được.
     await db.exec(readFileSync(resolve(HERE, '..', 'migrations', file), 'utf8'))
   }

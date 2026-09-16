@@ -36,6 +36,7 @@ const pack = (questions: QuestionRow[]): CustomContent => ({
   questions,
   hidden: [],
   skillNames: [],
+  continents: [],
 })
 
 const prompts = (content: CustomContent) =>
@@ -135,8 +136,8 @@ describe('ẩn câu và đổi tên cũng hợp nhất được', () => {
   })
 
   it('ẩn ở máy này, hiện lại ở máy kia - lần sau cùng thắng', () => {
-    const an: CustomContent = { questions: [], hidden: [hidden('h', 'Đề bài', 100, null)], skillNames: [] }
-    const hien: CustomContent = { questions: [], hidden: [hidden('h', 'Đề bài', 200, 200)], skillNames: [] }
+    const an: CustomContent = { questions: [], hidden: [hidden('h', 'Đề bài', 100, null)], skillNames: [], continents: [] }
+    const hien: CustomContent = { questions: [], hidden: [hidden('h', 'Đề bài', 200, 200)], skillNames: [], continents: [] }
 
     const merged = mergeContent(an, hien)
     expect(merged.hidden[0]!.deletedAt).toBe(200)
@@ -151,8 +152,8 @@ describe('ẩn câu và đổi tên cũng hợp nhất được', () => {
       deletedAt: null,
       ownerId: null,
     })
-    const cu: CustomContent = { questions: [], hidden: [], skillNames: [name('Tên cũ', 100)] }
-    const moi: CustomContent = { questions: [], hidden: [], skillNames: [name('Tên mới', 200)] }
+    const cu: CustomContent = { questions: [], hidden: [], skillNames: [name('Tên cũ', 100)], continents: [] }
+    const moi: CustomContent = { questions: [], hidden: [], skillNames: [name('Tên mới', 200)], continents: [] }
 
     expect(mergeContent(cu, moi).skillNames[0]!.value).toBe('Tên mới')
   })

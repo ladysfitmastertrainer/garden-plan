@@ -104,6 +104,48 @@ describe('mở app', () => {
     expect(state.mode).toBe('signed-out')
     expect(state.error).toMatch(/Không nối được máy chủ/)
   })
+
+  it('biết mình là ai rồi thì không hỏi lại máy chủ', async () => {
+    /*
+      `GameShell` và `AdminGate` đều gọi `init()` lúc mount, nên quản trị viên đi
+      từ phần chơi sang `/admin` là hỏi hai lần cho cùng một câu. Lượt sau không
+      mang về tin gì mới: phiên chỉ đổi qua chính những hành động trong store này.
+    */
+    fakeServer({ '/api/auth/session': { body: CO_HA } })
+
+    await useAuth.getState().init()
+    await useAuth.getState().init()
+
+    expect(calls.filter((c) => c.path === '/api/auth/session')).toHaveLength(1)
+  })
+
+  it('hai màn cùng mở một lúc thì dùng chung một lượt hỏi', async () => {
+    // `reactStrictMode` bật, nên trong dev React chạy effect hai lần liền nhau và
+    // cả hai đều thấy `ready` còn false.
+    fakeServer({ '/api/auth/session': { body: CO_HA } })
+
+    await Promise.all([useAuth.getState().init(), useAuth.getState().init()])
+
+    expect(calls.filter((c) => c.path === '/api/auth/session')).toHaveLength(1)
+    expect(useAuth.getState().ready).toBe(true)
+  })
+
+  it('hỏng mạng rồi thì vẫn hỏi lại được ở lần mở sau', async () => {
+    // Lượt đang bay phải được dọn kể cả khi hỏng, không thì một lần mất mạng là
+    // khoá luôn `init()` cho tới khi tải lại trang.
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    await useAuth.getState().init()
+    expect(useAuth.getState().error).toMatch(/Không nối được máy chủ/)
+
+    // Mạng về, và màn hình đăng nhập dựng lại state như lúc mới mở.
+    useAuth.setState({ ready: false })
+    fakeServer({ '/api/auth/session': { body: CO_HA } })
+    await useAuth.getState().init()
+
+    expect(useAuth.getState()).toMatchObject({ ready: true, displayName: 'Cô Hà' })
+  })
 })
 
 describe('người lớn đăng nhập', () => {

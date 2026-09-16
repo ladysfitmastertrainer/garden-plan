@@ -66,6 +66,7 @@
  */
 
 import type { Grade, Subject } from '../../content/types'
+import { customContinent } from '../../content/custom'
 
 /** Một ô đất hình thoi: rộng gấp đôi cao - tỉ lệ đẳng cự kinh điển. */
 export const TILE_W = 28
@@ -76,6 +77,7 @@ export const TILE_DEPTH = 7
 export const LEVEL_H = 7
 /** Lưới vuông 12×12 ô. */
 export const GRID = 12
+
 
 /** Gốc toạ độ ngang: ô xa nhất bên trái là (0, GRID-1). */
 const ORIGIN_X = (GRID - 1) * (TILE_W / 2)
@@ -228,14 +230,31 @@ export function levelAt(rows: string[], c: number, r: number): number {
   return char >= 'a' && char <= 'z' ? 1 : 0
 }
 
+/**
+ * Lục địa ĐANG CÓ HIỆU LỰC của một lớp.
+ *
+ * `CONTINENTS` là bản trong mã nguồn - bản gốc, đi cùng git, có test canh. Thầy
+ * cô vẽ lại bản đồ ở trang quản trị thì bản vẽ ấy CHỒNG LÊN, không thay thế: xoá
+ * bản vẽ đi là mọi thứ về như cũ, nên vẽ hỏng cũng không mất gì. Xem
+ * `content/custom.ts`.
+ *
+ * Mọi nơi đọc bản đồ để chơi đều phải đi qua đây chứ không đọc thẳng
+ * `CONTINENTS`, không thì trẻ đi trên bản gốc trong khi màn hình vẽ bản mới.
+ */
+export function continentFor(grade: Grade): Continent {
+  const base = CONTINENTS[grade]
+  const drawn = customContinent(grade)
+  return drawn ? { ...base, rows: drawn } : base
+}
+
 /** Loại ô ở toạ độ lưới của một lớp. */
 export function cellKind(grade: Grade, c: number, r: number): CellKind {
-  return kindAt(CONTINENTS[grade].rows, c, r)
+  return kindAt(continentFor(grade).rows, c, r)
 }
 
 /** Bậc đất của ô ở một lớp. */
 export function cellLevel(grade: Grade, c: number, r: number): number {
-  return levelAt(CONTINENTS[grade].rows, c, r)
+  return levelAt(continentFor(grade).rows, c, r)
 }
 
 /**

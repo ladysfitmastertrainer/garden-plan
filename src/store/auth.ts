@@ -101,6 +101,9 @@ interface AuthState {
 const message = (cause: unknown): string =>
   cause instanceof Error ? cause.message : 'Có gì đó không ổn. Thử lại nhé.'
 
+/** Lượt `init()` đang bay, để hai màn cùng mount không hỏi máy chủ hai lần. */
+let inFlight: Promise<void> | null = null
+
 /**
  * Kéo nội dung tự soạn về, âm thầm.
  *
@@ -117,7 +120,7 @@ async function syncContentQuietly(): Promise<void> {
   }
 }
 
-export const useAuth = create<AuthState>((set) => ({
+export const useAuth = create<AuthState>((set, get) => ({
   ready: false,
   mode: 'signed-out',
   displayName: null,
@@ -134,13 +137,43 @@ export const useAuth = create<AuthState>((set) => ({
    * lần và `init`, `signIn`, `signUp`, `claimStudent` dùng chung.
    */
   async init() {
+    /*
+      Biết mình là ai rồi thì không hỏi lại.
+
+      Có HAI màn cùng gọi `init()` lúc mount - `GameShell` cho phần chơi và
+      `AdminGate` cho `/admin` - nên quản trị viên đi từ màn này sang màn kia là
+      hỏi máy chủ hai lần cho cùng một câu. Lượt sau không mang về tin gì mới:
+      phiên chỉ đổi qua chính những hành động trong store này (`signIn`,
+      `signUp`, `claimStudent`, `signOut`), và chúng đặt state thẳng.
+    */
+    if (get().ready) return
+
+    /*
+      Hai lời gọi cùng lúc thì dùng chung một lượt bay.
+
+      `reactStrictMode` bật, nên trong dev React chạy effect hai lần liền nhau -
+      cả hai đều thấy `ready` còn false và cùng gọi ra máy chủ. Lượt kép ấy chỉ
+      có ở dev, nhưng hai màn mount sát nhau thì ở đâu cũng xảy ra được.
+    */
+    if (inFlight) return inFlight
+
+    inFlight = (async () => {
+      try {
+        const session = await request<SessionResponse>('/api/auth/session')
+        await apply(session, set)
+      } catch (cause) {
+        // Không nối được máy chủ lúc mở app. Nói ra và dừng ở màn đăng nhập - im
+        // lặng thì người dùng nhìn một vòng xoay không bao giờ dứt.
+        set({ ready: true, mode: 'signed-out', error: message(cause) })
+      }
+    })()
+
     try {
-      const session = await request<SessionResponse>('/api/auth/session')
-      await apply(session, set)
-    } catch (cause) {
-      // Không nối được máy chủ lúc mở app. Nói ra và dừng ở màn đăng nhập - im
-      // lặng thì người dùng nhìn một vòng xoay không bao giờ dứt.
-      set({ ready: true, mode: 'signed-out', error: message(cause) })
+      await inFlight
+    } finally {
+      // Dọn ngay: hỏng mạng thì `ready` vẫn thành true ở trên, nhưng nếu sau này
+      // có ai gọi lại `init()` sau `signOut` thì lượt đó phải được đi thật.
+      inFlight = null
     }
   },
 

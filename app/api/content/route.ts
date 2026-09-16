@@ -34,6 +34,7 @@ export const POST = route(async (req) => {
     questions: body.questions ?? [],
     hidden: body.hidden ?? [],
     skillNames: body.skillNames ?? [],
+    continents: body.continents ?? [],
   })
   return { pushed }
 })

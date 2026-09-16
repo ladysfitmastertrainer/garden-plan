@@ -271,3 +271,91 @@ describe('ràng buộc dữ liệu', () => {
     expect(after.rows).toHaveLength(0)
   })
 })
+
+/*
+  Bản đồ tự vẽ (0006) đi đúng con đường của câu hỏi tự soạn: thuộc về người lớn,
+  chảy ngược xuống trẻ. Mỗi test dưới đây là một đường rò rỉ hoặc một đường đọc
+  bắt buộc phải thông - đọc SQL bằng mắt thì không thấy được.
+*/
+describe('bản đồ cô giáo vẽ chảy xuống học sinh', () => {
+  const MAP = JSON.stringify([
+    '............', '............', '............', '....TTTT....',
+    '....TCCV....', '....VVVV....', '....DDDD....', '....NNNN....',
+    '............', '............', '............', '............',
+  ])
+
+  it('cô giáo lưu được bản đồ của mình', async () => {
+    await h.as(coHa)
+    await h.db.query(
+      'insert into custom_continents (owner_id, grade, rows) values ($1, 3, $2::jsonb)',
+      [coHa, MAP],
+    )
+    const rows = await h.db.query('select grade from custom_continents where owner_id = $1', [coHa])
+    expect(rows.rows).toHaveLength(1)
+  })
+
+  it('học sinh trong lớp ĐỌC ĐƯỢC bản đồ cô vẽ', async () => {
+    // Lý do tồn tại của cả tính năng. Đứt đường này thì cô vẽ xong mà lớp vẫn
+    // thấy bản đồ cũ, và không ai hiểu vì sao.
+    await h.as(anhUser)
+    const rows = await h.db.query('select rows from custom_continents where owner_id = $1', [coHa])
+    expect(rows.rows).toHaveLength(1)
+  })
+
+  it('học sinh KHÔNG trong lớp thì không đọc được', async () => {
+    await h.as(binhUser)
+    const rows = await h.db.query('select rows from custom_continents where owner_id = $1', [coHa])
+    expect(rows.rows).toHaveLength(0)
+  })
+
+  it('phụ huynh khác KHÔNG đọc được bản đồ của cô', async () => {
+    // Người lớn không đọc nội dung của người lớn khác, kể cả cô giáo dạy con họ.
+    await h.as(boBinh)
+    const rows = await h.db.query('select rows from custom_continents where owner_id = $1', [coHa])
+    expect(rows.rows).toHaveLength(0)
+  })
+
+  it('người khác KHÔNG ghi đè được bản đồ của cô', async () => {
+    await h.as(boBinh)
+    const message = await expectDenied(() =>
+      h.db.query(
+        'insert into custom_continents (owner_id, grade, rows) values ($1, 3, $2::jsonb)',
+        [coHa, MAP],
+      ),
+    )
+    expect(message).toMatch(/policy|denied|vi phạm|violates/i)
+  })
+
+  it('học sinh KHÔNG tự vẽ lại bản đồ của mình được', async () => {
+    // Trẻ chỉ đọc. Ghi được nghĩa là một em xoá sạch bản đồ của cả lớp.
+    await h.as(anhUser)
+    await expectDenied(() =>
+      h.db.query(
+        'insert into custom_continents (owner_id, grade, rows) values ($1, 4, $2::jsonb)',
+        [coHa, MAP],
+      ),
+    )
+  })
+
+  it('CSDL từ chối bản đồ không đủ 12 dòng', async () => {
+    // Hàng rào cuối. Client đã nắn hình dạng rồi, nhưng bảng này nhận cả jsonb
+    // từ bất cứ đâu, và một bản đồ 3 dòng thì màn hình game dựng ra một mớ.
+    await h.as(coHa)
+    await expectDenied(() =>
+      h.db.query(
+        'insert into custom_continents (owner_id, grade, rows) values ($1, 5, $2::jsonb)',
+        [coHa, JSON.stringify(['....', '....', '....'])],
+      ),
+    )
+  })
+
+  it('CSDL từ chối lớp không có thật', async () => {
+    await h.as(coHa)
+    await expectDenied(() =>
+      h.db.query(
+        'insert into custom_continents (owner_id, grade, rows) values ($1, 9, $2::jsonb)',
+        [coHa, MAP],
+      ),
+    )
+  })
+})

@@ -29,7 +29,7 @@
  */
 
 import type { BankEntry } from './bank'
-import type { Difficulty, ScenarioOption, Virtue } from './types'
+import type { Difficulty, Grade, ScenarioOption, Virtue } from './types'
 import { VIRTUE_LABEL } from './types'
 
 /** Một dòng trong kho: có id để hợp nhất, có mốc để biết bản nào mới hơn. */
@@ -63,13 +63,31 @@ export interface SkillNameRow extends CustomRow<string> {
   skillId: string
 }
 
+/**
+ * Bản đồ lục địa tự vẽ cho một lớp. `value` là 12 dòng ký tự.
+ *
+ * Ở CHUNG bộ nội dung tự soạn chứ không có đường ống riêng, vì nó là đúng cùng
+ * một bài toán: người lớn soạn, chồng lên bản trong mã nguồn, hợp nhất theo mốc
+ * thời gian, đồng bộ qua nhiều máy. Dựng một đường ống thứ hai chỉ để chở mười
+ * hai dòng chữ là nhân đôi chỗ để sai.
+ *
+ * Id CỐ ĐỊNH theo lớp (xem `continentId`), giống `hidden` và `skillNames` chứ
+ * không giống `questions`: hai máy cùng sửa bản đồ lớp 3 phải đụng vào cùng một
+ * dòng để bản mới hơn thắng. Mỗi máy một uuid thì hợp nhất ra hai bản đồ cho một
+ * lớp, và không ai nói được bản nào đang có hiệu lực.
+ */
+export interface ContinentRow extends CustomRow<string[]> {
+  grade: Grade
+}
+
 export interface CustomContent {
   questions: QuestionRow[]
   hidden: HiddenRow[]
   skillNames: SkillNameRow[]
+  continents: ContinentRow[]
 }
 
-const EMPTY: CustomContent = { questions: [], hidden: [], skillNames: [] }
+const EMPTY: CustomContent = { questions: [], hidden: [], skillNames: [], continents: [] }
 
 const STORAGE_KEY = 'hvtt.content.v2'
 /** Bản cũ: gom theo kỹ năng, không id, không mốc thời gian. */
@@ -116,6 +134,11 @@ function cleanList(value: unknown, max: number, maxLength: number): string[] {
  */
 export function keyId(prefix: 'hidden' | 'name', skillId: string, value: string): string {
   return prefix === 'name' ? `name:${skillId}` : `hidden:${skillId}:${value}`
+}
+
+/** Id của bản đồ lớp `grade`. Cố định theo lớp - xem `ContinentRow`. */
+export function continentId(grade: Grade): string {
+  return `continent:${grade}`
 }
 
 /** Id do MÁY đặt, để hai máy đang offline không bao giờ đụng id của nhau. */
@@ -322,7 +345,67 @@ export function sanitiseContent(raw: unknown): CustomContent {
     }
   }
 
-  return { questions, hidden, skillNames }
+  const continents: ContinentRow[] = []
+  if (Array.isArray(input.continents)) {
+    for (const item of input.continents) {
+      const row = continentShape(item)
+      if (row) continents.push(row)
+    }
+  }
+
+  return { questions, hidden, skillNames, continents }
+}
+
+/** 12 dòng, mỗi dòng 12 ký tự trong bảng ký tự của lục địa. */
+const CONTINENT_GRID = 12
+/**
+ * Bảng ký tự của lục địa. Dấu gạch nối (đất trống) đứng CUỐI lớp ký tự để không
+ * phải thoát: đặt giữa thì nó thành một dải, và `G-t` nuốt gọn nửa bảng ASCII -
+ * đúng lỗi mà bản đầu mắc phải, ký tự lạ lọt hết qua.
+ */
+const CONTINENT_CHARS = /^[.TVDNCGtvdncg-]*$/
+
+/**
+ * Nhặt một bản đồ hợp lệ về HÌNH DẠNG, hoặc `null`.
+ *
+ * Chỉ kiểm hình dạng thôi - đủ 12×12 và toàn ký tự có nghĩa. Luật thật của một
+ * lục địa (đủ bốn môn, có lâu đài, đất liền một khối) do `validateContinent`
+ * bên `features/world` lo: nó cần biết ngữ nghĩa của từng ký tự, mà tầng
+ * `content` thì cố ý không biết gì về thế giới trong game.
+ *
+ * Ô thiếu thì đệm bằng biển, ô thừa thì cắt: dữ liệu méo từ một máy cũ vẫn mở
+ * được bản đồ ra để sửa, thay vì mất trắng.
+ */
+function continentShape(raw: unknown): ContinentRow | null {
+  if (!raw || typeof raw !== 'object') return null
+  const input = raw as Record<string, unknown>
+
+  const grade = Number(input.grade)
+  if (!Number.isInteger(grade) || grade < 1 || grade > 5) return null
+
+  const updatedAt =
+    typeof input.updatedAt === 'number' && Number.isFinite(input.updatedAt) ? input.updatedAt : 0
+  const deletedAt =
+    typeof input.deletedAt === 'number' && Number.isFinite(input.deletedAt) ? input.deletedAt : null
+
+  const raw_rows = Array.isArray(input.value) ? input.value : []
+  const value: string[] = []
+  for (let r = 0; r < CONTINENT_GRID; r++) {
+    const line = typeof raw_rows[r] === 'string' ? (raw_rows[r] as string) : ''
+    const cut = line.slice(0, CONTINENT_GRID)
+    if (!CONTINENT_CHARS.test(cut)) return null
+    value.push(cut.padEnd(CONTINENT_GRID, '.'))
+  }
+
+  const ownerId = cleanText(input.ownerId, 60)
+  return {
+    id: continentId(grade as Grade),
+    grade: grade as Grade,
+    value,
+    updatedAt,
+    deletedAt,
+    ownerId: ownerId || null,
+  }
 }
 
 /** Chỗ giữ chân cho bia mộ: không bao giờ hiện ra vì dòng đó đã bị xoá. */
@@ -345,7 +428,8 @@ function fromLegacy(raw: unknown): CustomContent {
   if (!raw || typeof raw !== 'object') return { ...EMPTY }
   const input = raw as Record<string, unknown>
   const now = Date.now()
-  const out: CustomContent = { questions: [], hidden: [], skillNames: [] }
+  // Bản v1 không có bản đồ tự vẽ - tính năng ấy ra sau, nên không có gì để dựng lại.
+  const out: CustomContent = { questions: [], hidden: [], skillNames: [], continents: [] }
 
   if (input.questions && typeof input.questions === 'object') {
     for (const [skillId, list] of Object.entries(input.questions as Record<string, unknown>)) {
@@ -436,6 +520,7 @@ function prune(content: CustomContent): CustomContent {
     questions: content.questions.filter(alive),
     hidden: content.hidden.filter(alive),
     skillNames: content.skillNames.filter(alive),
+    continents: content.continents.filter(alive),
   }
 }
 
@@ -467,6 +552,7 @@ export function stampOwner(ids: Set<string>, ownerId: string): void {
     questions: mark(current.questions),
     hidden: mark(current.hidden),
     skillNames: mark(current.skillNames),
+    continents: mark(current.continents),
   })
 }
 
@@ -615,6 +701,70 @@ export function setSkillName(skillId: string, name: string): void {
   })
 }
 
+
+// --- Bản đồ lục địa tự vẽ -----------------------------------------------------
+
+/**
+ * Bản đồ đang có hiệu lực cho lớp này, hoặc `null` nếu đang dùng bản trong mã.
+ *
+ * Trả về `null` chứ không trả bản gốc: nơi gọi cần phân biệt được "đã tự vẽ" với
+ * "đang dùng bản gốc" để nói đúng câu đó ra màn hình, và để biết nút "Trả về bản
+ * gốc" có nghĩa gì không.
+ */
+export function customContinent(grade: Grade): string[] | null {
+  const found = current.continents.find((row) => row.grade === grade && row.deletedAt === null)
+  return found ? [...found.value] : null
+}
+
+/** Lúc bản đồ lớp này được lưu lần cuối, hoặc `null` nếu chưa từng. */
+export function customContinentSavedAt(grade: Grade): number | null {
+  const found = current.continents.find((row) => row.grade === grade && row.deletedAt === null)
+  return found?.updatedAt ?? null
+}
+
+/**
+ * Lưu bản đồ tự vẽ cho một lớp.
+ *
+ * KHÔNG kiểm luật lục địa ở đây - `validateContinent` bên `features/world` lo
+ * việc đó, và trang quản trị chặn nút Lưu khi còn lỗi. Ở đây chỉ nắn về đúng
+ * hình dạng 12×12 để một bản méo không bao giờ xuống được tới kho.
+ */
+export function setCustomContinent(grade: Grade, rows: string[]): void {
+  const shaped = continentShape({ grade, value: rows, updatedAt: Date.now(), deletedAt: null })
+  if (!shaped) return
+
+  const found = current.continents.find((row) => row.grade === grade)
+  commit({
+    ...current,
+    continents: found
+      ? current.continents.map((row) =>
+          row.id === shaped.id
+            ? { ...row, value: shaped.value, updatedAt: shaped.updatedAt, deletedAt: null }
+            : row,
+        )
+      : [...current.continents, shaped],
+  })
+}
+
+/**
+ * Bỏ bản tự vẽ, quay lại bản trong mã nguồn.
+ *
+ * ĐÁNH DẤU chứ không bỏ hẳn, cùng lý do với mọi thứ khác trong kho này: bỏ hẳn
+ * thì lần đồng bộ sau máy kia lại đẩy bản đồ cũ quay về, và người dùng xoá đi
+ * xoá lại mãi không được.
+ */
+export function clearCustomContinent(grade: Grade): void {
+  const found = current.continents.find((row) => row.grade === grade && row.deletedAt === null)
+  if (!found) return
+  const now = Date.now()
+  commit({
+    ...current,
+    continents: current.continents.map((row) =>
+      row.id === found.id ? { ...row, updatedAt: now, deletedAt: now } : row,
+    ),
+  })
+}
+
 // --- Hợp nhất hai kho ---------------------------------------------------------
 
 /**
@@ -632,6 +782,7 @@ export function mergeContent(mine: CustomContent, theirs: CustomContent): Custom
     questions: mergeRows(mine.questions, theirs.questions),
     hidden: mergeRows(mine.hidden, theirs.hidden),
     skillNames: mergeRows(mine.skillNames, theirs.skillNames),
+    continents: mergeRows(mine.continents, theirs.continents),
   }
 }
 

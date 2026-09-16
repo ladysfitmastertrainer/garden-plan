@@ -39,6 +39,13 @@ export interface RemoteContent {
     updated_at: string
     deleted_at: string | null
   }>
+  continents: Array<{
+    owner_id: string
+    grade: number
+    rows: unknown
+    updated_at: string
+    deleted_at: string | null
+  }>
 }
 
 /**
@@ -79,9 +86,9 @@ export async function pullContent(session: Session): Promise<RemoteContent> {
   const owners = await readableOwners(session)
   // Trẻ chưa thuộc lớp nào và hồ sơ không có chủ: không có gì để đọc. Gọi `.in()`
   // với mảng rỗng vẫn chạy, nhưng thoát sớm thì đỡ ba vòng đi lại vô ích.
-  if (owners.length === 0) return { questions: [], hidden: [], skillNames: [] }
+  if (owners.length === 0) return { questions: [], hidden: [], skillNames: [], continents: [] }
 
-  const [questions, hidden, names] = await Promise.all([
+  const [questions, hidden, names, continents] = await Promise.all([
     db()
       .from('custom_questions')
       .select('id, owner_id, skill_id, entry, updated_at, deleted_at')
@@ -94,16 +101,22 @@ export async function pullContent(session: Session): Promise<RemoteContent> {
       .from('custom_skill_names')
       .select('owner_id, skill_id, name, updated_at, deleted_at')
       .in('owner_id', owners),
+    db()
+      .from('custom_continents')
+      .select('owner_id, grade, rows, updated_at, deleted_at')
+      .in('owner_id', owners),
   ])
 
   check(questions.error, 'Không tải được câu hỏi tự soạn')
   check(hidden.error, 'Không tải được danh sách câu đã ẩn')
   check(names.error, 'Không tải được tên kỹ năng tự đặt')
+  check(continents.error, 'Không tải được bản đồ tự vẽ')
 
   return {
     questions: (questions.data ?? []) as RemoteContent['questions'],
     hidden: (hidden.data ?? []) as RemoteContent['hidden'],
     skillNames: (names.data ?? []) as RemoteContent['skillNames'],
+    continents: (continents.data ?? []) as RemoteContent['continents'],
   }
 }
 
@@ -118,6 +131,7 @@ export interface ContentPush {
   }>
   hidden: Array<{ skill_id: string; prompt: string; updated_at: string; deleted_at: string | null }>
   skillNames: Array<{ skill_id: string; name: string; updated_at: string; deleted_at: string | null }>
+  continents: Array<{ grade: number; rows: string[]; updated_at: string; deleted_at: string | null }>
 }
 
 /**
@@ -148,6 +162,14 @@ export async function pushContent(ownerId: string, push: ContentPush): Promise<n
       .upsert(stamp(push.skillNames), { onConflict: 'owner_id,skill_id' })
     check(error, 'Không lưu được tên kỹ năng tự đặt')
   }
+  if (push.continents.length > 0) {
+    const { error } = await db()
+      .from('custom_continents')
+      .upsert(stamp(push.continents), { onConflict: 'owner_id,grade' })
+    check(error, 'Không lưu được bản đồ tự vẽ')
+  }
 
-  return push.questions.length + push.hidden.length + push.skillNames.length
+  return (
+    push.questions.length + push.hidden.length + push.skillNames.length + push.continents.length
+  )
 }

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { GRADES, type Grade } from '../../content/types'
 import { classApi as api, type ClassRow, type ClassStudent } from '../../data/classes'
 import { ConfirmModal } from '../../ui/ConfirmModal'
+import { generatePin } from './pin'
 
 const AVATARS = ['🦊', '🐼', '🐯', '🐨', '🦁', '🐸', '🐧', '🦄', '🐢', '🐙', '🦉', '🐝']
 
@@ -48,13 +49,16 @@ export function ClassManager() {
     if (selected) void refreshStudents(selected.id)
   }, [selected, refreshStudents])
 
-  const run = async (fn: () => Promise<void>) => {
+  /** Trả về việc có thành công không - nơi gọi cần biết để không khoe nhầm. */
+  const run = async (fn: () => Promise<void>): Promise<boolean> => {
     setBusy(true)
     try {
       await fn()
       setError(null)
+      return true
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
+      return false
     } finally {
       setBusy(false)
     }
@@ -126,6 +130,47 @@ export function ClassManager() {
   )
 }
 
+/**
+ * Vì sao phải lập lớp.
+ *
+ * Trẻ không có email và không có mật khẩu, nên cách duy nhất để một em tự đăng
+ * nhập trên máy dùng chung ở lớp là: mã lớp → chạm vào con vật của mình → mã
+ * PIN. Cả ba thứ ấy đều sinh ra từ đây, và thiếu bước cuối là em đó vẫn chưa vào
+ * được - xem `0001_init.sql`, cột `pin_hash` cố ý để trống lúc tạo hồ sơ.
+ */
+function WhyClasses() {
+  const steps = [
+    ['1', 'Tạo lớp', 'Mỗi lớp có một mã lớp riêng, các em sẽ gõ mã này để vào.'],
+    ['2', 'Thêm học sinh', 'Mở lớp vừa tạo, thêm từng em: tên, con vật, học lớp mấy.'],
+    ['3', 'Đặt mã PIN', 'Mỗi em một mã 4 số - bấm 🎲 để máy tự nghĩ hộ. Chưa có mã thì em đó chưa đăng nhập được.'],
+  ]
+
+  return (
+    <section className="card grid gap-3">
+      <h2 className="text-xl font-extrabold">Lớp học để làm gì?</h2>
+      <p className="text-base opacity-70">
+        Trẻ không có email và không có mật khẩu. Lập lớp chính là cách tạo lối đăng nhập cho các
+        em trên máy dùng chung ở lớp.
+      </p>
+      <ol className="grid gap-2">
+        {steps.map(([number, title, detail]) => (
+          <li key={number} className="flex gap-3 rounded-2xl p-3" style={{ background: 'var(--color-paper-sunk)' }}>
+            <span className="pixel-font shrink-0 text-xl opacity-50">{number}</span>
+            <span className="min-w-0">
+              <span className="block font-extrabold">{title}</span>
+              <span className="block text-base opacity-70">{detail}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="text-base opacity-70">
+        Xong ba bước, các em vào app chọn thẻ <strong>🎒 Học sinh</strong>, gõ mã lớp, chạm vào con
+        vật của mình rồi nhập mã PIN.
+      </p>
+    </section>
+  )
+}
+
 function ClassList({
   classes,
   busy,
@@ -144,6 +189,14 @@ function ClassList({
 
   return (
     <>
+      {/*
+        Lớp là thứ DUY NHẤT làm cho trẻ đăng nhập được, nhưng không chỗ nào trên
+        giao diện từng nói ra điều đó - người dùng thật đọc thấy "Tạo lớp mới" và
+        hỏi thẳng là để làm gì. Nói ra ba bước, và chỉ nói khi chưa có lớp nào:
+        làm xong một lần rồi thì lời hướng dẫn thành tiếng ồn.
+      */}
+      {classes.length === 0 && <WhyClasses />}
+
       <section className="card grid gap-3">
         <h2 className="text-xl font-extrabold">Lớp của tôi</h2>
         {classes.length === 0 && <p className="opacity-70">Chưa có lớp nào. Tạo lớp đầu tiên bên dưới.</p>}
@@ -224,7 +277,7 @@ function ClassDetail({
   onBack: () => void
   onAddStudent: (input: { name: string; avatar: string; grade: Grade }) => void
   onRemoveStudent: (studentId: string) => void
-  onSetPin: (studentId: string, pin: string) => void
+  onSetPin: (studentId: string, pin: string) => Promise<boolean>
 }) {
   const [name, setName] = useState('')
   const [avatar, setAvatar] = useState(AVATARS[0]!)
@@ -360,11 +413,20 @@ function StudentRow({
 }: {
   student: ClassStudent
   busy: boolean
-  onSetPin: (pin: string) => void
+  onSetPin: (pin: string) => Promise<boolean>
   onRemove: () => void
 }) {
   const [pin, setPin] = useState('')
   const [editing, setEditing] = useState(false)
+  /*
+    Mã vừa đặt xong, giữ lại để giáo viên chép ra giấy.
+
+    BẮT BUỘC phải có: mã PIN lưu xuống dưới dạng băm bcrypt (xem
+    `server/classes.ts`), nên không ai đọc lại được nữa - kể cả máy chủ. Sinh
+    một mã ngẫu nhiên rồi xoá ô nhập đi là mã ấy mất luôn, và em học sinh đó vĩnh
+    viễn không đăng nhập được cho tới khi có người đặt lại mã khác.
+  */
+  const [justSet, setJustSet] = useState<string | null>(null)
 
   return (
     <div className="grid gap-2 rounded-2xl p-3" style={{ background: 'var(--color-paper-sunk)' }}>
@@ -396,14 +458,18 @@ function StudentRow({
 
       {editing && (
         <form
-          className="flex gap-2"
+          className="flex flex-wrap gap-2"
           onSubmit={(event) => {
             event.preventDefault()
-            if (/^\d{4}$/.test(pin)) {
-              onSetPin(pin)
+            if (!/^\d{4}$/.test(pin)) return
+            void onSetPin(pin).then((saved) => {
+              // Chỉ khoe mã khi máy chủ đã nhận. Khoe lúc lưu hỏng là giáo viên
+              // chép ra giấy một mã không tồn tại, rồi đổ cho em học sinh gõ sai.
+              if (!saved) return
+              setJustSet(pin)
               setPin('')
               setEditing(false)
-            }
+            })
           }}
         >
           <input
@@ -412,13 +478,43 @@ function StudentRow({
             inputMode="numeric"
             placeholder="4 chữ số"
             aria-label={`Mã PIN cho ${student.name}`}
-            className="flex-1 rounded-xl border-4 bg-white px-3 py-2 text-center text-xl font-extrabold tracking-widest outline-none"
+            className="min-w-24 flex-1 rounded-xl border-4 bg-white px-3 py-2 text-center text-xl font-extrabold tracking-widest outline-none"
             style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
           />
+          {/*
+            Nghĩ mã cho ba mươi em thì mã sẽ na ná nhau và đoán được - xem
+            `pin.ts`. Nút này chỉ ĐIỀN vào ô, không tự lưu: giáo viên vẫn phải
+            nhìn thấy mã rồi mới bấm Lưu.
+          */}
+          <button
+            type="button"
+            onClick={() => setPin(generatePin())}
+            className="btn btn-ghost px-4"
+            aria-label={`Sinh mã PIN ngẫu nhiên cho ${student.name}`}
+          >
+            🎲 Ngẫu nhiên
+          </button>
           <button type="submit" disabled={busy || !/^\d{4}$/.test(pin)} className="btn btn-good px-5">
             Lưu
           </button>
         </form>
+      )}
+
+      {justSet && (
+        <div
+          className="flex flex-wrap items-center gap-3 rounded-xl p-3"
+          style={{ background: 'var(--color-good-soft)', color: 'var(--color-good)' }}
+          role="status"
+        >
+          <span className="text-base font-bold">
+            Mã mới của {student.name}:{' '}
+            <code className="text-2xl font-extrabold tracking-widest">{justSet}</code>
+          </span>
+          <span className="min-w-0 flex-1 text-base">Ghi lại ngay - mã này sẽ không hiện lại.</span>
+          <button type="button" onClick={() => setJustSet(null)} className="btn btn-ghost px-4">
+            Đã ghi
+          </button>
+        </div>
       )}
     </div>
   )

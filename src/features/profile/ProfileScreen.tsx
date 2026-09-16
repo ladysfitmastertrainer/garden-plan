@@ -40,10 +40,9 @@ export function ProfileScreen() {
   /*
     Nhân viên nhà trường thì việc ở đây không phải là "tạo hồ sơ cho con".
 
-    Giáo viên và quản trị viên thường KHÔNG có con riêng nào trong app. Trước đây
-    họ đăng nhập xong rơi thẳng vào màn tạo hồ sơ trẻ, và không còn lối nào tới
-    chỗ quản lý lớp - vì lối đó nằm sau màn chơi, mà màn chơi chỉ hiện khi đã có
-    ít nhất một hồ sơ trẻ. Kẹt cứng.
+    Giáo viên và quản trị viên thường KHÔNG có con riêng nào trong app, nên họ
+    không còn HẠ CÁNH xuống màn này nữa - `GameShell` đưa họ vào khu vực người
+    lớn. Tới được đây nghĩa là họ tự chọn, và khi ấy vẫn phải có đường quay về.
   */
   const isStaff = mode === 'adult' && (role === 'teacher' || role === 'admin')
   const selectStudent = useGame((s) => s.selectStudent)
@@ -63,86 +62,97 @@ export function ProfileScreen() {
   }
 
   return (
-    <div className="pixel-ui mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-5 px-4 py-8">
-      <header className="text-center">
-        <h1 className="pixel-font text-4xl">HỌC VIỆN TRÍ TUỆ</h1>
-        <p className="mt-1 text-lg opacity-70">Ai đang chơi hôm nay?</p>
-      </header>
+    <>
+      {/*
+        Lối tắt phải có mặt Ở ĐÂY NỮA, không chỉ ở nhánh trên.
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {students.map((student) => {
-          const { level } = levelFromTotalXp(student.totalXp)
-          const creature = creatureFromAvatar(student.avatar)
-          return (
-            <div key={student.id} className="pixel-panel flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => void selectStudent(student.id)}
-                className="flex flex-1 items-center gap-3 text-left"
-              >
-                <PixelSprite sprite={HERO_CREATURES[creature]} scale={3} />
-                <span>
-                  <span className="block text-xl font-extrabold">{student.name}</span>
-                  <span className="pixel-font block text-lg opacity-70">
-                    Lv{level} · Lớp {student.grade} · {student.gold}₫
+        Trước đây nó chỉ vẽ khi `students.length === 0`, tức là biến mất đúng lúc
+        giáo viên cần nó nhất: vừa lập lớp xong là có học sinh, và từ giây phút ấy
+        màn này không còn lối nào dẫn về chỗ quản lý lớp.
+      */}
+      {isStaff && <StaffShortcut onGo={() => go('dashboard')} />}
+      <div className="pixel-ui mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-5 px-4 py-8">
+        <header className="text-center">
+          <h1 className="pixel-font text-4xl">HỌC VIỆN TRÍ TUỆ</h1>
+          <p className="mt-1 text-lg opacity-70">Ai đang chơi hôm nay?</p>
+        </header>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {students.map((student) => {
+            const { level } = levelFromTotalXp(student.totalXp)
+            const creature = creatureFromAvatar(student.avatar)
+            return (
+              <div key={student.id} className="pixel-panel flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void selectStudent(student.id).then(() => go('game'))}
+                  className="flex flex-1 items-center gap-3 text-left"
+                >
+                  <PixelSprite sprite={HERO_CREATURES[creature]} scale={3} />
+                  <span>
+                    <span className="block text-xl font-extrabold">{student.name}</span>
+                    <span className="pixel-font block text-lg opacity-70">
+                      Lv{level} · Lớp {student.grade} · {student.gold}₫
+                    </span>
                   </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                aria-label={`Xoá hồ sơ ${student.name}`}
-                onClick={() => setPendingDelete(student)}
-                className="pixel-font shrink-0 px-3 py-2 text-xl opacity-50 hover:opacity-100"
-              >
-                ✕
-              </button>
-            </div>
-          )
-        })}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Xoá hồ sơ ${student.name}`}
+                  onClick={() => setPendingDelete(student)}
+                  className="pixel-font shrink-0 px-3 py-2 text-xl opacity-50 hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        <button type="button" onClick={() => setCreating(true)} className="btn btn-ghost text-lg">
+          + Thêm bạn mới
+        </button>
+
+        {pendingDelete && (
+          <ConfirmModal
+            title={`Xoá hồ sơ của ${pendingDelete.name}?`}
+            message={`Toàn bộ tiến độ, vàng và thú của ${pendingDelete.name} sẽ mất.\nKhông lấy lại được đâu.`}
+            confirmLabel="Xoá hồ sơ"
+            cancelLabel="Giữ lại"
+            danger
+            onClose={() => setPendingDelete(null)}
+            onConfirm={() => {
+              void deleteStudent(pendingDelete.id)
+              setPendingDelete(null)
+            }}
+          >
+            {/* Vẽ đúng con thú của hồ sơ đó: người lớn xoá nhầm em này thay vì em
+                kia là mất sạch tiến độ, mà tên trẻ con thì hay na ná nhau. */}
+            <PixelSprite
+              sprite={HERO_CREATURES[creatureFromAvatar(pendingDelete.avatar)]}
+              scale={4}
+            />
+          </ConfirmModal>
+        )}
       </div>
-
-      <button type="button" onClick={() => setCreating(true)} className="btn btn-ghost text-lg">
-        + Thêm bạn mới
-      </button>
-
-      {pendingDelete && (
-        <ConfirmModal
-          title={`Xoá hồ sơ của ${pendingDelete.name}?`}
-          message={`Toàn bộ tiến độ, vàng và thú của ${pendingDelete.name} sẽ mất.\nKhông lấy lại được đâu.`}
-          confirmLabel="Xoá hồ sơ"
-          cancelLabel="Giữ lại"
-          danger
-          onClose={() => setPendingDelete(null)}
-          onConfirm={() => {
-            void deleteStudent(pendingDelete.id)
-            setPendingDelete(null)
-          }}
-        >
-          {/* Vẽ đúng con thú của hồ sơ đó: người lớn xoá nhầm em này thay vì em
-              kia là mất sạch tiến độ, mà tên trẻ con thì hay na ná nhau. */}
-          <PixelSprite
-            sprite={HERO_CREATURES[creatureFromAvatar(pendingDelete.avatar)]}
-            scale={4}
-          />
-        </ConfirmModal>
-      )}
-    </div>
+    </>
   )
 }
 
 /**
- * Lối tắt cho nhân viên nhà trường, đặt ngay trên đầu màn tạo hồ sơ trẻ.
+ * Lối tắt cho nhân viên nhà trường, đặt trên đầu MỌI nhánh của màn hồ sơ.
  *
  * Không thay thế màn kia: giáo viên vẫn có thể có con của chính mình trong app.
- * Chỉ là phải có một đường đi tiếp cho người không có.
+ * Chỉ là dù đứng ở nhánh nào - chưa có hồ sơ nào, đang tạo, hay đang nhìn danh
+ * sách - cũng phải có một đường quay về chỗ làm việc của họ.
  */
 function StaffShortcut({ onGo }: { onGo: () => void }) {
   return (
     <div className="pixel-ui mx-auto w-full max-w-xl px-4 pt-4">
       <div className="card flex flex-wrap items-center gap-3">
         <p className="min-w-0 flex-1 text-base">
-          Bạn là <strong>giáo viên</strong> hoặc <strong>quản trị viên</strong>? Việc lập lớp và
-          thêm học sinh nằm ở khu vực người lớn.
+          Đây là hồ sơ để <strong>chơi</strong>. Việc lập lớp, thêm học sinh và đặt mã PIN nằm ở
+          khu vực người lớn.
         </p>
         <button type="button" onClick={onGo} className="btn btn-primary shrink-0 px-5 text-base">
           🏫 Quản lý lớp
@@ -154,6 +164,7 @@ function StaffShortcut({ onGo }: { onGo: () => void }) {
 
 function CreateProfile({ onCancel }: { onCancel: (() => void) | null }) {
   const createStudent = useGame((s) => s.createStudent)
+  const go = useUi((s) => s.go)
   const [name, setName] = useState('')
   const [creature, setCreature] = useState<HeroCreatureId>('fox')
   const [grade, setGrade] = useState<Grade>(1)
@@ -163,6 +174,14 @@ function CreateProfile({ onCancel }: { onCancel: (() => void) | null }) {
     if (!name.trim() || saving) return
     setSaving(true)
     await createStudent({ name: name.trim(), avatar: AVATAR_OF[creature], grade })
+    /*
+      Rời màn hồ sơ một cách DỨT KHOÁT.
+
+      Trước đây không cần: chưa chọn hồ sơ thì màn này hiện, chọn rồi thì thôi -
+      `screen` không tham gia. Giờ 'profiles' là một nơi đi tới được, nên nếu
+      không tự bước ra thì chọn xong vẫn đứng nguyên tại chỗ.
+    */
+    go('game')
   }
 
   return (

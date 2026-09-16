@@ -18,9 +18,12 @@ import { useUi } from '../store/ui'
 export function RotateHint() {
   const dismissed = useUi((s) => s.rotateHintDismissed)
   const dismiss = useUi((s) => s.dismissRotateHint)
+  // Lời mời cài app đang hiện thì im lặng: nó đã hứa "tự nằm ngang", và hai dải
+  // chồng nhau thì trẻ đọc cả hai thành một mớ. Xem `store/ui.ts`.
+  const inviteOpen = useUi((s) => s.installInviteOpen)
   const portraitPhone = usePortraitPhone()
 
-  if (dismissed || !portraitPhone) return null
+  if (dismissed || inviteOpen || !portraitPhone) return null
 
   return (
     <div

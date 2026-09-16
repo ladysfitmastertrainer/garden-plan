@@ -1,0 +1,81 @@
+/** Trạng thái điều hướng cấp cao. Tách riêng để cả bản đồ lẫn App cùng đọc được. */
+
+import { create } from 'zustand'
+
+import type { Grade, Subject } from '../content/types'
+
+export type Screen = 'game' | 'dashboard' | 'inventory'
+
+/** Vùng đất đang mở. `null` nghĩa là đang đứng ở bản đồ thế giới. */
+export interface Region {
+  subject: Subject
+  grade: Grade
+}
+
+export function regionKey(region: Region): string {
+  return `${region.subject}-g${region.grade}`
+}
+
+interface UiState {
+  screen: Screen
+  /**
+   * Đã qua cổng kiểm tra của người lớn chưa. Reset mỗi lần mở lại app - đây là
+   * rào cản để trẻ không tự vào xem số liệu, không phải cơ chế bảo mật.
+   */
+  adultUnlocked: boolean
+  muted: boolean
+  /**
+   * Trẻ đã tắt lời nhắc xoay ngang máy chưa.
+   *
+   * Reset mỗi lần mở lại app, giống `adultUnlocked`: nhắc một lần mỗi phiên là
+   * đủ, mà nhắc lại ở phiên sau cũng không phiền - có khi hôm nay trẻ cầm máy
+   * kiểu khác.
+   */
+  rotateHintDismissed: boolean
+
+  /**
+   * Vùng đất đang mở và chỗ nhân vật đang đứng trong từng vùng.
+   *
+   * PHẢI nằm ở đây chứ không phải trong state của màn bản đồ: lúc vào trận, App
+   * thay `MapScreen` bằng `BattleScreen`, nên mọi state cục bộ của màn bản đồ bị
+   * xoá sạch. Đánh xong một con quái là trẻ bị ném ngược ra bản đồ thế giới và
+   * phải đi bộ lại từ đầu vùng - trên bản đồ 80 ô thì đó là hình phạt, không
+   * phải trò chơi.
+   */
+  region: Region | null
+  /**
+   * Vùng đất trẻ VỪA Ở TRONG, kể cả khi đã quay ra bản đồ thế giới.
+   *
+   * Khác `region` ở chỗ nó KHÔNG bị xoá lúc trẻ đi ra: bản đồ thế giới cần biết
+   * cắm cái ghim "con đang ở đây" lên hòn đảo nào, mà lúc đó `region` đã là null
+   * rồi - nếu không thì chẳng còn gì để hiện bản đồ thế giới cả.
+   */
+  lastRegion: Region | null
+  /** Ô đang đứng của từng vùng, theo `regionKey`. */
+  overworldPos: Record<string, { x: number; y: number }>
+
+  go: (screen: Screen) => void
+  unlockAdult: () => void
+  setMuted: (muted: boolean) => void
+  dismissRotateHint: () => void
+  enterRegion: (region: Region | null) => void
+  rememberPos: (key: string, pos: { x: number; y: number }) => void
+}
+
+export const useUi = create<UiState>((set) => ({
+  screen: 'game',
+  adultUnlocked: false,
+  muted: false,
+  rotateHintDismissed: false,
+  region: null,
+  lastRegion: null,
+  overworldPos: {},
+
+  go: (screen) => set({ screen }),
+  unlockAdult: () => set({ adultUnlocked: true }),
+  setMuted: (muted) => set({ muted }),
+  dismissRotateHint: () => set({ rotateHintDismissed: true }),
+  enterRegion: (region) => set(region ? { region, lastRegion: region } : { region }),
+  rememberPos: (key, pos) =>
+    set((state) => ({ overworldPos: { ...state.overworldPos, [key]: pos } })),
+}))

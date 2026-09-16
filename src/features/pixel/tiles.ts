@@ -1,0 +1,389 @@
+/**
+ * Bộ ô cảnh (tile) 16×16 cho bản đồ đi bộ.
+ *
+ * Cùng quy ước ký tự với creatures.ts, thêm vài ký tự riêng cho cảnh vật.
+ * Mỗi ô lấp đầy cả 16×16 (trừ ô có tán cây nhô ra) để ghép lại thành một mặt
+ * đất liền mạch, không có kẽ hở - đúng cách bản đồ thời đó được ghép.
+ *
+ * QUY TẮC BẮT BUỘC: mọi màu trong file này phải lấy từ bảng TERRAIN, không được
+ * gõ mã màu thẳng vào sprite. biome.ts đổi tông cả vùng đất bằng cách tráo bảng
+ * màu này; một mã màu gõ lậu vào sprite sẽ không đổi theo và để lại một vệt màu
+ * lạc lõng giữa bản đồ.
+ */
+
+import type { Sprite } from './sprite'
+
+/** Bảng màu gốc - cảnh đồng cỏ. Các vùng đất khác kế thừa rồi tráo màu. */
+export const TERRAIN = {
+  grass: '#7cc96a',
+  grassDark: '#5fae52',
+  tallGrass: '#5fae52',
+  tallGrassDark: '#4b9440',
+  path: '#e0c98f',
+  pathDark: '#c9ab6d',
+  treeLeaf: '#2f8f4e',
+  treeLeafDark: '#1f6d39',
+  trunk: '#7a4a22',
+  flower: '#ff6f91',
+  flowerCore: '#ffe066',
+  stone: '#9aa6b8',
+  stoneDark: '#5d6a7d',
+  stoneLight: '#c9d3e0',
+  dark: '#2b3550',
+  gateVoid: '#3a2a52',
+  water: '#5fb8e0',
+  waterDark: '#3e9bc7',
+  waterLight: '#a8e0f5',
+  sand: '#efe2b4',
+  sandDark: '#d9c894',
+  /** Nền sân đấu trùm - lát đá, khác hẳn mặt đất thường. */
+  floor: '#b9a68c',
+  floorDark: '#8f7c63',
+  floorLine: '#6d5c48',
+  flame: '#ff8c2b',
+  flameCore: '#ffe066',
+}
+
+export type TerrainColors = typeof TERRAIN
+
+/** Cỏ: nền phẳng, rắc vài túm cỏ sẫm cho đỡ trơ. */
+function grassTile(c: TerrainColors): Sprite {
+  return {
+    palette: { G: c.grass, g: c.grassDark },
+    rows: [
+      'GGGGGGGGGGGGGGGG',
+      'GGGGGgGGGGGGGGGG',
+      'GGGGGGGGGGGgGGGG',
+      'GgGGGGGGGGGGGGGG',
+      'GGGGGGGGgGGGGGGG',
+      'GGGGGGGGGGGGGGgG',
+      'GGGgGGGGGGGGGGGG',
+      'GGGGGGGGGGGgGGGG',
+      'GGGGGGGgGGGGGGGG',
+      'GgGGGGGGGGGGGGGG',
+      'GGGGGGGGGGGGGgGG',
+      'GGGGgGGGGGGGGGGG',
+      'GGGGGGGGGGgGGGGG',
+      'GGGGGGGgGGGGGGGG',
+      'GgGGGGGGGGGGGGGG',
+      'GGGGGGGGGGGGGGGG',
+    ],
+  }
+}
+
+/** Cỏ cao: đậm hơn, báo hiệu vùng hay gặp quái (quy ước quen thuộc). */
+function tallGrassTile(c: TerrainColors): Sprite {
+  return {
+    palette: { G: c.tallGrass, g: c.tallGrassDark },
+    rows: [
+      'GGGGGGGGGGGGGGGG',
+      'GgGGgGGGgGGGgGGG',
+      'GgGGgGGGgGGGgGGG',
+      'GGGGGGGGGGGGGGGG',
+      'GGGgGGGgGGGgGGGg',
+      'GGGgGGGgGGGgGGGg',
+      'GGGGGGGGGGGGGGGG',
+      'GgGGgGGGgGGGgGGG',
+      'GgGGgGGGgGGGgGGG',
+      'GGGGGGGGGGGGGGGG',
+      'GGGgGGGgGGGgGGGg',
+      'GGGgGGGgGGGgGGGg',
+      'GGGGGGGGGGGGGGGG',
+      'GgGGgGGGgGGGgGGG',
+      'GgGGgGGGgGGGgGGG',
+      'GGGGGGGGGGGGGGGG',
+    ],
+  }
+}
+
+/** Đường mòn. */
+function pathTile(c: TerrainColors): Sprite {
+  return {
+    palette: { P: c.path, p: c.pathDark },
+    rows: [
+      'PPPPPPPPPPPPPPPP',
+      'PPPpPPPPPPPPPPPP',
+      'PPPPPPPPPPPPpPPP',
+      'PPPPPPPPPPPPPPPP',
+      'PpPPPPPPPpPPPPPP',
+      'PPPPPPPPPPPPPPPP',
+      'PPPPPPPpPPPPPPPP',
+      'PPPPPPPPPPPPPPpP',
+      'PPPPPPPPPPPPPPPP',
+      'PPPpPPPPPPPPPPPP',
+      'PPPPPPPPPPpPPPPP',
+      'PPPPPPPPPPPPPPPP',
+      'PpPPPPPPPPPPPpPP',
+      'PPPPPPPPPPPPPPPP',
+      'PPPPPPPpPPPPPPPP',
+      'PPPPPPPPPPPPPPPP',
+    ],
+  }
+}
+
+/** Cây: tán lá tròn trên thân, đứng trên nền đất. Ô này KHÔNG đi qua được. */
+function treeTile(c: TerrainColors): Sprite {
+  return {
+    palette: { d: c.treeLeaf, D: c.treeLeafDark, t: c.trunk, G: c.grass, g: c.grassDark },
+    rows: [
+      '.....dddd.......',
+      '...dddddddd.....',
+      '..dddDDDdddd....',
+      '.dddddDDddddd...',
+      '.dddddddddddd...',
+      '.ddddDDDddddd...',
+      '..dddddddddd....',
+      '...dddddddd.....',
+      '....dddddd......',
+      '......tt........',
+      '......tt........',
+      '......tt........',
+      '.....tttt.......',
+      '....GGGGGG......',
+      'GGGGGGGgGGGGGGGG',
+      'GGGGGGGGGGGGGGGG',
+    ],
+  }
+}
+
+/** Bụi hoa - chỉ để trang trí, vẫn đi qua được. */
+function flowerTile(c: TerrainColors): Sprite {
+  return {
+    palette: { G: c.grass, g: c.grassDark, f: c.flower, y: c.flowerCore },
+    rows: [
+      'GGGGGGGGGGGGGGGG',
+      'GGGGGgGGGGGGGGGG',
+      'GGGGGGGGGGGfGGGG',
+      'GGGGGGGGGGffyffG',
+      'GGGfGGGGGGGfffGG',
+      'GGffyffGGGGGfGGG',
+      'GGGfffGGGGGGGGGG',
+      'GGGGfGGGGGGGGGGG',
+      'GGGGGGGGGGGGGGGG',
+      'GgGGGGGGGfGGGGGG',
+      'GGGGGGGGffyffGGG',
+      'GGGGGGGGGfffGGGG',
+      'GGGGGGGGGGfGGGGG',
+      'GGGGGGGgGGGGGGGG',
+      'GgGGGGGGGGGGGGGG',
+      'GGGGGGGGGGGGGGGG',
+    ],
+  }
+}
+
+/** Tảng đá - chướng ngại, không đi qua được. */
+function rockTile(c: TerrainColors): Sprite {
+  return {
+    palette: { s: c.stone, S: c.stoneDark, l: c.stoneLight, G: c.grass, g: c.grassDark },
+    rows: [
+      'GGGGGGGGGGGGGGGG',
+      'GGGGGgGGGGGGGGGG',
+      'GGGGGSSSSSSGGGGG',
+      'GGGGSslllllSGGGG',
+      'GGGSsllsssllSGGG',
+      'GGSsllssssslsSGG',
+      'GGSslsssssssssSG',
+      'GGSssssssssssSGG',
+      'GGSssssssssssSGG',
+      'GGGSsssssssssSGG',
+      'GGGGSSSSSSSSSGGG',
+      'GGGGGGGGGGGGGGGG',
+      'GgGGGGGGGGGGGgGG',
+      'GGGGGGGGGGGGGGGG',
+      'GGGGGgGGGGGGGGGG',
+      'GGGGGGGGGGGGGGGG',
+    ],
+  }
+}
+
+/** Cổng đá: nơi vào trận. Đứng lên ô này là gặp quái. */
+function gateTile(c: TerrainColors): Sprite {
+  return {
+    palette: {
+      '#': c.dark,
+      k: c.stoneDark,
+      K: c.stone,
+      l: c.stoneLight,
+      d: c.gateVoid,
+      G: c.grass,
+    },
+    rows: [
+      'GGGGGGGGGGGGGGGG',
+      'GGG##########GGG',
+      'GG#kkkkkkkkkk#GG',
+      'GG#klllllllllk#G',
+      'GG#kl######lkk#G',
+      'GG#kl#dddd#lkk#G',
+      'GG#kl#dddd#lkk#G',
+      'GG#kl#dddd#lkk#G',
+      'GG#kl#dddd#lkk#G',
+      'GG#kl#dddd#lkk#G',
+      'GG#kl#dddd#lkk#G',
+      'GG#kll####llkk#G',
+      'GG#kkkkkkkkkk#GG',
+      'GGG##########GGG',
+      'GGGGGGGGGGGGGGGG',
+      'GGGGGGGGGGGGGGGG',
+    ],
+  }
+}
+
+/** Nước - chặn đường, dùng làm biên cho vùng ven biển. */
+function waterTile(c: TerrainColors): Sprite {
+  return {
+    palette: { W: c.water, w: c.waterDark, l: c.waterLight },
+    rows: [
+      'WWWWWWWWWWWWWWWW',
+      'WWlllWWWWWWWWWWW',
+      'WWWWWWWWWlllWWWW',
+      'WWWWWWWWWWWWWWWW',
+      'wwwwwwwwwwwwwwww',
+      'WWWWWWWWWWWWWWWW',
+      'WWWWlllWWWWWWWWW',
+      'WWWWWWWWWWWlllWW',
+      'WWWWWWWWWWWWWWWW',
+      'wwwwwwwwwwwwwwww',
+      'WWWWWWWWWWWWWWWW',
+      'WWlllWWWWWWWWWWW',
+      'WWWWWWWWlllWWWWW',
+      'WWWWWWWWWWWWWWWW',
+      'wwwwwwwwwwwwwwww',
+      'WWWWWWWWWWWWWWWW',
+    ],
+  }
+}
+
+/**
+ * Nền sân đấu trùm: đá lát vuông vức, mạch vữa rõ. Đi vào được.
+ * Khác hẳn mặt đất thường để trẻ bước tới là biết "sắp có chuyện lớn".
+ */
+function arenaTile(c: TerrainColors): Sprite {
+  return {
+    palette: { F: c.floor, f: c.floorDark, L: c.floorLine },
+    rows: [
+      'LLLLLLLLLLLLLLLL',
+      'LFFFFFFLFFFFFFFL',
+      'LFFFFFFLFFFFFFFL',
+      'LFFfFFFLFFFFfFFL',
+      'LFFFFFFLFFFFFFFL',
+      'LFFFFFFLFFFFFFFL',
+      'LFFFFFFLFFFFFFFL',
+      'LLLLLLLLLLLLLLLL',
+      'LFFFFFFFLFFFFFFL',
+      'LFFFFFFFLFFFFFFL',
+      'LFFFFfFFLFFfFFFL',
+      'LFFFFFFFLFFFFFFL',
+      'LFFFFFFFLFFFFFFL',
+      'LFFFFFFFLFFFFFFL',
+      'LFFFFFFFLFFFFFFL',
+      'LLLLLLLLLLLLLLLL',
+    ],
+  }
+}
+
+/** Đuốc viền sân đấu trùm. Chắn đường, và là thứ báo hiệu đã tới nơi. */
+function torchTile(c: TerrainColors): Sprite {
+  return {
+    palette: {
+      F: c.floor,
+      L: c.floorLine,
+      k: c.stoneDark,
+      s: c.stone,
+      l: c.stoneLight,
+      r: c.flame,
+      y: c.flameCore,
+    },
+    rows: [
+      '.......y........',
+      '......yry.......',
+      '.....yrrry......',
+      '.....rryrr......',
+      '.....rrrrr......',
+      '......rrr.......',
+      '.....kssssk.....',
+      '.....kslssk.....',
+      '.....kssssk.....',
+      '......ksk.......',
+      '......ksk.......',
+      '.....klslk......',
+      '....kssssssk....',
+      '....kkkkkkkk....',
+      'FFFFFFFFFFFFFFFF',
+      'LLLLLLLLLLLLLLLL',
+    ],
+  }
+}
+
+/** Cát: mặt đất của vùng ven biển. Đi vào được. */
+function sandTile(c: TerrainColors): Sprite {
+  return {
+    palette: { S: c.sand, s: c.sandDark },
+    rows: [
+      'SSSSSSSSSSSSSSSS',
+      'SSSsSSSSSSSSSSSS',
+      'SSSSSSSSSSSSsSSS',
+      'SSSSSSSSSSSSSSSS',
+      'SsSSSSSSSsSSSSSS',
+      'SSSSSSSSSSSSSSSS',
+      'SSSSSSSsSSSSSSSS',
+      'SSSSSSSSSSSSSSsS',
+      'SSSSSSSSSSSSSSSS',
+      'SSSsSSSSSSSSSSSS',
+      'SSSSSSSSSSsSSSSS',
+      'SSSSSSSSSSSSSSSS',
+      'SsSSSSSSSSSSSsSS',
+      'SSSSSSSSSSSSSSSS',
+      'SSSSSSSsSSSSSSSS',
+      'SSSSSSSSSSSSSSSS',
+    ],
+  }
+}
+
+/** Dựng cả bộ ô theo một bảng màu. biome.ts gọi hàm này cho từng vùng đất. */
+export function buildTiles(c: TerrainColors): TileSet {
+  return {
+    grass: grassTile(c),
+    tallGrass: tallGrassTile(c),
+    path: pathTile(c),
+    tree: treeTile(c),
+    flower: flowerTile(c),
+    rock: rockTile(c),
+    gate: gateTile(c),
+    water: waterTile(c),
+    arena: arenaTile(c),
+    torch: torchTile(c),
+    sand: sandTile(c),
+  }
+}
+
+export type TileKind =
+  | 'grass'
+  | 'tallGrass'
+  | 'path'
+  | 'tree'
+  | 'flower'
+  | 'rock'
+  | 'gate'
+  | 'water'
+  | 'arena'
+  | 'torch'
+  | 'sand'
+
+export type TileSet = Record<TileKind, Sprite>
+
+export const TILES: TileSet = buildTiles(TERRAIN)
+
+/** Ô nào đi vào được. Cây, đá, nước, đuốc thì không. */
+export const WALKABLE: Record<TileKind, boolean> = {
+  grass: true,
+  tallGrass: true,
+  path: true,
+  flower: true,
+  gate: true,
+  arena: true,
+  sand: true,
+  tree: false,
+  rock: false,
+  water: false,
+  torch: false,
+}

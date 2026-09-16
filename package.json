@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "validate": "tsx scripts/validate-content.ts",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "smtp-check": "node scripts/smtp-check.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

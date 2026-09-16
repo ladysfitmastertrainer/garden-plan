@@ -35,6 +35,16 @@ export type AuthMode = 'signed-out' | 'adult' | 'child'
  */
 export type AdultRole = 'parent' | 'teacher' | 'admin'
 
+/**
+ * Vai chọn được khi tự đăng ký.
+ *
+ * Cố ý KHÔNG phải `AdultRole`: 'admin' không bao giờ ra được từ biểu mẫu công
+ * khai, và kiểu này là chỗ nói điều đó ra thành lời thay vì trông cậy vào việc
+ * máy chủ nhớ kiểm - máy chủ vẫn kiểm, nhưng hai lớp cùng nói một điều thì lớp
+ * nào hỏng cũng có lớp kia đỡ.
+ */
+export type SignUpRole = 'parent' | 'teacher'
+
 export interface RosterEntry {
   studentId: string
   name: string
@@ -67,7 +77,12 @@ interface AuthState {
   notice: string | null
 
   init: () => Promise<void>
-  signUp: (input: { email: string; password: string; displayName: string }) => Promise<void>
+  signUp: (input: {
+    email: string
+    password: string
+    displayName: string
+    role: SignUpRole
+  }) => Promise<void>
   signIn: (input: { email: string; password: string }) => Promise<void>
   signOut: () => Promise<void>
   loadRoster: (classCode: string) => Promise<RosterEntry[]>
@@ -76,6 +91,10 @@ interface AuthState {
   syncNow: () => Promise<void>
   /** Người lớn tự đổi mật khẩu; phải nhập lại mật khẩu cũ. */
   changePassword: (input: { currentPassword: string; newPassword: string }) => Promise<void>
+  /** Quên mật khẩu: xin một lá thư kèm liên kết đặt lại. */
+  requestPasswordReset: (email: string) => Promise<void>
+  /** Đặt mật khẩu mới bằng token lấy từ liên kết trong thư. */
+  resetPassword: (accessToken: string, password: string) => Promise<void>
   clearError: () => void
 }
 
@@ -125,12 +144,12 @@ export const useAuth = create<AuthState>((set) => ({
     }
   },
 
-  async signUp({ email, password, displayName }) {
+  async signUp({ email, password, displayName, role }) {
     set({ busy: true, error: null, notice: null })
     try {
       const session = await request<SessionResponse>('/api/auth/signup', {
         method: 'POST',
-        body: { email, password, displayName },
+        body: { email, password, displayName, role },
       })
       await apply(session, set)
     } catch (cause) {
@@ -214,6 +233,43 @@ export const useAuth = create<AuthState>((set) => ({
         method: 'POST',
         body: { currentPassword, newPassword },
       })
+      set({ notice: 'Đã đổi mật khẩu xong.' })
+    } catch (cause) {
+      set({ error: message(cause) })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  async requestPasswordReset(email) {
+    set({ busy: true, error: null, notice: null })
+    try {
+      const { notice } = await request<{ notice: string }>('/api/auth/forgot', {
+        method: 'POST',
+        body: { email },
+      })
+      // Lời nhắn do máy chủ viết, không viết lại ở đây: nó cố ý mập mờ về việc
+      // địa chỉ này có tài khoản hay không, và sửa lại cho "rõ ràng" là phá đúng
+      // điều nó đang bảo vệ. Xem `app/api/auth/forgot/route.ts`.
+      set({ notice })
+    } catch (cause) {
+      set({ error: message(cause) })
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  async resetPassword(accessToken, password) {
+    set({ busy: true, error: null, notice: null })
+    try {
+      const session = await request<SessionResponse>('/api/auth/reset', {
+        method: 'POST',
+        body: { accessToken, password },
+      })
+      // Đổi xong là đăng nhập luôn - máy chủ đã mở phiên. Không bắt gõ lại mật
+      // khẩu vừa đặt: người vừa mở được hộp thư và vừa tự chọn mật khẩu thì đã
+      // chứng minh xong mình là ai.
+      await apply(session, set)
       set({ notice: 'Đã đổi mật khẩu xong.' })
     } catch (cause) {
       set({ error: message(cause) })

@@ -34,5 +34,33 @@ export const env = {
   serviceRoleKey: () => required('SUPABASE_SERVICE_ROLE_KEY'),
   /** Khoá ký cookie phiên. Đổi khoá này là mọi người bị đăng xuất. */
   sessionSecret: () => required('SESSION_SECRET'),
+  /**
+   * Địa chỉ thật của app, để dựng liên kết trong thư đặt lại mật khẩu.
+   *
+   * KHÔNG bắt buộc: bỏ trống thì lấy theo địa chỉ của chính yêu cầu đang xử lý,
+   * đủ dùng khi chạy máy local. Nhưng khi đã lên máy chủ thật thì nên khai, vì
+   * đứng sau một reverse proxy thì yêu cầu tới nơi thường mang `http` và tên máy
+   * nội bộ - liên kết trong thư sẽ trỏ về một địa chỉ không ai mở được.
+   */
+  appUrl: () => process.env.APP_URL?.replace(/\/+$/, '') ?? null,
   isProduction: () => process.env.NODE_ENV === 'production',
+}
+
+/**
+ * Địa chỉ gốc để quay về sau khi bấm liên kết trong thư.
+ *
+ * `APP_URL` thắng nếu có. Không có thì lấy từ yêu cầu - đây là giá trị do trình
+ * duyệt gửi lên nên về nguyên tắc là không đáng tin, nhưng nó KHÔNG tự quyết
+ * định được thư đi đâu: Supabase chỉ chấp nhận những địa chỉ đã khai trong
+ * Authentication → URL Configuration → Redirect URLs, mọi thứ khác bị nó rơi về
+ * Site URL. Danh sách đó mới là thứ chặn thật.
+ */
+export function appOrigin(req: Request): string {
+  const configured = env.appUrl()
+  if (configured) return configured
+
+  const header = req.headers.get('origin')
+  if (header) return header.replace(/\/+$/, '')
+
+  return new URL(req.url).origin
 }

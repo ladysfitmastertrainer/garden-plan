@@ -1,28 +1,37 @@
 /**
  * Người lớn tự đăng ký.
  *
- * Hai thay đổi so với bản Supabase, cả hai đều do có máy chủ mới làm được:
+ * KHÔNG GỬI THƯ. Tài khoản tạo ra mang `email_confirm: true`, nên đăng ký xong
+ * là vào được ngay, không phải đi tìm thư xác nhận trong hộp thư rác. Máy chủ
+ * thư chỉ còn cần cho luồng quên mật khẩu (`/api/auth/forgot`).
  *
- * 1. KHÔNG GỬI THƯ. Tài khoản tạo ra mang `email_confirm: true`, nên cả luồng
- *    không phụ thuộc vào SMTP - thứ vẫn hỏng thường xuyên nhất ở dự án này. Đăng
- *    ký xong là vào được ngay, không phải đi tìm thư trong hộp thư rác.
- *
- * 2. VAI LUÔN LÀ 'parent'. Bản cũ cho người đăng ký tự chọn "Phụ huynh" hay
- *    "Giáo viên" ngay trên biểu mẫu công khai - tức là ai cũng tự phong mình làm
- *    giáo viên, và giáo viên thì tạo được tài khoản cho người khác. Giáo viên
- *    thật nhận tài khoản từ quản trị viên của trường, đúng như
- *    `src/server/accounts.ts` mô tả.
+ * VAI do người đăng ký tự chọn, phụ huynh hoặc giáo viên - mỗi người một tài
+ * khoản riêng, và chính họ biết mình là ai. Nhưng chỉ hai vai đó: `admin` KHÔNG
+ * bao giờ ra được từ biểu mẫu công khai, vì đó là vai xoá được tài khoản người
+ * khác. Quản trị viên chỉ phong được bởi một quản trị viên khác, hoặc bằng tay ở
+ * SQL Editor cho người đầu tiên - xem supabase/README.md mục 4.1.
  */
 
 import { db } from '@/server/db'
 import { badRequest, readJson, requireEmail, requireText, route } from '@/server/http'
 import { startSession } from '@/server/session'
 
+/** Chỉ hai vai này ra được từ biểu mẫu công khai; mọi giá trị khác thành 'parent'. */
+function publicRole(value: unknown): 'parent' | 'teacher' {
+  return value === 'teacher' ? 'teacher' : 'parent'
+}
+
 export const POST = route(async (req) => {
-  const body = await readJson<{ email?: string; password?: string; displayName?: string }>(req)
+  const body = await readJson<{
+    email?: string
+    password?: string
+    displayName?: string
+    role?: string
+  }>(req)
   const email = requireEmail(body.email)
   const displayName = requireText(body.displayName, 'Tên của bạn')
   const password = requireText(body.password, 'Mật khẩu')
+  const role = publicRole(body.role)
 
   if (password.length < 6) throw badRequest('Mật khẩu phải dài ít nhất 6 ký tự.')
 
@@ -30,7 +39,7 @@ export const POST = route(async (req) => {
     email,
     password,
     email_confirm: true,
-    user_metadata: { display_name: displayName, role: 'parent' },
+    user_metadata: { display_name: displayName, role },
   })
 
   if (error) {
@@ -45,8 +54,8 @@ export const POST = route(async (req) => {
   // khi trigger bỏ qua người dùng tạo bằng khoá quản trị.
   await db()
     .from('profiles')
-    .upsert({ id: data.user.id, role: 'parent', display_name: displayName }, { onConflict: 'id' })
+    .upsert({ id: data.user.id, role, display_name: displayName }, { onConflict: 'id' })
 
   await startSession({ kind: 'adult', userId: data.user.id })
-  return { mode: 'adult', displayName, role: 'parent' }
+  return { mode: 'adult', displayName, role }
 })

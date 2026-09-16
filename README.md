@@ -24,6 +24,7 @@ npm test           # 797 test (gồm 67 test RLS chạy trên Postgres thật)
 npm run typecheck  # kiểm kiểu toàn dự án
 npm run validate   # kiểm tra toàn vẹn nội dung
 npm run icons      # sinh lại icon PWA
+npm run smtp-check -- ai-do@truong.edu.vn   # máy chủ thư đã cắm đúng chưa
 ```
 
 **Cần Supabase để chạy.** App là một máy chủ Next.js đứng trước một database

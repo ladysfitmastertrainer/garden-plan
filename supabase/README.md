@@ -4,8 +4,9 @@ App này là một **máy chủ Next.js** đứng trước một **database Post
 Supabase**. Trình duyệt không nói chuyện với Supabase: nó gọi `/api` trên chính
 tên miền của app, và máy chủ Node là thứ duy nhất cầm khoá vào database.
 
-Nghĩa là Supabase ở đây chỉ còn đóng hai vai: **Postgres** và **kho mật khẩu**.
-Không Edge Function, không cần bật đăng nhập ẩn danh, không cần cắm SMTP.
+Nghĩa là Supabase ở đây còn đóng ba vai: **Postgres**, **kho mật khẩu**, và
+**nơi gửi thư đặt lại mật khẩu**. Không còn Edge Function, và không cần bật đăng
+nhập ẩn danh.
 
 ## 1. Tạo dự án
 
@@ -43,6 +44,7 @@ rồi điền:
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...      # ô "service_role", KHÔNG phải "anon"
 SESSION_SECRET=...                     # sinh bằng lệnh dưới đây
+APP_URL=https://<địa-chỉ-thật>        # không bắt buộc khi chạy máy local
 ```
 
 ```bash
@@ -57,8 +59,14 @@ trị trên chỉ sống trong tiến trình Node; `src/server/` được chốt
 `SESSION_SECRET` ký cookie đăng nhập. Đổi chuỗi này là mọi người bị đăng xuất -
 đó cũng chính là cách đá tất cả ra ngoài khi cần.
 
-Thiếu biến nào thì route liên quan trả về đúng tên biến còn thiếu, không phải đi
-mò log.
+`APP_URL` chỉ dùng để dựng liên kết trong thư đặt lại mật khẩu. Chạy máy local
+thì bỏ trống cũng được - máy chủ lấy theo địa chỉ của yêu cầu. Nhưng khi đã lên
+máy chủ thật thì nên khai: đứng sau một reverse proxy, yêu cầu tới nơi thường
+mang `http` và tên máy nội bộ, và liên kết trong thư sẽ trỏ về một địa chỉ không
+ai mở được.
+
+Thiếu biến bắt buộc nào thì route liên quan trả về đúng tên biến còn thiếu, không
+phải đi mò log.
 
 ## 4. Tài khoản người lớn: admin tạo hộ
 
@@ -104,26 +112,128 @@ Hai cái chốt cuối cùng luôn đứng đó: không ai tự bỏ quyền qu�
 mình, và **quản trị viên cuối cùng** không bị hạ vai hay xoá - nếu không thì gỡ
 ra lại phải mở SQL Editor.
 
-## 5. Không cần SMTP nữa
+### 4.3 Tự đăng ký vẫn mở
 
-Cả một chương dài về Brevo, khoá SMTP, hạn ngạch 30 thư/giờ và địa chỉ quay về
-đã được xoá khỏi tài liệu này, vì app không còn gửi lá thư nào:
+Người lớn vẫn tự đăng ký được ở màn hình đăng nhập, và **tự chọn phụ huynh hay
+giáo viên** - mỗi người một tài khoản riêng, chính họ biết mình là ai. Đăng ký
+xong vào được ngay, không có thư xác nhận nào.
 
-| Việc | Trước | Bây giờ |
-|---|---|---|
-| Đăng ký | thư xác nhận | tạo xong là dùng được ngay |
-| Quên mật khẩu | liên kết gửi qua thư | quản trị viên đặt lại hộ, hiện ngay trên màn hình |
-| Admin tạo tài khoản | (vốn đã không gửi thư) | không đổi |
-| Đổi mật khẩu | qua liên kết trong thư | tự đổi, nhập lại mật khẩu cũ |
+Vai `admin` thì **không** ra được từ đó, và đây là ranh giới duy nhất còn lại:
+quản trị viên xoá được tài khoản người khác cùng toàn bộ hồ sơ trẻ thuộc về họ.
+Máy chủ hạ mọi giá trị lạ xuống `parent` (`app/api/auth/signup/route.ts`), nên có
+sửa biểu mẫu trong DevTools cũng không tự phong mình lên được.
 
-Đây là thứ hỏng thường xuyên nhất của bản trước, và nó hỏng vào đúng lúc tệ
-nhất - lúc một cô giáo đang cần vào tài khoản. Lối "quản trị viên đặt lại hộ"
-vốn đã có sẵn, nhanh hơn, và không phụ thuộc vào ai ngoài trường.
+Muốn một trường đóng hẳn, chỉ cấp tài khoản từ trên xuống, thì bỏ nút "Chưa có
+tài khoản? Đăng ký" trong `src/features/auth/AuthScreen.tsx` và chặn
+`/api/auth/signup` - lúc đó bảng ở 4.2 là đường duy nhất tạo tài khoản.
 
-Cái mất: người dùng không tự phục hồi được tài khoản khi không liên lạc được với
-quản trị viên. Với một trường thì đó là đánh đổi đúng; nếu sau này bán cho người
-dùng lẻ thì phải dựng lại luồng gửi thư, và lúc đó nó sẽ nằm ở `src/server/`
-chứ không phải trong bảng điều khiển của Supabase.
+## 5. Cắm máy chủ thư (SMTP): dùng Brevo
+
+**Chỉ có ĐÚNG MỘT luồng cần tới thư: "Quên mật khẩu".** Đăng ký không gửi thư
+(tài khoản tạo ra đã xác nhận sẵn), admin tạo tài khoản hộ cũng không. Nhưng cái
+luồng duy nhất ấy lại là lúc người ta đang mắc kẹt ngoài cửa, nên nó cần chạy.
+
+Supabase có sẵn một đường gửi thư dùng chung, nhưng đó là hạ tầng để chạy thử:
+vài lá một giờ cho cả dự án, không hơn. Một lớp có hai phụ huynh quên mật khẩu
+cùng buổi tối là hết lượt.
+
+### Vì sao không dùng Gmail
+
+Đã thử và đã hỏng. Gmail gửi được khi `nodemailer` gọi thẳng từ máy mình — app
+Diet Plan làm thế và chạy tốt — nhưng Supabase gọi thì trả `Error sending
+recovery email`. Lý do nằm ở bản chất hai cái cổng khác nhau: `smtp.gmail.com`
+là hộp thư CÁ NHÂN, Google canh chừng từng phiên đăng nhập lạ, còn Supabase gửi
+từ máy chủ của họ ở một quốc gia khác và không có cách nào trả lời thử thách bảo
+mật. Chính Supabase cũng cảnh báo ngay trên màn hình: *"the SMTP provider you
+entered is designed for sending personal rather than transactional email"*.
+
+Brevo (tên cũ: Sendinblue) là cổng gửi thư GIAO DỊCH, sinh ra đúng cho việc này:
+300 thư mỗi ngày miễn phí, không cần thẻ.
+
+### 5.1 Lấy khoá SMTP ở Brevo
+
+1. Lập tài khoản ở [brevo.com](https://www.brevo.com) (miễn phí).
+2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: điền địa chỉ
+   sẽ đứng tên gửi, rồi mở hộp thư đó bấm xác nhận. Chưa xác nhận thì mọi lá thư
+   đều bị từ chối.
+3. Góc trên phải → tên tài khoản → **SMTP & API → SMTP**. Màn này cho hai thứ:
+   - **Login**: dạng `8xxxxx001@smtp-brevo.com`
+   - **SMTP key**: bấm *Generate a new SMTP key*, chuỗi bắt đầu bằng
+     `xsmtpsib-...`. Nó chỉ hiện đúng một lần.
+
+   Khoá SMTP **không phải** mật khẩu đăng nhập Brevo.
+
+### 5.2 Điền vào Supabase
+
+Dashboard → **Authentication → Emails → SMTP Settings** → bật *Enable Custom
+SMTP*:
+
+| Ô | Điền |
+|---|---|
+| Host | `smtp-relay.brevo.com` |
+| Port | `587` |
+| Username | Login lấy ở bước 3 (`...@smtp-brevo.com`) |
+| Password | SMTP key `xsmtpsib-...` |
+| Sender email | đúng địa chỉ đã xác nhận ở bước 2 |
+| Sender name | `Học Viện Trí Tuệ` |
+
+Cổng 587 là STARTTLS — Brevo đỡ cả 587 lẫn 2525; đừng dùng 465.
+
+### 5.3 Nới hạn ngạch
+
+Dashboard → **Authentication → Rate Limits → Emails**. Mặc định Supabase chỉ cho
+**30 thư/giờ** kể cả khi đã cắm SMTP riêng. Nâng lên cho khớp sức của Brevo
+(300/ngày).
+
+### 5.4 Thử
+
+```bash
+npm run smtp-check -- email-cua-mot-tai-khoan-co-that@truong.edu.vn
+```
+
+Kịch bản này gọi đúng đường mà `/api/auth/forgot` gọi rồi đọc câu trả lời của
+Supabase, nên nó phân biệt được ba tình huống mà nhìn bằng mắt hay nhầm vào nhau:
+gửi được, **hạn ngạch**, và **SMTP hỏng**.
+
+Email đưa vào phải là tài khoản **có thật**. Với địa chỉ lạ, Supabase cố tình trả
+về "thành công" mà chẳng gửi gì, để người ngoài không dò được ai đã đăng ký — app
+cũng làm y như vậy, xem `app/api/auth/forgot/route.ts`.
+
+### Khi thư vào mục spam
+
+Địa chỉ gửi kết thúc bằng `@gmail.com` thì thư đi qua Brevo vẫn tới, nhưng dễ
+rơi vào spam: Gmail công bố cho cả thế giới biết thư gmail.com phải xuất phát từ
+máy chủ của Google, mà lá này thì không. Đó là chuyện uy tín người gửi, không
+phải cấu hình sai. Muốn sạch hẳn thì dùng một tên miền riêng và khai ba bản ghi
+DNS Brevo đưa cho (**Domains → Authenticate**).
+
+### Vẫn còn lối thứ hai
+
+Kể cả khi hệ thống thư hỏng hoàn toàn, **quản trị viên đặt lại mật khẩu hộ** vẫn
+chạy — nó không gửi thư nào, mật khẩu mới hiện thẳng trên màn hình. Màn "Quên mật
+khẩu" nói điều đó ra ngay tại chỗ, chứ không đợi người dùng chờ hết một buổi tối
+rồi mới biết.
+
+## 6. Đặt đúng địa chỉ quay về
+
+**Bước hay bị bỏ sót nhất**, và triệu chứng của nó rất dễ nhầm sang "thư không
+tới": người dùng bấm liên kết trong thư, Supabase xác minh xong rồi trả họ về
+**một địa chỉ chẳng có gì**.
+
+Dashboard → **Authentication → URL Configuration**:
+
+- **Site URL**: địa chỉ thật của app, ví dụ `https://hocvientritue.vercel.app`.
+- **Redirect URLs**: thêm mỗi dòng một cái. Đường dẫn `/dat-lai-mat-khau` là bắt
+  buộc — đó là trang nhận liên kết:
+  ```
+  http://localhost:3000/dat-lai-mat-khau
+  https://<địa-chỉ-thật-của-bạn>/dat-lai-mat-khau
+  ```
+
+Máy chủ đã truyền `redirectTo` trỏ về đúng trang đó, nhưng địa chỉ vẫn phải nằm
+trong danh sách trên thì Supabase mới chịu dùng; không thì nó lẳng lặng rơi về
+Site URL. Chính danh sách này — chứ không phải mã nguồn — là thứ chặn kẻ xấu bắt
+Supabase gửi token sang một tên miền của họ.
 
 ## Mô hình phân quyền
 

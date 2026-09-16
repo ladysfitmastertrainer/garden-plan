@@ -139,20 +139,81 @@ describe('người lớn đăng nhập', () => {
     expect(useAuth.getState().busy).toBe(false)
   })
 
-  it('đăng ký KHÔNG gửi vai lên - máy chủ luôn tạo ra phụ huynh', async () => {
+  it('đăng ký gửi kèm vai người dùng tự chọn', async () => {
     fakeServer({
-      'POST /api/auth/signup': { body: { mode: 'adult', displayName: 'Chị Mai', role: 'parent' } },
+      'POST /api/auth/signup': { body: { mode: 'adult', displayName: 'Cô Lan', role: 'teacher' } },
     })
 
     await useAuth.getState().signUp({
-      email: 'mai@nha.vn',
+      email: 'lan@truong.edu.vn',
       password: 'matkhau',
-      displayName: 'Chị Mai',
+      displayName: 'Cô Lan',
+      role: 'teacher',
     })
 
-    const signup = calls.find((c) => c.path === '/api/auth/signup')!
-    expect(signup.body).not.toHaveProperty('role')
-    expect(useAuth.getState().role).toBe('parent')
+    expect(calls.find((c) => c.path === '/api/auth/signup')!.body).toMatchObject({
+      displayName: 'Cô Lan',
+      role: 'teacher',
+    })
+    expect(useAuth.getState().role).toBe('teacher')
+  })
+})
+
+describe('quên mật khẩu', () => {
+  it('xin thư xong thì hiện lời nhắn của máy chủ, không tự viết lại', async () => {
+    /*
+      Lời nhắn cố ý mập mờ - "NẾU đây là địa chỉ của một tài khoản" - để ô này
+      không trở thành công cụ dò xem ai đang dùng hệ thống. Viết lại cho "rõ
+      ràng" ở phía trình duyệt là phá đúng điều nó đang bảo vệ, nên kho này chỉ
+      chuyển tiếp nguyên văn.
+    */
+    const notice = 'Nếu a@b.com là địa chỉ của một tài khoản, thư đặt lại mật khẩu vừa được gửi.'
+    fakeServer({ 'POST /api/auth/forgot': { body: { notice } } })
+
+    await useAuth.getState().requestPasswordReset('a@b.com')
+    expect(useAuth.getState().notice).toBe(notice)
+    // Tin vui thì tô xanh, không tô đỏ như lỗi.
+    expect(useAuth.getState().error).toBeNull()
+  })
+
+  it('máy chủ thư hỏng thì báo lỗi, KHÔNG báo đã gửi', async () => {
+    // Đây là lỗi tệ nhất để nuốt: người dùng ngồi chờ một lá thư không bao giờ
+    // tới, và không ai bảo cho biết.
+    fakeServer({
+      'POST /api/auth/forgot': { status: 500, body: { error: 'Error sending recovery email' } },
+    })
+
+    await useAuth.getState().requestPasswordReset('a@b.com')
+    expect(useAuth.getState().error).toBeTruthy()
+    expect(useAuth.getState().notice).toBeNull()
+  })
+
+  it('đặt mật khẩu mới xong là đăng nhập luôn', async () => {
+    fakeServer({
+      'POST /api/auth/reset': { body: { mode: 'adult', displayName: 'Cô Hà', role: 'teacher' } },
+    })
+
+    await useAuth.getState().resetPassword('token-tu-lien-ket', 'matkhaumoi')
+
+    expect(calls.find((c) => c.path === '/api/auth/reset')!.body).toEqual({
+      accessToken: 'token-tu-lien-ket',
+      password: 'matkhaumoi',
+    })
+    expect(useAuth.getState().mode).toBe('adult')
+    expect(useAuth.getState().notice).toMatch(/Đã đổi mật khẩu/)
+  })
+
+  it('liên kết hết hạn thì báo lỗi và KHÔNG mở phiên nào', async () => {
+    fakeServer({
+      'POST /api/auth/reset': {
+        status: 400,
+        body: { error: 'Liên kết trong thư đã hết hạn hoặc đã được dùng rồi.' },
+      },
+    })
+
+    await useAuth.getState().resetPassword('token-cu', 'matkhaumoi')
+    expect(useAuth.getState().error).toMatch(/hết hạn/)
+    expect(useAuth.getState().mode).toBe('signed-out')
   })
 })
 

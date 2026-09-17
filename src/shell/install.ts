@@ -44,6 +44,25 @@ export function isIos(): boolean {
   }
 }
 
+/**
+ * Máy cầm tay - điện thoại hoặc máy tính bảng.
+ *
+ * Hỏi bằng KIỂU CON TRỎ chứ không bằng bề ngang màn hình: một cửa sổ trình
+ * duyệt kéo hẹp trên máy tính vẫn là máy tính, và mời người ta "cài app về máy"
+ * ở đó thì vừa thừa vừa khó hiểu. `pointer: coarse` nghĩa là ngón tay, và ngón
+ * tay thì gần như chắc chắn là máy cầm tay.
+ *
+ * Dùng để quyết định CÓ MỜI HAY KHÔNG khi Chrome chưa chịu đưa lời mời của nó -
+ * xem `InstallPrompt`.
+ */
+export function isHandheld(): boolean {
+  try {
+    return window.matchMedia('(pointer: coarse)').matches
+  } catch {
+    return false
+  }
+}
+
 export function dismissedInstall(): boolean {
   try {
     return localStorage.getItem(DISMISS_KEY) === '1'

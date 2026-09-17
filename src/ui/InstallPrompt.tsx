@@ -31,6 +31,7 @@ import { useUi } from '../store/ui'
 import {
   dismissInstall,
   dismissedInstall,
+  isHandheld,
   isIos,
   registerServiceWorker,
   runInstall,
@@ -55,8 +56,24 @@ export function InstallPrompt() {
     setRefused(dismissedInstall())
   }, [])
 
-  const onIos = typeof navigator !== 'undefined' && !refused && !installed && isIos()
-  const open = !gone && !refused && !installed && (canInstall || onIos)
+  /*
+    MỜI NGAY CẢ KHI CHROME CHƯA ĐƯA LỜI MỜI CỦA NÓ.
+
+    Đây là chỗ bản trước im lặng, và im lặng gần như mọi lúc: dải này chỉ hiện
+    ra khi `beforeinstallprompt` đã bắn. Mà Chrome giữ sự kiện ấy rất chặt - nó
+    không bắn nếu người dùng từng gạt đi dải mời của chính Chrome (im khoảng ba
+    tháng sau đó), không bắn khi chưa "đủ tương tác", và trên iOS thì không bao
+    giờ có. Kết quả: app có đủ manifest, đủ service worker, đủ điều kiện cài -
+    mà người dùng mở lên không thấy một lời nào.
+
+    Nên điều kiện đổi từ "Chrome đã mời chưa" thành "đây có phải máy cầm tay
+    không". Có nút bấm thì mời bằng nút; không có thì chỉ đường bằng lời, vì
+    trên cả iPhone lẫn Android đều có một đường cài bằng tay và nó luôn dùng
+    được. Vẫn là LỜI MỜI: một lần bấm ✕ là im hẳn.
+  */
+  const handheld = typeof window !== 'undefined' && isHandheld()
+  const open = !gone && !refused && !installed && (canInstall || handheld)
+  const onIos = typeof navigator !== 'undefined' && isIos()
 
   /*
     Báo cho lời nhắc xoay máy biết mà nhường chỗ.
@@ -97,10 +114,15 @@ export function InstallPrompt() {
       <p className="min-w-0 flex-1 text-sm font-bold leading-snug">
         {canInstall ? (
           <>Cài app về máy để chơi toàn màn hình và tự nằm ngang.</>
-        ) : (
+        ) : onIos ? (
           <>
             Cài về máy: bấm <strong>Chia sẻ</strong> ở thanh dưới, rồi chọn{' '}
             <strong>Thêm vào MH chính</strong>.
+          </>
+        ) : (
+          <>
+            Cài về máy: mở trình đơn <strong>⋮</strong> của trình duyệt, rồi chọn{' '}
+            <strong>Cài ứng dụng</strong>.
           </>
         )}
       </p>

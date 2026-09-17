@@ -1058,11 +1058,25 @@ textarea.admin-input {
    `100dvh` chứ không phải `100vh`: trên iOS Safari, `vh` tính theo màn hình lúc
    thanh địa chỉ đã thu lại, nên trang luôn cao hơn chỗ thật sự nhìn thấy và đáy
    bản đồ chui xuống dưới thanh công cụ. */
+/* Cột co giãn của cả phần chơi: dải nhắc trên, màn chơi lấy phần còn lại.
+   Xem ghi chú trong `GameShell`. */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* `flex: 1` thay cho `height: 100dvh`, và `min-height: 0` để nó co được thật.
+
+   Một ô co giãn mặc định KHÔNG nhỏ hơn nội dung của nó (`min-height: auto`),
+   nên thiếu dòng ấy thì màn chơi vẫn đẩy dải nhắc ra khỏi màn hình đúng như cũ,
+   chỉ khác là lần này im lặng hơn. */
 .map-layout.map-immersive {
   display: block;
   width: 100%;
   max-width: none;
-  height: 100dvh;
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -1076,6 +1090,22 @@ textarea.admin-input {
    xuống gấp đôi. */
 .map-immersive > .region-layout,
 .map-immersive > .world-layout {
+  /*
+    TRẢI KÍN KHỐI CHA BẰNG `inset: 0`, KHÔNG PHẢI BẰNG `height: 100%`.
+
+    Trông thì hai cách như nhau, nhưng chỉ một cách chịu được việc khối cha lấy
+    chiều cao từ một cột co giãn (`flex: 1`). Phần trăm chiều cao chỉ giải được
+    khi cha có chiều cao DỨT KHOÁT, mà chiều cao do co giãn chia ra thì không
+    tính là dứt khoát - nên cả chuỗi `height: 100%` bên trong sập xuống 0, và
+    khung bản đồ tụt còn đúng 8px viền. Đo được: 66..74 trên một màn 844px.
+
+    `inset: 0` thì không hỏi chiều cao của ai cả: nó đo thẳng vào hộp của khối
+    cha đã định vị. Chuỗi bên dưới - hàng lưới `1fr`, rồi khung nền `100%` -
+    có chỗ dứt khoát để bám vào.
+  */
+  position: absolute;
+  inset: 0;
+  height: auto;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -1429,15 +1459,7 @@ textarea.admin-input {
   overflow: hidden;
 }
 
-/* Bản đồ thế giới ở chế độ toàn màn hình: căn giữa theo cả hai chiều.
 
-   Lục địa là một hình NẰM NGANG (336×180 điểm ảnh gốc), nên trên máy dựng đứng
-   nó không bao giờ lấp đầy chiều cao. Dồn lên đỉnh thì phần trống dồn hết xuống
-   đáy và màn hình trông như bị hụt; căn giữa thì khoảng trống chia đều hai bên. */
-.map-immersive > .world-layout,
-.map-immersive > .region-layout {
-  height: 100%;
-}
 
 /* CĂN GIỮA Ở BÊN TRONG PHẦN TỬ ĐƯỢC ĐO, KHÔNG PHẢI BẰNG CÁCH ĐẨY CHÍNH NÓ.
 

@@ -78,12 +78,24 @@ export function GameShell() {
     việc: bản đã cài tự nằm ngang theo manifest, nên trẻ nào cài rồi thì không
     bao giờ phải đọc tới dải thứ hai nữa. Xem `shell/orientation.ts`.
   */
+  /*
+    Khối bọc là một CỘT CO GIÃN, và đó không phải để cho đẹp.
+
+    Màn chơi trên điện thoại cao đúng một màn hình. Hai dải nhắc thì nằm TRÊN
+    nó, nên nếu màn chơi cứ khăng khăng `100dvh` thì trang cao hơn màn hình
+    đúng bằng chiều cao dải nhắc - và phần rơi xuống dưới mép máy chính là đáy
+    khung game, chỗ đặt bốn mũi tên đi cảnh.
+
+    Cột co giãn thì phép chia đúng theo nghĩa đen: dải nhắc lấy đúng phần nó
+    cần, màn chơi lấy TẤT CẢ phần còn lại. Không có dải nào thì phần còn lại là
+    cả màn hình, y như trước. Xem `.app-shell` trong globals.css.
+  */
   return (
-    <>
+    <div className="app-shell">
       <InstallPrompt />
       <RotateHint />
       <Screen />
-    </>
+    </div>
   )
 }
 

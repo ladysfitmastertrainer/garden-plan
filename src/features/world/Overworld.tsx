@@ -650,13 +650,19 @@ export function Overworld({
         {/*
           Bốn mũi tên nằm ĐÈ LÊN khung game, mờ.
 
-          Giấu đi khi có hộp thoại: lúc ấy nhân vật không đi được nữa (`paused`),
-          nên bốn cái nút xám ngoét chồng lên lời thoại chỉ là bốn thứ vướng mắt.
+          Giấu đi khi đang có hội thoại - hộp thoại nằm đúng chỗ ấy, và lúc đó
+          nhân vật cũng không đi được nữa.
+
+          ĐIỀU KIỆN LÀ `paused`, KHÔNG PHẢI `dialogue`. Bản trước viết `!dialogue`
+          và bốn mũi tên biến mất sạch: `dialogue` là một `<AnimatePresence>` -
+          một phần tử React LUÔN LUÔN tồn tại, chỉ rỗng ruột khi không có gì để
+          hiện - nên `!dialogue` không bao giờ đúng. Trên điện thoại, nơi bốn mũi
+          tên này là cách điều khiển DUY NHẤT, nhân vật đứng chết tại chỗ.
         */}
-        {!dialogue && (
+        {!paused && (
           <TouchPad
             onMove={tryMove}
-            disabled={stepping || paused || ambush !== null}
+            disabled={stepping || ambush !== null}
             viewHeight={viewHeight}
           />
         )}

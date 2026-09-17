@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCompactLayout } from '../../shell/useCompactLayout'
 import { AnimatePresence, motion } from 'framer-motion'
 import { setMuted } from '../../audio/synth'
 import { regionKey, useUi } from '../../store/ui'
@@ -70,15 +71,39 @@ export function MapScreen() {
   */
   usePvpSync(student?.id ?? null, region)
 
+  // Điện thoại và máy tính bảng dựng đứng: bản đồ chiếm trọn máy, mọi khung phụ
+  // chui vào ngăn kéo. Xem cuối hàm này và `shell/useCompactLayout.ts`.
+  const immersive = useCompactLayout()
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  // Đóng ngăn kéo khi trẻ bước vào hay bước ra khỏi một vùng đất: sau cú bấm ấy
+  // màn hình đã là một nơi khác, mà ngăn kéo thì vẫn che mất nó.
+  useEffect(() => setMenuOpen(false), [region?.subject, region?.grade])
+
   if (!student) return null
 
   const { level, xpIntoLevel, xpForNext } = levelFromTotalXp(student.totalXp)
   // Đang đứng trong một vùng đất: phần đầu trang phải nhường chỗ cho bản đồ.
   const inRegion = region !== null
 
+  /*
+    Hàng nút thu lại còn biểu tượng khi đang đi cảnh - nhưng KHÔNG trong ngăn kéo.
 
-  return (
-    <div className="pixel-ui map-layout mx-auto flex min-h-dvh max-w-3xl flex-col gap-4 px-4 py-4">
+    Trong ngăn kéo thì chỗ rộng rãi, mà ba biểu tượng trần trụi giữa một trang
+    trống thì phải đoán nghĩa. Lý do thu gọn ban đầu là để nhường chỗ cho bản đồ;
+    trong ngăn kéo không có bản đồ nào để nhường cả.
+  */
+  const navCompact = inRegion && !immersive
+
+
+  /*
+    Mọi khung PHỤ, gom lại một chỗ.
+
+    Trên máy tính chúng xếp dọc phía trên bản đồ như cũ. Trên điện thoại chúng
+    chui hết vào ngăn kéo sau nút ☰ - xem `immersive` ở cuối hàm này.
+  */
+  const chrome = (
+    <>
       <header className="pixel-panel flex items-center gap-3">
         <PixelSprite sprite={HERO_CREATURES[creatureFromAvatar(student.avatar)]} scale={3} />
         <div className="flex-1">
@@ -111,22 +136,22 @@ export function MapScreen() {
         <button
           type="button"
           onClick={() => go('inventory')}
-          className={inRegion ? 'btn btn-ghost px-4 text-lg' : 'btn btn-ghost flex-1 text-base'}
+          className={navCompact ? 'btn btn-ghost px-4 text-lg' : 'btn btn-ghost flex-1 text-base'}
           aria-label="Kho đồ"
           title="Kho đồ"
         >
-          {inRegion ? '🎒' : '🎒 Kho đồ'}
+          {navCompact ? '🎒' : '🎒 Kho đồ'}
         </button>
         <button
           type="button"
           onClick={() => go('dashboard')}
-          className={inRegion ? 'btn btn-ghost px-4 text-lg' : 'btn btn-ghost flex-1 text-base'}
+          className={navCompact ? 'btn btn-ghost px-4 text-lg' : 'btn btn-ghost flex-1 text-base'}
           aria-label="Bố mẹ / Thầy cô"
           title="Bố mẹ / Thầy cô"
         >
-          {inRegion ? '📊' : '📊 Bố mẹ / Thầy cô'}
+          {navCompact ? '📊' : '📊 Bố mẹ / Thầy cô'}
         </button>
-        <MuteButton compact={inRegion} />
+        <MuteButton compact={navCompact} />
       </nav>
 
       <InstallPrompt />
@@ -139,29 +164,85 @@ export function MapScreen() {
         phải thấy được điều đó dù đang đứng ở đâu. Tự thu lại khi cả lớp tắt máy.
       */}
       <PvpLobby student={student} progress={progress} region={region} />
+    </>
+  )
 
-      {region === null ? (
-        <WorldMapScreen
-          grade={student.grade}
-          avatar={student.avatar}
-          clearedByRegion={progress.clearedNodes}
-          towerCleared={progress.towerCleared ?? []}
-          onEnterRegion={(subject, grade) => setRegion({ subject, grade })}
-          onEnterTower={(subject, grade) => startTowerBattle(subject, grade)}
-        />
-      ) : (
-        regionMap && (
+  const mapArea =
+    region === null ? (
+      <WorldMapScreen
+        grade={student.grade}
+        avatar={student.avatar}
+        clearedByRegion={progress.clearedNodes}
+        towerCleared={progress.towerCleared ?? []}
+        onEnterRegion={(subject, grade) => setRegion({ subject, grade })}
+        onEnterTower={(subject, grade) => startTowerBattle(subject, grade)}
+      />
+    ) : (
+      regionMap && (
         <SubjectMap
           key={regionKey(region)}
           subject={region.subject}
           grade={region.grade}
           map={regionMap}
+          immersive={immersive}
           onBack={() => setRegion(null)}
           onPlay={(node) => startBattle(region.subject, node, region.grade)}
           onWild={(kind, variant) => startWildBattle(region.subject, region.grade, kind, variant)}
         />
-        )
-      )}
+      )
+    )
+
+  /*
+    ---- ĐIỆN THOẠI: BẢN ĐỒ CHIẾM TRỌN MÁY ----
+
+    Trên một máy 390×844, thanh hồ sơ (96px), hàng nút (56px), bảng bạn cùng lớp
+    (52px) và lời mời cài app cộng lại ăn hơn một phần ba chiều cao - và chúng
+    đứng NGAY TRÊN cái bản đồ mà trẻ đang chơi, đẩy nó xuống còn một ô bé tí ở
+    giữa màn hình. Không khung nào trong số đó là thứ trẻ đang nhìn.
+
+    Nên chúng chui hết vào một ngăn kéo sau nút ☰. Bản đồ lấy trọn màn hình, y
+    như mọi game đi cảnh khác trên điện thoại.
+
+    Máy tính giữ nguyên bố cục cũ: ở đó màn hình rộng rãi, xếp dọc không chật
+    chội, và một ngăn kéo chỉ là thêm một cú bấm không để làm gì.
+  */
+  if (immersive) {
+    return (
+      <div className="pixel-ui map-layout map-immersive">
+        {mapArea}
+
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          className="pixel-font map-immersive-menu"
+          aria-label="Mở bảng điều khiển"
+          aria-expanded={menuOpen}
+        >
+          ☰
+        </button>
+
+        {menuOpen && (
+          <div className="map-immersive-sheet" role="dialog" aria-label="Bảng điều khiển">
+            <div className="map-immersive-sheet-inner flex flex-col gap-3">
+              {chrome}
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                className="btn btn-primary w-full text-lg"
+              >
+                ← Quay lại bản đồ
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="pixel-ui map-layout mx-auto flex min-h-dvh max-w-3xl flex-col gap-4 px-4 py-4">
+      {chrome}
+      {mapArea}
     </div>
   )
 }
@@ -257,6 +338,7 @@ function SubjectMap({
   subject,
   grade,
   map,
+  immersive = false,
   onBack,
   onPlay,
   onWild,
@@ -264,6 +346,8 @@ function SubjectMap({
   subject: Subject
   grade: Grade
   map: ReturnType<ReturnType<typeof useGame.getState>['worldMap']>
+  /** Điện thoại: tên vùng và hai thẻ thu lại thành một dải nút nhỏ nổi trên game. */
+  immersive?: boolean
   onBack: () => void
   onPlay: (node: MapNode) => void
   onWild: (kind: 'wild' | 'mini', variant?: number) => void
@@ -313,7 +397,40 @@ function SubjectMap({
   )
 
   return (
-    <div className="pixel-ui region-layout grid gap-3">
+    <div className={`pixel-ui region-layout grid gap-3${immersive ? ' region-immersive' : ''}`}>
+      {/*
+        Dải nút nổi, CHỈ trên điện thoại.
+
+        Tên vùng, thanh tiến độ và hai thẻ "Đi cảnh / Cây kỹ năng" cộng lại ăn
+        gần 150px - trên một máy 844px cao thì đó là một phần sáu màn hình, đứng
+        ngay trên chính cái bản đồ đang chơi. Thu lại thành ba nút biểu tượng nổi
+        ở góc: cùng ba việc ấy, mỗi việc vẫn đúng MỘT cú chạm, mà không lấy đi
+        dòng nào của bản đồ.
+
+        Nút quay lại đứng riêng bên trái và không bao giờ giấu đi: thiếu nó thì
+        trẻ kẹt trong vùng đất, và đó là ngõ cụt tệ nhất có thể có.
+      */}
+      {immersive && (
+        <div className="region-immersive-bar">
+          <button type="button" onClick={onBack} className="pixel-font" aria-label="Về bản đồ thế giới">
+            ←
+          </button>
+          {(['world', 'tree'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTab(value)}
+              aria-pressed={tab === value}
+              aria-label={value === 'world' ? 'Đi cảnh' : 'Cây kỹ năng'}
+              className="pixel-font"
+              style={tab === value ? { background: style.color, color: '#fff' } : undefined}
+            >
+              {value === 'world' ? '🗺️' : '🌳'}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="region-head flex items-center gap-3">
         <button type="button" onClick={onBack} className="btn btn-ghost px-4">
           ←

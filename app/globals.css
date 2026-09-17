@@ -1038,3 +1038,126 @@ textarea.admin-input {
     width: 1.6rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   ĐIỆN THOẠI: BẢN ĐỒ CHIẾM TRỌN MÁY
+   ---------------------------------------------------------------------------
+
+   Trên một máy 390×844, thanh hồ sơ, hàng nút, bảng bạn cùng lớp và lời mời cài
+   app cộng lại ăn hơn một phần ba chiều cao - và chúng đứng NGAY TRÊN cái bản đồ
+   mà trẻ đang chơi. Ở đây chúng chui vào ngăn kéo sau nút ☰ (xem `MapScreen`),
+   còn những luật dưới đây gỡ nốt lề, trần bề ngang và khoảng cách giữa các khối.
+
+   `100dvh` chứ không phải `100vh`: trên iOS Safari, `vh` tính theo màn hình lúc
+   thanh địa chỉ đã thu lại, nên trang luôn cao hơn chỗ thật sự nhìn thấy và đáy
+   bản đồ chui xuống dưới thanh công cụ. */
+.map-layout.map-immersive {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Máy có tai thỏ: chừa phần khuyết và vạch gạt ở đáy.
+
+   CHỈ cho bản đồ, không cho hai lớp phủ: nút mở ngăn kéo và chính ngăn kéo đã
+   tự cộng phần khuyết vào toạ độ của chúng, đệm thêm lần nữa là chúng tụt
+   xuống gấp đôi. */
+.map-immersive > .region-layout,
+.map-immersive > .world-layout {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Khối phủ toàn màn thì mọi luật chia cột của bố cục cũ phải im lặng - kể cả
+   luật trong @media màn hình ngang, vốn bẻ bố cục bản đồ thành lưới hai cột. */
+.map-layout.map-immersive > * {
+  grid-column: auto;
+  grid-row: auto;
+  margin-bottom: 0;
+}
+
+/* Nút mở ngăn kéo: nổi ở góc trên - PHẢI, mờ như bốn mũi tên đi cảnh.
+
+   Góc phải vì góc trái đã có nút quay lại của vùng đất, và hai nút cạnh nhau ở
+   cùng một góc thì ngón tay cái sẽ bấm nhầm. */
+.map-immersive-menu {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  right: 8px;
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: rgb(27 36 50 / 0.8);
+  background: rgb(248 248 240 / 0.7);
+  border: 3px solid rgb(27 36 50 / 0.5);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+/* Hàng đầu của bản đồ thế giới chừa chỗ cho nút ☰.
+
+   Hàng đó kết thúc bằng nút "▶ sang quần đảo lớp sau", nằm sát mép phải - đúng
+   chỗ nút ☰ đậu xuống. Hai nút chồng lên nhau thì cú chạm rơi vào nút vẽ trên
+   cùng, và trẻ bấm "sang lớp sau" lại ra ngăn kéo. Trong vùng đất thì không cần
+   luật này: ở đó dải nút nổi đứng bên TRÁI. */
+.map-immersive > .world-layout > :first-child {
+  padding-right: 52px;
+}
+
+/* Ngăn kéo: phủ kín màn hình và CUỘN ĐƯỢC.
+
+   Phủ kín chứ không trượt nửa vời: những thứ trong này - hồ sơ, kho đồ, bảng bạn
+   cùng lớp - không phải thứ liếc qua, mà là thứ người ta mở ra để làm một việc
+   rồi đóng lại. Nửa trong nửa ngoài thì vừa đọc khó vừa bấm trượt. */
+.map-immersive-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow-y: auto;
+  background: var(--color-paper);
+}
+
+.map-immersive-sheet-inner {
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 12px
+    calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Trong vùng đất: tên vùng và hai thẻ đã chuyển thành dải nút nổi, nên hai khối
+   gốc phải biến đi - không thì chúng vẫn ăn chỗ y như cũ. */
+.region-immersive > .region-head,
+.region-immersive > .region-tabs {
+  display: none;
+}
+
+.region-immersive {
+  gap: 0;
+}
+
+/* Dải nút nổi trong vùng đất: góc trên - TRÁI, cùng tông với nút ☰ bên phải. */
+.region-immersive-bar {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: 8px;
+  z-index: 4;
+  display: flex;
+  gap: 6px;
+}
+
+.region-immersive-bar button {
+  width: 44px;
+  height: 44px;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: rgb(27 36 50 / 0.8);
+  background: rgb(248 248 240 / 0.7);
+  border: 3px solid rgb(27 36 50 / 0.5);
+  border-radius: 10px;
+  cursor: pointer;
+}

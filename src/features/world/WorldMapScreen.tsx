@@ -14,6 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
+import { useCompactLayout } from '../../shell/useCompactLayout'
 import { SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from '../../content/types'
 import { creatureFromAvatar, towerSpriteFor, viewFor } from '../pixel/creatures'
 import { TOWER_FLOORS, towerFloorLabel } from '../../content/tower'
@@ -221,6 +222,10 @@ export function WorldMapScreen({
   const [gateOpen, setGateOpen] = useState(false)
   const [towerOpen, setTowerOpen] = useState(false)
   const [scale, setScale] = useState(2)
+  /** Bước kéo giãn LẺ chồng lên bội số vẽ, chỉ trên máy cầm tay. Xem chỗ đo. */
+  const [fit, setFit] = useState(1)
+  // Máy cầm tay thì lấp đầy màn hình quan trọng hơn điểm ảnh vuông tuyệt đối.
+  const compact = useCompactLayout()
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Vừa học xong cả lớp thì đưa trẻ sang quần đảo mới luôn - phần thưởng phải
@@ -294,10 +299,32 @@ export function WorldMapScreen({
     const top = el.getBoundingClientRect().top + window.scrollY
     const spare = window.innerHeight - top - MAP_MARGIN
 
-    // Chỉ dùng bội số nguyên: phóng to lẻ là điểm ảnh bị méo.
+    // Bội số VẼ luôn là số nguyên: canvas được tô ở đúng bội số này, nên điểm
+    // ảnh của nó vuông vắn không lệch.
     const byWidth = Math.floor(width / CANVAS_WIDTH)
     const byHeight = Math.floor(spare / CANVAS_HEIGHT)
-    setScale(Math.max(1, Math.min(3, Math.min(byWidth, byHeight))))
+    const drawn = Math.max(1, Math.min(3, Math.min(byWidth, byHeight)))
+    setScale(drawn)
+
+    /*
+      Và MỘT BƯỚC KÉO GIÃN LẺ nữa ở trên, chỉ trên máy cầm tay.
+
+      Lục địa là một bức hình cố định 336×180. Trên điện thoại xoay ngang, chỗ
+      trống cao khoảng 306px - chưa đủ 360px để lên bội số 2 - nên nó kẹt ở bội
+      số 1 và nằm gọn trong nửa màn hình, phần còn lại bỏ trắng.
+
+      Không có bội số nguyên nào lấp được khoảng đó. Nên: vẽ ở bội số nguyên lớn
+      nhất còn vừa, rồi kéo phần đã vẽ giãn ra bằng CSS cho đầy khung.
+
+      ĐÂY LÀ MỘT ĐÁNH ĐỔI, không phải một cải tiến thuần: kéo giãn lẻ thì có
+      điểm ảnh rộng 2, có điểm ảnh rộng 1, nhìn kỹ sẽ thấy gợn. Đổi lại tấm bản
+      đồ lấp đầy màn hình. Trên máy tính thì KHÔNG đánh đổi gì cả - ở đó chỗ
+      trống thừa thãi, bội số nguyên tự nó đã đủ lớn.
+    */
+    const stretch = compact
+      ? Math.max(1, Math.min(width / (CANVAS_WIDTH * drawn), spare / (CANVAS_HEIGHT * drawn)))
+      : 1
+    setFit((current) => (Math.abs(current - stretch) < 0.01 ? current : stretch))
   })
 
   const index = open.indexOf(view)
@@ -306,14 +333,31 @@ export function WorldMapScreen({
 
   return (
     <div ref={containerRef} className="pixel-ui world-layout grid">
+      {/*
+        HAI LỚP LỒNG NHAU, và mỗi lớp có đúng một việc.
+
+        Lớp ngoài giữ KÍCH THƯỚC THẬT sau khi kéo giãn, nên bố cục quanh nó biết
+        tấm bản đồ chiếm bao nhiêu chỗ. Lớp trong giữ toạ độ GỐC - mọi dấu mốc
+        bên trong đều được đặt theo `cellCentre(...) * scale`, và một phép nhân
+        nữa cho bước kéo giãn sẽ len vào cả chục chỗ tính toạ độ.
+
+        Nhãn tên vùng và hai mũi tên nằm ở lớp NGOÀI, không bị kéo giãn theo: chữ
+        phóng to theo bản đồ thì trên máy cầm tay nó che mất nửa lục địa.
+      */}
       <div
         className="relative mx-auto"
+        style={{ width: CANVAS_WIDTH * scale * fit, height: CANVAS_HEIGHT * scale * fit }}
+      >
+      <div
+        className="absolute left-0 top-0 overflow-hidden"
         style={{
           width: CANVAS_WIDTH * scale,
           height: CANVAS_HEIGHT * scale,
+          transform: fit === 1 ? undefined : `scale(${fit})`,
+          transformOrigin: 'top left',
           border: '4px solid #1b2432',
           borderRadius: 6,
-          overflow: 'hidden',
+          imageRendering: 'pixelated',
           background:
             `repeating-linear-gradient(0deg, ${layout.sea.light} 0 14px, ${layout.sea.dark} 14px 15px),` +
             `repeating-linear-gradient(90deg, ${layout.sea.light} 0 14px, ${layout.sea.dark} 14px 15px)`,
@@ -396,6 +440,8 @@ export function WorldMapScreen({
             onSelect={() => setGateOpen(true)}
           />
         )}
+
+      </div>
 
         {/*
           ---- TÊN VÙNG VÀ HAI MŨI TÊN, NẰM ĐÈ LÊN CHÍNH TẤM BẢN ĐỒ ----

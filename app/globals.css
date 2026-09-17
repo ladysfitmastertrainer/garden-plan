@@ -1161,22 +1161,28 @@ textarea.admin-input {
   left: 6px;
   z-index: 3;
   display: grid;
-  padding: 3px 9px;
-  border: 3px solid rgb(27 36 50 / 0.55);
-  border-radius: 8px;
-  background: rgb(248 248 240 / 0.72);
+  padding: 2px 7px;
+  border: 2px solid rgb(27 36 50 / 0.45);
+  border-radius: 7px;
+  background: rgb(248 248 240 / 0.62);
   color: rgb(27 36 50 / 0.9);
   pointer-events: none;
 }
 
+/* Cỡ chữ đặt bằng PIXEL, không bằng rem.
+
+   Cỡ nền của trang là 18px, nên 1.15rem ra 21px - và phông VT323 ở 21px thì
+   rất bè: cái nhãn phình thành một khối che mất cả toà lâu đài ở giữa lục địa.
+   Đây là một lớp phủ đặt trên một bức hình có kích thước cố định, nên nó phải
+   đo theo bức hình ấy chứ không theo cỡ chữ của trang. */
 .world-badge-title {
-  font-size: 1.15rem;
-  line-height: 1.1;
+  font-size: 14px;
+  line-height: 1.15;
 }
 
 .world-badge-sub {
-  font-size: 0.95rem;
-  line-height: 1.1;
+  font-size: 11px;
+  line-height: 1.15;
   opacity: 0.75;
 }
 

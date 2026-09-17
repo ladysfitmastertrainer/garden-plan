@@ -26,16 +26,18 @@ import { buildRouteMap, gateAt, isWalkable, wanderStep, type RouteMap } from './
 
 const TILE = 16
 /**
- * Số ô hiển thị trong khung nhìn.
+ * Số CỘT là số co giãn, không phải hằng số.
  *
- * Máy nằm ngang dùng khung THẤP HƠN: màn hình điện thoại xoay ngang chỉ cao
- * chừng 390px, giữ nguyên 9 hàng là riêng khung game đã cao gần 300px và đẩy mọi
- * thứ khác khỏi tầm nhìn. Bề ngang giữ nguyên, và giờ nó lấy trọn màn hình - bốn
- * mũi tên nằm đè lên khung chứ không ăn chỗ nào nữa.
+ * Trước đây nó cố định 11. Trên điện thoại xoay ngang, khung nhìn khi ấy bị
+ * CHIỀU CAO chặn - bảy hàng ở bội số 3 cần 336px mà máy chỉ cho 302px, nên bội
+ * số tụt về 2, và 11 cột ở bội số 2 chỉ rộng 352px giữa một màn hình 686px. Nửa
+ * màn hình bỏ trống, đúng lúc người ta vừa xoay máy ra để nhìn cho rộng.
+ *
+ * Giờ chiều cao chọn BỘI SỐ, rồi bề ngang có bao nhiêu thì lấy bấy nhiêu cột.
+ * Xoay ngang thành một dải rộng - đúng hình dạng của cái màn hình đang cầm.
  */
-const VIEW_COLS = 11
+const MIN_COLS = 9
 const VIEW_ROWS = 9
-const VIEW_ROWS_WIDE = 7
 /**
  * Lề dưới của trang, chừa lại sau khung game.
  *
@@ -69,8 +71,75 @@ const STEP_MS = 170
  */
 const MIN_ROWS = 7
 
+/**
+ * Số hàng ít nhất trên màn hình LÙN - tức điện thoại xoay ngang.
+ *
+ * Sáu thay vì bảy, và đây là một đánh đổi có tính toán chứ không phải nới lỏng
+ * cho tiện: ở bội số 3, bảy hàng cần 336px mà máy xoay ngang chỉ cho khoảng
+ * 302px. Giữ bảy thì cả khung tụt xuống bội số 2 và rộng đúng một nửa màn hình.
+ *
+ * Đổi lại được gì: khung game rộng 672px trên một màn hình 686px, thay vì 352px.
+ *
+ * Và MẤT gì - nói thẳng ra, vì nó có thật: xoay ngang thấy ÍT ô hơn dựng đứng
+ * (14×6 = 84 ô, so với 12×9 = 108), chỉ là mỗi ô TO hơn rưỡi. Đây là đánh đổi
+ * "nhìn rõ" lấy "nhìn xa", và nó nghiêng về nhìn rõ có chủ ý: người ta xoay máy
+ * ra là để thứ trước mặt to lên, không phải để thấy thêm mấy ô ở rìa.
+ */
+const MIN_ROWS_WIDE = 6
+
 /** Đáy cùng: thà khung game bé còn hơn phần đầu trang bị đẩy khỏi màn hình. */
 const FLOOR_ROWS = 5
+
+export interface Viewport {
+  scale: number
+  cols: number
+  rows: number
+}
+
+/**
+ * Chọn bội số phóng và số ô cho một khung nhìn cỡ `width × spare`.
+ *
+ * Hàm THUẦN, tách khỏi component để kiểm được bằng test mà không cần trình
+ * duyệt. Đây là chỗ đã hỏng hai lần liền và cả hai lần đều chỉ lộ ra khi cầm
+ * điện thoại lên xem, nên nó xứng đáng có test riêng.
+ *
+ * CHIỀU CAO chọn bội số, BỀ NGANG lấp cột. Xem ghi chú ở `MIN_COLS`.
+ */
+export function pickViewport(
+  width: number,
+  spare: number,
+  mapWidth: number,
+  shortScreen: boolean,
+): Viewport {
+  const minRows = shortScreen ? MIN_ROWS_WIDE : MIN_ROWS
+  /*
+    Số cột thật sự dùng.
+
+    Chặn trên là bề rộng bản đồ - quá mép bản đồ chỉ còn nền trống, và một dải
+    nền trống bên phải nhìn như khung game bị hỏng.
+
+    KHÔNG có chặn dưới ở đây. `MIN_COLS` chỉ là điều kiện để CHỌN một bội số
+    lớn trong vòng lặp dưới; ép nó thành sàn ở đây thì trên một màn hình hẹp
+    hơn 9 ô, khung game rộng hơn cả màn hình và nửa bản đồ nằm ngoài mép - mà
+    tràn còn tệ hơn hụt, vì trẻ không biết là mình đang không nhìn thấy nó.
+  */
+  const fitCols = (n: number) => Math.max(1, Math.min(mapWidth, n))
+
+  for (let s = MAX_SCALE; s >= 2; s--) {
+    const rows = Math.min(VIEW_ROWS, Math.floor(spare / (TILE * s)))
+    const cols = Math.floor(width / (TILE * s))
+    if (rows >= minRows && cols >= MIN_COLS) {
+      return { scale: s, rows, cols: fitCols(cols) }
+    }
+  }
+
+  // Máy quá nhỏ cho cả bội số 2: lấy những gì còn lấy được.
+  return {
+    scale: 2,
+    rows: Math.max(FLOOR_ROWS, Math.min(VIEW_ROWS, Math.floor(spare / (TILE * 2)))),
+    cols: fitCols(Math.floor(width / (TILE * 2))),
+  }
+}
 
 type Direction = 'up' | 'down' | 'left' | 'right'
 
@@ -309,7 +378,7 @@ export function Overworld({
   const [scale, setScale] = useState(3)
   // Tên là `viewport` chứ không phải `view`: `view` bên dưới đã là góc nhìn
   // sprite của nhân vật.
-  const [viewport, setViewport] = useState({ cols: VIEW_COLS, rows: VIEW_ROWS })
+  const [viewport, setViewport] = useState({ cols: MIN_COLS, rows: VIEW_ROWS })
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Bản đồ đổi (đổi môn) thì đặt nhân vật vào chỗ đã nhớ của vùng đó, hoặc điểm
@@ -342,32 +411,18 @@ export function Overworld({
     const width = el?.clientWidth ?? 0
     if (!el || width === 0) return
 
-    const cols = VIEW_COLS
-    const maxRows = isShortScreen() ? VIEW_ROWS_WIDE : VIEW_ROWS
-    // Khung game lấy TRỌN bề ngang. D-pad nằm đè lên nó nên không ăn chỗ nào nữa
-    // - trước đây phải trừ 200px, và trên điện thoại nằm ngang chính 200px ấy là
-    // thứ ép khung game xuống nhỏ hơn cả lúc dựng đứng.
-    const maxScale = Math.max(2, Math.min(MAX_SCALE, Math.floor(width / (cols * TILE))))
-
     // Chỗ trống còn lại theo chiều dọc: tất cả những gì dưới phần đầu trang.
+    // Khung game lấy TRỌN bề ngang - bốn mũi tên nằm đè lên nó nên không ăn chỗ.
     const top = el.getBoundingClientRect().top + window.scrollY
     const spare = window.innerHeight - top - VIEW_MARGIN
 
-    // Lấy bội số phóng LỚN NHẤT mà vẫn còn đủ hàng để nhìn. Phóng to quan
-    // trọng hơn nhìn xa: trẻ cần thấy rõ con quái, còn bảy hàng là đủ để né.
-    let pick = { scale: 2, rows: FLOOR_ROWS }
-    for (let s = maxScale; s >= 2; s--) {
-      const fit = Math.min(maxRows, Math.floor(spare / (TILE * s)))
-      if (fit >= MIN_ROWS) {
-        pick = { scale: s, rows: fit }
-        break
-      }
-      if (s === 2) pick = { scale: 2, rows: Math.max(FLOOR_ROWS, fit) }
-    }
+    const pick = pickViewport(width, spare, map.width, isShortScreen())
 
     setScale(pick.scale)
     setViewport((current) =>
-      current.cols === cols && current.rows === pick.rows ? current : { cols, rows: pick.rows },
+      current.cols === pick.cols && current.rows === pick.rows
+        ? current
+        : { cols: pick.cols, rows: pick.rows },
     )
   })
 

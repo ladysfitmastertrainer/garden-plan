@@ -9,8 +9,28 @@ import { useSyncExternalStore } from 'react'
  * cần React, và đều dễ trả lời sai theo kiểu chỉ lộ ra trên máy thật.
  */
 
-/** Lời từ chối sống trong `localStorage`, không phải `sessionStorage`. */
-const DISMISS_KEY = 'hvtt:khong-muon-cai'
+/*
+  Lời từ chối sống trong `localStorage`, không phải `sessionStorage` - nhưng nó
+  KHÔNG sống mãi, và tên khoá có số hiệu.
+
+  Bản trước ghi '1' vào một khoá không bao giờ hết hạn: bấm ✕ một lần, máy đó
+  mất hẳn lời mời cài app, không có đường nào lấy lại. Mà "giờ đừng hỏi nữa" và
+  "đừng bao giờ hỏi nữa" là hai câu khác nhau - một đứa trẻ gạt cái dải lạ trên
+  màn hình để chơi tiếp thì đang nói câu thứ nhất.
+
+  Hai thay đổi, mỗi thay đổi chữa một nửa:
+
+  SỐ HIỆU ':v2' trong tên khoá làm mọi lời từ chối cũ hết hiệu lực đúng một lần,
+  ngay khi bản này lên. Ai đã lỡ bấm ✕ thì được mời lại - không phải tự đi xoá
+  dữ liệu trang.
+
+  HẠN 14 NGÀY để chuyện ấy không cần tới một lần sửa nữa: từ chối xong thì yên
+  hai tuần, rồi app hỏi lại một lần. Đủ lâu để không phiền, đủ ngắn để một cú
+  bấm nhầm không thành vĩnh viễn.
+*/
+const DISMISS_KEY = 'hvtt:khong-muon-cai:v2'
+/** Từ chối xong thì im bao lâu, tính bằng mili giây. */
+const DISMISS_MS = 14 * 24 * 60 * 60 * 1000
 
 /**
  * Đang chạy dưới dạng app đã cài, chứ không phải trong tab trình duyệt.
@@ -65,7 +85,12 @@ export function isHandheld(): boolean {
 
 export function dismissedInstall(): boolean {
   try {
-    return localStorage.getItem(DISMISS_KEY) === '1'
+    const at = Number(localStorage.getItem(DISMISS_KEY))
+    // Không có, không phải số, hoặc đã quá hạn: coi như chưa từ chối. Một giá
+    // trị rác cũng rơi vào đây, và rơi về phía MỜI LẠI - thà hỏi thừa một lần
+    // còn hơn im lặng vì một con số hỏng.
+    if (!Number.isFinite(at) || at <= 0) return false
+    return Date.now() - at < DISMISS_MS
   } catch {
     return false
   }
@@ -73,7 +98,7 @@ export function dismissedInstall(): boolean {
 
 export function dismissInstall(): void {
   try {
-    localStorage.setItem(DISMISS_KEY, '1')
+    localStorage.setItem(DISMISS_KEY, String(Date.now()))
   } catch {
     // Không nhớ được thì lời mời hiện lại ở lần sau. Phiền, không hỏng.
   }

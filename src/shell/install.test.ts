@@ -36,6 +36,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  // Một test có du hành thời gian; trả đồng hồ về chỗ cũ để test sau không lệch.
+  vi.useRealTimers()
 })
 
 describe('đang chạy dưới dạng app đã cài chưa', () => {
@@ -104,9 +106,42 @@ describe('nhớ lời từ chối', () => {
     expect(dismissedInstall()).toBe(false)
   })
 
-  it('bảo "không" một lần thì nhớ luôn', () => {
+  it('bảo "không" thì im - nhưng chỉ im hai tuần', () => {
     dismissInstall()
     expect(dismissedInstall()).toBe(true)
+
+    // Mười ba ngày sau: vẫn im. Đây là quãng "đừng hỏi nữa" thật sự có hiệu lực.
+    vi.setSystemTime(Date.now() + 13 * 24 * 60 * 60 * 1000)
+    expect(dismissedInstall()).toBe(true)
+
+    /*
+      Mười lăm ngày sau: hỏi lại.
+
+      Đây là cái được sửa. Bản trước ghi một dấu không bao giờ hết hạn, nên bấm
+      ✕ một lần là máy đó mất hẳn đường cài app - mà người bấm chỉ định nói
+      "giờ đừng hỏi nữa", không phải "đừng bao giờ hỏi nữa".
+    */
+    vi.setSystemTime(Date.now() + 2 * 24 * 60 * 60 * 1000)
+    expect(dismissedInstall()).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it('lời từ chối của bản CŨ không còn hiệu lực', () => {
+    /*
+      Khoá cũ, giá trị cũ: '1' trong 'hvtt:khong-muon-cai'.
+
+      Ai đã lỡ bấm ✕ ở bản trước thì đang mang đúng dấu này, và nó vĩnh viễn.
+      Số hiệu ':v2' trong tên khoá mới làm nó hết hiệu lực - người dùng được
+      mời lại mà không phải tự đi xoá dữ liệu trang.
+    */
+    store['hvtt:khong-muon-cai'] = '1'
+    expect(dismissedInstall()).toBe(false)
+  })
+
+  it('giá trị rác thì ngả về phía MỜI LẠI', () => {
+    // Thà hỏi thừa một lần còn hơn im lặng vì một con số hỏng.
+    store['hvtt:khong-muon-cai:v2'] = 'hom-qua'
+    expect(dismissedInstall()).toBe(false)
   })
 
   it('localStorage bị chặn thì không ném lỗi, chỉ là không nhớ được', () => {

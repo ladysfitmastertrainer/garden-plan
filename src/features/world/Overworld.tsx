@@ -271,6 +271,15 @@ interface Props {
    * canh; `null` nghĩa là mini boss trong hang.
    */
   onMonsterBump?: (node: MapNode | null) => void
+  /**
+   * Trẻ bước lên CỬA một ngôi nhà trên khu đất cao.
+   *
+   * Truyền toạ độ cửa chứ không truyền số thứ tự: toạ độ là thứ không đổi khi
+   * bản đồ dựng lại, nên nó dùng luôn được làm khoá nhớ "nhà này lục rồi".
+   */
+  onEnterHouse?: (at: { x: number; y: number }) => void
+  /** Trẻ giẫm trúng một ô có quái ẩn. Cùng lẽ với trên: truyền toạ độ. */
+  onSecret?: (at: { x: number; y: number }) => void
   /** Thú đi theo sau lưng nhân vật. Không có thì chỉ mình nhân vật đi. */
   follower?: { sprite: import('../pixel/sprite').Sprite } | null
   /**
@@ -301,6 +310,8 @@ export function Overworld({
   fill = false,
   onWildEncounter,
   onMonsterBump,
+  onEnterHouse,
+  onSecret,
   follower,
   startAt,
   onPosition,
@@ -565,12 +576,41 @@ export function Overworld({
         // Cổng được ưu tiên hơn quái hoang: đứng lên cổng mà bị quái chặn thì
         // trẻ tưởng mình bấm hụt.
         const tile = map.tiles[next.y]?.[next.x]
+
+        /*
+          Cửa nhà và ô quái ẩn đứng TRƯỚC quái hoang trong hàng ưu tiên.
+
+          Cả hai đều là thứ trẻ cố ý đi tới: leo thang lên khu đất cao rồi men
+          tới đúng ô ấy. Để một con quái hoang nhảy ra chen ngang đúng lúc đó
+          thì công đi tìm bị một phép tung đồng xu xoá mất.
+        */
+        if (tile === 'door') {
+          onEnterHouse?.(next)
+          return
+        }
+        if (map.secrets.some((spot) => spot.x === next.x && spot.y === next.y)) {
+          onSecret?.(next)
+          return
+        }
+
         if (tile === 'tallGrass' && Math.random() < getTuning().encounterChance) {
           setAmbush({ variant: Math.floor(Math.random() * 4), shown: false })
         }
       }, STEP_MS)
     },
-    [map, nodes, onEnterGate, onMonsterBump, onPosition, paused, pos.x, pos.y, stepping],
+    [
+      map,
+      nodes,
+      onEnterGate,
+      onEnterHouse,
+      onMonsterBump,
+      onPosition,
+      onSecret,
+      paused,
+      pos.x,
+      pos.y,
+      stepping,
+    ],
   )
 
   // Bụi cỏ rung -> con quái ló ra -> vào trận.

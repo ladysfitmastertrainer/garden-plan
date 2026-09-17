@@ -43,6 +43,7 @@ export function MapScreen() {
   const worldMap = useGame((s) => s.worldMap)
   const startBattle = useGame((s) => s.startBattle)
   const startWildBattle = useGame((s) => s.startWildBattle)
+  const markFound = useGame((s) => s.markFound)
   const startTowerBattle = useGame((s) => s.startTowerBattle)
   const leaveStudent = useGame((s) => s.leaveStudent)
   const go = useUi((s) => s.go)
@@ -240,6 +241,8 @@ export function MapScreen() {
           onBack={() => setRegion(null)}
           onPlay={(node) => startBattle(region.subject, node, region.grade)}
           onWild={(kind, variant) => startWildBattle(region.subject, region.grade, kind, variant)}
+          onFound={(key) => markFound(key)}
+          foundSpots={progress.foundSpots ?? []}
         />
       )
     )
@@ -477,6 +480,8 @@ function SubjectMap({
   onBack,
   onPlay,
   onWild,
+  onFound,
+  foundSpots,
 }: {
   subject: Subject
   grade: Grade
@@ -491,7 +496,11 @@ function SubjectMap({
   menu?: React.ReactNode
   onBack: () => void
   onPlay: (node: MapNode) => void
-  onWild: (kind: 'wild' | 'mini', variant?: number) => void
+  onWild: (kind: 'wild' | 'mini' | 'secret', variant?: number) => void
+  /** Ghi nhớ một chỗ vừa tìm ra, để lần sau không lục lại được nữa. */
+  onFound: (key: string) => void
+  /** Những chỗ đã tìm ra từ trước, đọc từ tiến độ của trẻ. */
+  foundSpots: string[]
 }) {
   const style = SUBJECT_STYLE[subject]
 
@@ -510,6 +519,14 @@ function SubjectMap({
    */
   const [preview, setPreview] = useState<MapNode | 'mini' | null>(null)
   const [tab, setTab] = useState<'world' | 'tree'>('world')
+  /**
+   * Chuyện vừa xảy ra ở một ngôi nhà hoặc một ô quái ẩn.
+   *
+   * Giữ cả LỜI THOẠI lẫn việc phải làm khi trẻ bấm tiếp, vì hai thứ ấy luôn đi
+   * cùng nhau: mở cửa ra thấy vật phẩm thì bấm tiếp là đóng cửa lại, còn thấy
+   * con đầu đàn thì bấm tiếp là vào trận.
+   */
+  const [visit, setVisit] = useState<Visit | null>(null)
 
   // Con đầu đội hình đi theo trẻ trên bản đồ - đúng con sẽ ra trận đầu tiên.
   // PHẢI đọc qua selector: thu phục thêm thú xong thì con đi theo phải đổi ngay,
@@ -536,6 +553,52 @@ function SubjectMap({
       leader ? { sprite: petSpriteFor(leader.sprite, leader.element) } : null,
     [leader?.sprite, leader?.element],
   )
+
+  /**
+   * Bước vào một ngôi nhà trên khu đất cao.
+   *
+   * Lục rồi thì không lục lại được - nếu không thì cái nhà thành một cái máy
+   * phát vật phẩm, đi ra đi vào là có đồ, và mọi thứ khác trên bản đồ mất giá.
+   *
+   * Bốc thăm bằng CHÍNH TOẠ ĐỘ cửa, không bốc ngẫu nhiên: cùng một ngôi nhà
+   * thì lần nào mở cũng ra cùng một chuyện, nên trẻ kể cho bạn nghe được và
+   * lời kể ấy đúng. Ngẫu nhiên thật thì bấm lại là đổi kết quả.
+   */
+  const enterHouse = (at: { x: number; y: number }) => {
+    const key = `${subject}.g${grade}.nha.${at.x}.${at.y}`
+    if (foundSpots.includes(key)) {
+      setVisit({ text: EMPTY_HOUSE, action: null })
+      return
+    }
+
+    // Một phần ba số nhà có quái nấp trong, hai phần ba có đồ.
+    if ((at.x * 7 + at.y * 13) % 3 === 0) {
+      setVisit({
+        text: HOUSE_MONSTER,
+        action: () => {
+          onFound(key)
+          onWild('mini')
+        },
+      })
+      return
+    }
+
+    onFound(key)
+    setVisit({ text: HOUSE_LOOT, action: null })
+  }
+
+  /** Giẫm trúng ô có quái ẩn. Không có đường lùi - nó nhảy ra luôn. */
+  const meetSecret = (at: { x: number; y: number }) => {
+    const key = `${subject}.g${grade}.an.${at.x}.${at.y}`
+    if (foundSpots.includes(key)) return
+    setVisit({
+      text: SECRET_MONSTER,
+      action: () => {
+        onFound(key)
+        onWild('secret')
+      },
+    })
+  }
 
   return (
     <div className={`pixel-ui region-layout grid gap-3${immersive ? ' region-immersive' : ''}`}>
@@ -591,12 +654,14 @@ function SubjectMap({
         subject={subject}
         onWildEncounter={(variant) => onWild('wild', variant)}
         onMonsterBump={(node) => (node ? onPlay(node) : setPreview('mini'))}
+        onEnterHouse={enterHouse}
+        onSecret={meetSecret}
         follower={follower}
         avatar={student?.avatar ?? '🦊'}
         startAt={savedPos}
         onPosition={onPosition}
         onEnterGate={(node) => (node.kind === 'battle' ? onPlay(node) : setPreview(node))}
-        paused={preview !== null}
+        paused={preview !== null || visit !== null}
         fill={immersive}
         /*
           Mũi tên ← và nút ☰ đi VÀO TRONG khung game, hai góc trên.
@@ -624,6 +689,29 @@ function SubjectMap({
         }
         dialogue={
           <AnimatePresence>
+            {visit && (
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 20, opacity: 0 }}
+              >
+                <DialogueBox text={visit.text}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const go = visit.action
+                      setVisit(null)
+                      go?.()
+                    }}
+                    autoFocus
+                    className="btn btn-primary mt-2 w-full text-lg"
+                    style={{ background: style.color, minHeight: 44 }}
+                  >
+                    {visit.action ? 'Vào trận!' : 'Đóng cửa lại'}
+                  </button>
+                </DialogueBox>
+              </motion.div>
+            )}
             {preview && (
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
@@ -690,3 +778,35 @@ function gateDialogue(node: MapNode): string {
   }
   return `${node.title}.\n${node.subtitle}. Một đối thủ đang chờ phía trước!`
 }
+
+/**
+ * Một lần ghé nhà hoặc một lần đụng phải quái ẩn.
+ *
+ * Giữ cả lời thoại lẫn việc phải làm khi bấm tiếp, vì hai thứ luôn đi cùng nhau:
+ * mở cửa thấy vật phẩm thì bấm tiếp là đóng cửa, thấy quái thì bấm tiếp là vào
+ * trận. `action` bằng null nghĩa là chẳng có gì để làm nữa.
+ */
+interface Visit {
+  text: string
+  action: (() => void) | null
+}
+
+/** Nhà đã lục rồi. Nói thẳng ra, đừng để trẻ đi vào đi ra mãi để thử lại. */
+const EMPTY_HOUSE =
+  'Căn nhà nhỏ trên đồi.\nCon đã ghé đây rồi - trong này không còn gì nữa.'
+
+const HOUSE_LOOT =
+  'Con đẩy cửa bước vào.\nTrên bàn có một thứ ai đó để lại cho người tìm ra căn nhà này. Đánh thắng trận sau là nó thuộc về con!'
+
+const HOUSE_MONSTER =
+  'Cửa vừa mở thì có tiếng gầm gừ.\nMột con đầu đàn đang ngủ trong này, và con vừa đánh thức nó dậy!'
+
+/**
+ * Quái ẩn - trận đáng giá nhất ngoài trùm.
+ *
+ * Lời thoại nói rõ vì sao nó thưởng hậu: không phải vì nó khoẻ, mà vì trẻ đã
+ * tìm ra nó. Một đứa bé bảy tuổi cần được nghe điều đó thành lời thì mới biết
+ * là việc chịu khó đi lang thang có được ghi nhận.
+ */
+const SECRET_MONSTER =
+  'Một bóng đen bật dậy từ chỗ nấp!\nKhông ai tìm ra được chỗ này. Con thì tìm ra. Hạ nó đi - phần thưởng sẽ hậu hơn hẳn!'

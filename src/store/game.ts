@@ -10,6 +10,7 @@
 
 import { create } from 'zustand'
 import { createEnemy } from '../content/bestiary'
+import type { Enemy } from '../engine/battle'
 import { getSkill } from '../content/curriculum'
 import { PETS, SPELLS, buildTeam, getPet } from '../content/pets'
 import { currentEvolution, evolutionStage, justEvolved } from '../engine/pets'
@@ -78,7 +79,47 @@ export function configureRepository(next: Repository): void {
  * 'tower' là trận trong Tháp Trí Tuệ: đề bốc qua nhiều lớp, quái đổi hệ giữa
  * trận, có giáp và biết nổi giận. Xem `content/tower.ts`.
  */
-export type BattleKind = 'node' | 'wild' | 'mini' | 'tower'
+/**
+ * 'secret' là quái ẩn - đánh như đầu đàn nhưng thưởng hậu hơn hẳn.
+ *
+ * Phần chênh ấy KHÔNG trả cho việc đánh, mà trả cho việc TÌM RA: muốn gặp nó
+ * thì phải tìm ra bậc thang, leo lên khu đất cao, rồi men tới đúng góc trong
+ * cùng. Một đứa trẻ chịu khó đi hết bản đồ đáng được nhiều hơn đứa đi thẳng
+ * từ cổng này sang cổng kia.
+ */
+/**
+ * Con quái của một trận gặp dọc đường, tuỳ theo gặp ở đâu.
+ *
+ * Ba mức, và khoảng cách giữa chúng nói lên công sức bỏ ra: quái hoang nhảy
+ * ra từ bụi cỏ nên yếu hơn cả quái ở cổng; đầu đàn phải rẽ vào hang mới gặp;
+ * quái ẩn thì phải tìm ra bậc thang, leo lên khu đất cao rồi men tới đúng góc
+ * trong cùng - nên nó thưởng gấp đôi đầu đàn.
+ */
+function enemyFor(kind: 'wild' | 'mini' | 'secret', enemy: Enemy): Enemy {
+  if (kind === 'wild') {
+    return { ...enemy, name: `${enemy.name} hoang`, maxHp: Math.round(enemy.maxHp * 0.6) }
+  }
+  if (kind === 'mini') {
+    return {
+      ...enemy,
+      name: `${enemy.name} Đầu Đàn`,
+      maxHp: Math.round(enemy.maxHp * 1.35),
+      attack: enemy.attack + 3,
+      goldReward: enemy.goldReward * 2,
+      xpReward: enemy.xpReward * 2,
+    }
+  }
+  return {
+    ...enemy,
+    name: `${enemy.name} Ẩn Mình`,
+    maxHp: Math.round(enemy.maxHp * 1.6),
+    attack: enemy.attack + 4,
+    goldReward: enemy.goldReward * 4,
+    xpReward: enemy.xpReward * 4,
+  }
+}
+
+export type BattleKind = 'node' | 'wild' | 'mini' | 'secret' | 'tower'
 
 /** Số câu tối đa trong một trận. Đủ dài để có tiến triển, đủ ngắn để không chán. */
 
@@ -158,7 +199,7 @@ interface GameState {
   startWildBattle: (
     subject: Subject,
     grade?: Grade,
-    kind?: 'wild' | 'mini',
+    kind?: 'wild' | 'mini' | 'secret',
     /** Con thứ mấy trong bầy - để con nhảy ra khỏi bụi cỏ đúng là con vào trận. */
     variant?: number,
   ) => void
@@ -171,6 +212,8 @@ interface GameState {
   startTowerBattle: (subject: Subject, grade?: Grade) => void
   /** Trẻ bấm "Tấn công" ở pha chờ: câu hỏi hiện ra và đồng hồ bắt đầu chạy. */
   attack: () => void
+  /** Đánh dấu một chỗ trên bản đồ là đã tìm ra, và lưu lại ngay. */
+  markFound: (key: string) => void
   answer: (input: AnswerInput) => void
   /** Hết giờ một câu ở trận trùm / trận đầu đàn. Tính như trả lời sai. */
   timeUp: () => void
@@ -416,12 +459,12 @@ export const useGame = create<GameState>((set, get) => ({
       rng: createRng(`${student.id}-wild-${Date.now()}`),
       // Đầu đàn trong hang khó hơn quái dọc đường, nhưng dưới trùm một bậc:
       // chỉ nâng độ khó, không dồn hết sang nhóm thử thách như trận trùm.
-      ...(kind === 'mini' ? { difficultyBoost: 1 } : {}),
+      ...(kind === 'wild' ? {} : { difficultyBoost: 1 }),
     }
     // Trận ngắn: 5 câu cho quái hoang, 8 câu cho mini boss. Quái hoang là nhịp
     // nghỉ giữa các chặng, không phải một chặng nữa - kéo dài bằng trận ở cổng
     // thì đi cảnh thành cực hình.
-    const selections = selectQuestions(ctx, kind === 'mini' ? 8 : 5)
+    const selections = selectQuestions(ctx, kind === 'wild' ? 5 : 8)
     if (selections.length === 0) return
 
     const rng = createRng(`${student.id}-wildenemy-${Date.now()}`)
@@ -430,12 +473,12 @@ export const useGame = create<GameState>((set, get) => ({
       grade: target,
       // Quái hoang yếu hơn quái ở cổng cùng khu vực một bậc; mini boss thì mạnh
       // hơn quái thường nhưng vẫn dưới trùm cuối.
-      nodeIndex: kind === 'mini' ? cleared + 2 : Math.max(0, cleared - 1),
+      nodeIndex: kind === 'wild' ? Math.max(0, cleared - 1) : cleared + 2,
       isBoss: false,
       rng,
       // Mini boss trong hang luôn là con dữ nhất bầy - khớp với hình đứng trong
       // hang. Quái hoang thì lấy đúng con vừa nhảy ra khỏi bụi cỏ.
-      ...(kind === 'mini' ? { variant: 3 } : variant === undefined ? {} : { variant }),
+      ...(kind === 'wild' ? (variant === undefined ? {} : { variant }) : { variant: 3 }),
     })
 
     const level = levelFromTotalXp(student.totalXp).level
@@ -454,22 +497,12 @@ export const useGame = create<GameState>((set, get) => ({
     set({
       battle: createBattle(
         {
-          enemy:
-            kind === 'mini'
-              ? {
-                  ...enemy,
-                  name: `${enemy.name} Đầu Đàn`,
-                  maxHp: Math.round(enemy.maxHp * 1.35),
-                  attack: enemy.attack + 3,
-                  goldReward: enemy.goldReward * 2,
-                  xpReward: enemy.xpReward * 2,
-                }
-              : { ...enemy, name: `${enemy.name} hoang`, maxHp: Math.round(enemy.maxHp * 0.6) },
+          enemy: enemyFor(kind, enemy),
           player: statsForLevel(level, bonus),
           team: buildTeam(progress.pets ?? [], subject, 3, progress.petXp ?? {}),
           maxQuestions: queue.length,
-          timeLimitMs: kind === 'mini' ? timeLimitFor('mini', target) : null,
-          defendLimitMs: defendLimitFor(kind === 'mini' ? 'mini' : 'normal', target),
+          timeLimitMs: kind === 'wild' ? null : timeLimitFor('mini', target),
+          defendLimitMs: defendLimitFor(kind === 'wild' ? 'normal' : 'mini', target),
         },
         queue[0]!,
         Date.now(),
@@ -571,6 +604,17 @@ export const useGame = create<GameState>((set, get) => ({
       queueIndex: 0,
       summary: null,
     })
+  },
+
+  markFound(key) {
+    const { student, progress } = get()
+    if (!student) return
+    const found = progress.foundSpots ?? []
+    if (found.includes(key)) return
+
+    const updated: StudentProgress = { ...progress, foundSpots: [...found, key] }
+    set({ progress: updated })
+    void repository.saveProgress(student.id, updated)
   },
 
   attack() {

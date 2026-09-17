@@ -42,6 +42,27 @@ export const TERRAIN = {
   floorLine: '#6d5c48',
   flame: '#ff8c2b',
   flameCore: '#ffe066',
+
+  /*
+    --- ĐỘ CAO ---
+
+    Vùng cao và vùng trũng KHÔNG có màu riêng ở đây, và đó là chủ ý: màu của
+    chúng được tính ra từ chính màu cỏ của vùng đất, sáng hơn hoặc tối hơn một
+    nấc (xem `shade`). Gõ cứng một màu xanh vào đây thì ở Thung lũng Con Số -
+    nơi mặt đất ngả vàng cát - khu đất cao hoá thành một mảng xanh dán lên, đọc
+    ra là "chỗ khác" chứ không phải "chỗ cao hơn". Mà điều cần nói là độ cao.
+  */
+  /** Vách đá ngăn hai tầng - thứ duy nhất chặn đường mà không phải cây hay nước. */
+  cliff: '#a48d6c',
+  cliffDark: '#7b6749',
+  cliffTop: '#c6b089',
+  /** Nhà trên vùng cao. */
+  roof: '#d2544a',
+  roofDark: '#a63c36',
+  wall: '#ecdcbb',
+  wallDark: '#c9b28c',
+  doorWood: '#7a4a22',
+  doorDark: '#53310f',
 }
 
 export type TerrainColors = typeof TERRAIN
@@ -340,6 +361,151 @@ function sandTile(c: TerrainColors): Sprite {
 }
 
 /** Dựng cả bộ ô theo một bảng màu. biome.ts gọi hàm này cho từng vùng đất. */
+/*
+  --- ĐỘ CAO: CỎ SÁNG, CỎ TỐI, VÁCH ĐÁ, BẬC THANG ---
+
+  Vùng cao và vùng trũng vẽ y hệt ô cỏ thường, chỉ khác bảng màu. Cố ý: chúng
+  phải đọc ra ngay là CỎ - cùng một thứ mặt đất, chỉ ở độ cao khác - chứ không
+  phải một loại địa hình mới cần học lại.
+*/
+/**
+ * Pha sáng hoặc tối một màu, giữ nguyên sắc.
+ *
+ * `amount` dương là kéo về phía trắng, âm là kéo về phía đen. Dùng cho độ cao:
+ * cùng một mặt đất, ba nấc sáng.
+ */
+function shade(hex: string, amount: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return hex
+  const value = parseInt(m[1]!, 16)
+  const mix = (channel: number) =>
+    Math.round(amount >= 0 ? channel + (255 - channel) * amount : channel * (1 + amount))
+  const r = mix((value >> 16) & 255)
+  const g = mix((value >> 8) & 255)
+  const b = mix(value & 255)
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`
+}
+
+function highlandTile(c: TerrainColors): Sprite {
+  return grassTile({ ...c, grass: shade(c.grass, 0.22), grassDark: shade(c.grassDark, 0.22) })
+}
+
+function hollowTile(c: TerrainColors): Sprite {
+  return grassTile({ ...c, grass: shade(c.grass, -0.22), grassDark: shade(c.grassDark, -0.22) })
+}
+
+/**
+ * Vách đá: mép trên sáng, mặt vách tối dần xuống.
+ *
+ * Đây là ô mang cả ý nghĩa luật chơi - nó là thứ nói "không trèo qua đây được".
+ * Nên nó phải khác hẳn mọi ô khác ngay từ cái nhìn đầu: một dải sáng nằm ngang
+ * ở đỉnh, rồi mặt vách kẻ dọc chạy xuống. Mắt đọc ra ngay là một BỜ DỐC nhìn
+ * từ trên xuống, không phải một bức tường.
+ */
+function cliffTile(c: TerrainColors): Sprite {
+  return {
+    palette: { T: c.cliffTop, C: c.cliff, c: c.cliffDark },
+    rows: [
+      'TTTTTTTTTTTTTTTT',
+      'TTTTTTTTTTTTTTTT',
+      'TTTTTTTTTTTTTTTT',
+      'CCCCCCCCCCCCCCCC',
+      'CCcCCCCCcCCCCCCC',
+      'CCcCCCCCcCCCCcCC',
+      'CCcCCCcCcCCCCcCC',
+      'CCCCCCcCCCCCCcCC',
+      'CCCCCCcCCCCCCCCC',
+      'CcCCCCCCCCCcCCCC',
+      'CcCCCCCCCCCcCCCC',
+      'CcCCCCCCcCCcCCCC',
+      'CCCCCCCCcCCCCCCC',
+      'CCCCCCCCcCCCCCCC',
+      'cccccccccccccccc',
+      'cccccccccccccccc',
+    ],
+  }
+}
+
+/**
+ * Bậc thang: ba bậc đá xếp chồng, có bóng đổ dưới mỗi bậc.
+ *
+ * Phải nhìn ra ngay là ĐI LÊN ĐƯỢC, vì nó là lối duy nhất qua vách đá - trẻ tìm
+ * không ra thì cả vùng cao thành một bức tranh dán trên tường.
+ */
+function stairsTile(c: TerrainColors): Sprite {
+  return {
+    palette: { S: c.stoneLight, s: c.stone, d: c.stoneDark },
+    rows: [
+      'dddddddddddddddd',
+      'SSSSSSSSSSSSSSSS',
+      'SSSSSSSSSSSSSSSS',
+      'ssssssssssssssss',
+      'dddddddddddddddd',
+      'SSSSSSSSSSSSSSSS',
+      'SSSSSSSSSSSSSSSS',
+      'ssssssssssssssss',
+      'dddddddddddddddd',
+      'SSSSSSSSSSSSSSSS',
+      'SSSSSSSSSSSSSSSS',
+      'ssssssssssssssss',
+      'dddddddddddddddd',
+      'SSSSSSSSSSSSSSSS',
+      'SSSSSSSSSSSSSSSS',
+      'ssssssssssssssss',
+    ],
+  }
+}
+
+/** Mái nhà. Ô này KHÔNG đi vào được - cửa nằm ở ô ngay dưới. */
+function houseTile(c: TerrainColors): Sprite {
+  return {
+    palette: { R: c.roof, r: c.roofDark, W: c.wall, w: c.wallDark },
+    rows: [
+      'wwwwwwwwwwwwwwww',
+      'wwwwwwwRwwwwwwww',
+      'wwwwwwRRRwwwwwww',
+      'wwwwwRRRRRwwwwww',
+      'wwwwRRRRRRRwwwww',
+      'wwwRRRRRRRRRwwww',
+      'wwRRRRRRRRRRRwww',
+      'wRRRRRRRRRRRRRww',
+      'rrrrrrrrrrrrrrrr',
+      'rWWWWWWWWWWWWWWr',
+      'rWWWWWWWWWWWWWWr',
+      'rWWWwwwwwwWWWWWr',
+      'rWWWWWWWWWWWWWWr',
+      'rWWWWWWWWWWWWWWr',
+      'rWWWWWWWWWWWWWWr',
+      'rwwwwwwwwwwwwwwr',
+    ],
+  }
+}
+
+/** Cửa nhà: đi vào được, và đó là cả điểm của nó. */
+function doorTile(c: TerrainColors): Sprite {
+  return {
+    palette: { W: c.wall, w: c.wallDark, D: c.doorWood, d: c.doorDark, k: c.flameCore },
+    rows: [
+      'wWWWWWWWWWWWWWWw',
+      'wWWWWWWWWWWWWWWw',
+      'wWWWWdddddddWWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDkDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wWWWdDDDDDDDdWWw',
+      'wwwwddddddddwwww',
+    ],
+  }
+}
+
 export function buildTiles(c: TerrainColors): TileSet {
   return {
     grass: grassTile(c),
@@ -353,6 +519,12 @@ export function buildTiles(c: TerrainColors): TileSet {
     arena: arenaTile(c),
     torch: torchTile(c),
     sand: sandTile(c),
+    highland: highlandTile(c),
+    hollow: hollowTile(c),
+    cliff: cliffTile(c),
+    stairs: stairsTile(c),
+    house: houseTile(c),
+    door: doorTile(c),
   }
 }
 
@@ -368,6 +540,12 @@ export type TileKind =
   | 'arena'
   | 'torch'
   | 'sand'
+  | 'highland'
+  | 'hollow'
+  | 'cliff'
+  | 'stairs'
+  | 'house'
+  | 'door'
 
 export type TileSet = Record<TileKind, Sprite>
 
@@ -386,4 +564,19 @@ export const WALKABLE: Record<TileKind, boolean> = {
   rock: false,
   water: false,
   torch: false,
+  highland: true,
+  hollow: true,
+  stairs: true,
+  // Cửa đi vào được - bước lên là vào nhà. Mái nhà thì không.
+  door: true,
+  house: false,
+  /*
+    VÁCH ĐÁ KHÔNG TRÈO QUA ĐƯỢC, và đó là toàn bộ luật của độ cao.
+
+    Không cần một hệ "tầng" riêng với toạ độ z: chỉ cần vây vùng cao bằng vách
+    đá rồi chừa đúng một ô bậc thang, là muốn lên xuống phải đi tìm bậc thang -
+    đúng luật mà dòng game này vẫn chơi. Một ô không đi qua được nói được trọn
+    vẹn điều đó, mà mọi thứ khác trong mã nguồn không phải biết gì thêm.
+  */
+  cliff: false,
 }

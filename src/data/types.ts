@@ -41,6 +41,19 @@ export interface StudentProgress {
    * trận chứ không bị xoá, để lên cấp là dùng lại được ngay.
    */
   loadout?: string[]
+  /**
+   * Những chỗ ĐÃ TÌM RA trên bản đồ vùng: nhà đã lục, ô quái ẩn đã đụng.
+   *
+   * Khoá có dạng "math.g2.nha.5.7" - môn, lớp, loại, rồi toạ độ ô. Toạ độ
+   * chứ không phải số thứ tự, vì bản đồ dựng lại từ hạt giống mỗi lần vào
+   * vùng: số thứ tự có thể đổi, còn toạ độ thì không.
+   *
+   * Không bắt buộc, như mọi trường thêm sau: hồ sơ cũ thiếu nó, và mọi chỗ
+   * đọc đều phải chịu được undefined. Thiếu thì coi như chưa tìm được gì -
+   * trẻ chơi từ trước bản này được đi lục lại một lượt, và đó là món quà chứ
+   * không phải lỗi.
+   */
+  foundSpots?: string[]
   virtues: Partial<Record<Virtue, number>>
   /**
    * Số chặng đã hoàn thành, theo từng VÙNG ĐẤT - tức từng cặp (môn, lớp).

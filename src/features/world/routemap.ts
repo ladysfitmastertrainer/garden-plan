@@ -62,6 +62,26 @@ export interface RouteMap {
   den: ArenaRect | null
   /** Chỗ đứng của từng mini boss trong hang. */
   denSpots: Array<{ x: number; y: number }>
+  /**
+   * Khu đất CAO, vây kín bằng vách đá, chỉ vào được qua bậc thang.
+   *
+   * Hình chữ nhật này là cả khu, KỂ CẢ vách: mép trái và mép trên là hàng vách,
+   * phần đi lại được nằm lọt bên trong.
+   */
+  plateau: ArenaRect | null
+  /** Khu đất TRŨNG. Cùng luật với khu cao, chỉ khác là bước xuống. */
+  hollow: ArenaRect | null
+  /** Bậc thang lên xuống. Mỗi ô ở đây thay chỗ đúng một ô vách. */
+  stairs: Array<{ x: number; y: number }>
+  /** Cửa của từng ngôi nhà trên khu đất cao - bước lên là vào nhà. */
+  doors: Array<{ x: number; y: number }>
+  /**
+   * Ô có quái ẩn. KHÔNG có ô cảnh riêng: nhìn vào bản đồ không thấy gì cả.
+   *
+   * Đó là chủ ý. Một cái ô sáng lên báo "có quái ẩn ở đây" thì nó thôi là ẩn -
+   * phần thưởng khi ấy trả cho việc đi tới, chứ không trả cho việc tìm ra.
+   */
+  secrets: Array<{ x: number; y: number }>
 }
 
 export interface RouteOptions {
@@ -312,6 +332,304 @@ export function buildRouteMap(
     }
   }
 
+  // --- ĐỘ CAO: MỘT KHU ĐẤT CAO VÀ MỘT KHU TRŨNG -------------------------------
+  //
+  // Cả cơ chế độ cao gói gọn trong một câu: vây kín bằng ô KHÔNG ĐI QUA ĐƯỢC,
+  // rồi chừa đúng một ô bậc thang. Không cần toạ độ z, không cần "tầng" nào
+  // trong trạng thái nhân vật - phần còn lại của mã nguồn không phải biết là
+  // bản đồ có độ cao.
+  //
+  // Đặt ở đây, SAU cảnh vật rải rác nhưng TRƯỚC viền và cổng: rải rác không
+  // được rắc cây vào giữa khu đất, mà khu đất cũng không được đè lên viền.
+
+  let plateau: ArenaRect | null = null
+  let hollow: ArenaRect | null = null
+  const stairs: Array<{ x: number; y: number }> = []
+  const doors: Array<{ x: number; y: number }> = []
+
+  /**
+   * Những ô BẮT BUỘC phải còn đi tới được sau mỗi lần khoét.
+   *
+   * Mở đầu là các cổng chặng. Mỗi khu đất khoét xong lại thêm một ô bên trong
+   * nó vào đây - và đó là chỗ bản trước bỏ sót: khu cao khoét trước thì lúc ấy
+   * vẫn vào được, nhưng khu trũng khoét sau dựng vách đè đúng lên chân bậc
+   * thang của nó. Cổng vẫn tới được nên phép kiểm nói "ổn", mà cả khu đất cao
+   * - kèm ngôi nhà và chỗ giấu quái - thì không ai vào được nữa.
+   *
+   * Thấy được điều này là nhờ in bản đồ ra chữ: vùng Âm nhạc lớp 1 có hai khu
+   * đất nằm chồng lên nhau, hàng vách của khu dưới đúng là hàng chân thang của
+   * khu trên.
+   */
+  const mustReach: Array<{ x: number; y: number }> = gates.map((g) => ({ x: g.x, y: g.y }))
+
+  /**
+   * Từ chỗ xuất phát có còn đi tới được mọi ô bắt buộc không.
+   *
+   * Chạy trên mảng ô đang dựng dở, nên phải tự coi viền là đã đóng: viền được
+   * vẽ ở bước cuối cùng, mà thiếu nó thì phép loang vòng được qua hàng ngoài
+   * cùng và trả lời "vẫn tới được" cho một bản đồ thật ra đã tắc.
+   */
+  const stillReachable = (extra: { x: number; y: number } | null): boolean => {
+    const seen = new Set<string>([`${start.x},${start.y}`])
+    const queue = [start]
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      for (const [dx, dy] of [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ] as const) {
+        const nx = cur.x + dx
+        const ny = cur.y + dy
+        if (nx <= 0 || ny <= 0 || nx >= width - 1 || ny >= height - 1) continue
+        const key = `${nx},${ny}`
+        if (seen.has(key) || !WALKABLE[tiles[ny]![nx]!]) continue
+        seen.add(key)
+        queue.push({ x: nx, y: ny })
+      }
+    }
+    const needed = extra ? [...mustReach, extra] : mustReach
+    return needed.every((cell) => seen.has(`${cell.x},${cell.y}`))
+  }
+
+  /**
+   * Khoét một khu đất ở độ cao khác.
+   *
+   * Trả về null khi chỗ ấy đụng phải thứ không được đụng. Thà không có khu đất
+   * còn hơn có một khu đất nuốt mất cổng chặng - lúc ấy trẻ kẹt hẳn.
+   */
+  const carveLevel = (
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
+    fill: TileKind,
+  ): ArenaRect | null => {
+    if (right - left < 3 || bottom - top < 3) return null
+    if (left < 1 || top < 1 || right > width - 2 || bottom > height - 2) return null
+
+    // Không được chạm vào cổng, sân đấu trùm, hang hay mặt nước - bốn thứ đã có chủ.
+    for (let y = top; y <= bottom; y++) {
+      for (let x = left; x <= right; x++) {
+        const kind = tiles[y]![x]!
+        if (kind === "gate" || kind === "arena" || kind === "water") return null
+        if (gates.some((g) => g.x === x && g.y === y)) return null
+      }
+    }
+
+    // Chụp lại nguyên trạng để hoàn tác được - xem phần kiểm ở cuối hàm.
+    const before = [] as TileKind[][]
+    for (let y = top; y <= bottom; y++) before.push(tiles[y]!.slice(left, right + 1))
+    const footBefore = tiles[clamp(bottom + 1, 1, height - 2)]![
+      clamp(Math.round((left + right) / 2), left + 1, right - 1)
+    ]!
+
+    for (let y = top; y <= bottom; y++) {
+      for (let x = left; x <= right; x++) {
+        const onEdge = x === left || x === right || y === top || y === bottom
+        set(x, y, onEdge ? "cliff" : fill)
+      }
+    }
+
+    /*
+      Bậc thang đặt ở mép DƯỚI, và luôn đúng một cái.
+
+      Mép dưới vì đường chính chạy phía dưới khu đất: bậc thang quay mặt ra
+      đường thì trẻ nhìn thấy nó trong lúc đi qua và hiểu ngay là leo lên được.
+      Quay ra mép trên thì nó khuất sau chính khu đất ấy.
+
+      Đúng một cái, không phải hai: hai lối vào thì khu đất thành một đoạn
+      đường vòng, đi qua lúc nào không hay. Một lối thì phải quay lại đúng chỗ
+      cũ mới ra được - và đó mới là cảm giác leo lên một chỗ cao.
+    */
+    const stairX = clamp(Math.round((left + right) / 2), left + 1, right - 1)
+    set(stairX, bottom, "stairs")
+
+    // Lối dẫn từ đường chính tới chân bậc thang, nếu không thì bậc thang treo
+    // lơ lửng giữa bãi cỏ và chẳng ai nghĩ là đi vào được.
+    const footY = clamp(bottom + 1, 1, height - 2)
+    if (tiles[footY]![stairX]! !== "cliff") set(stairX, footY, "path")
+
+    /*
+      KHOÉT XONG MỚI HỎI: mọi chặng có còn tới được không?
+
+      Đây không phải kiểm tra thừa. Một vòng vách đá không cần phủ lên cổng nào
+      cũng vẫn cắt đứt được đường tới cổng ấy - chỉ cần nó nằm vắt ngang đúng
+      đoạn đường độc đạo dẫn vào. Kiểm trước khi khoét thì phải đoán trước hình
+      dạng của cả mạng đường; kiểm sau khi khoét thì chỉ việc nhìn kết quả.
+
+      Hỏng thì HOÀN TÁC, trả lại đúng từng ô như cũ, và vùng đó chịu không có
+      khu đất này. Thà thiếu một khu đất còn hơn một cổng chặng không tới được:
+      trẻ đi hết bản đồ mà tắc thì không có cách nào hiểu được vì sao.
+    */
+    // Ô ngay trong bậc thang: nếu chỗ này không tới được thì cả khu đất vô nghĩa.
+    const inner = { x: stairX, y: bottom - 1 }
+    if (!stillReachable(inner)) {
+      for (let y = top; y <= bottom; y++) {
+        for (let x = left; x <= right; x++) tiles[y]![x] = before[y - top]![x - left]!
+      }
+      tiles[footY]![stairX] = footBefore
+      return null
+    }
+
+    stairs.push({ x: stairX, y: bottom })
+    mustReach.push(inner)
+    return { left, top, right, bottom }
+  }
+
+  /*
+    QUÉT CẢ BẢN ĐỒ TÌM CHỖ TRỐNG, thay vì neo vào một cổng nào đó.
+
+    Hai bản trước đều neo khu đất vào một cổng chặng rồi đo sang hai bên, và cả
+    hai đều để lọt những vùng không còn chỗ quanh bất kỳ cổng nào. In bản đồ
+    Tiếng Việt lớp 3 ra chữ mới thấy vì sao: sân đấu trùm chiếm một mảng lớn ở
+    góc trên, đường đi ngoằn ngoèo cắt ngang giữa, và bốn cổng còn lại đều dính
+    mép bản đồ - không cổng nào còn đủ năm cột trống bên cạnh.
+
+    Quét thì không phải đoán: thử mọi chỗ đặt, lấy chỗ đầu tiên lọt. Phép thử
+    không hề dễ dãi - `carveLevel` vẫn từ chối mọi chỗ đụng vào cổng, sân đấu hay
+    mặt nước, và vẫn hoàn tác nếu khoét xong mà có thứ gì đó không còn tới được.
+    Nên quét chỉ mở rộng chỗ ĐƯỢC PHÉP đặt, không nới lỏng điều kiện nào.
+
+    Khu cao quét từ trên xuống, khu trũng quét từ dưới lên - để hai khu không
+    dồn vào một đầu bản đồ, và đi từ đầu này sang đầu kia thì gặp cả hai.
+  */
+  const scanFor = (
+    fill: TileKind,
+    span: number,
+    tall: number,
+    fromTop: boolean,
+  ): ArenaRect | null => {
+    const rows: number[] = []
+    for (let top = 1; top + tall <= height - 2; top++) rows.push(top)
+    if (!fromTop) rows.reverse()
+
+    for (const top of rows) {
+      for (let left = 1; left + span <= rightEdge; left++) {
+        const carved = carveLevel(left, top, left + span, top + tall, fill)
+        if (carved) return carved
+      }
+    }
+    return null
+  }
+
+  if (count >= 3) {
+    /*
+      Khuông nhạc thử LỀ TRÊN trước.
+
+      Vùng Âm nhạc dựng bản đồ thành một khuông nhạc: mỗi chặng là một dòng kẻ
+      chạy hết bề ngang. Khoét một khu đất vào giữa đó là cắt đứt hai ba dòng kẻ,
+      và nó thôi là khuông nhạc. Dải bốn hàng trên dòng kẻ đầu tiên vốn để trống,
+      nên thử chỗ ấy trước; chỗ ấy bị sân đấu trùm chiếm thì mới xuống quét chung
+      với các vùng khác.
+    */
+    if (opts.shape === "staff") {
+      /*
+        Khuông nhạc CHỈ có khu đất cao, và chỉ ở lề trên.
+
+        Dòng kẻ cách nhau ba hàng, mà một khu đất mỏng nhất cũng chiếm bốn hàng
+        - nên không có chỗ nào lọt giữa hai dòng kẻ. Đặt ở đâu trong khuông thì
+        cũng cắt đứt một tới hai dòng, và cắt hai chỗ là khuông nhạc chỉ còn ba
+        dòng nguyên vẹn. Lúc ấy vùng Âm nhạc thôi là khuông nhạc.
+
+        Lề trên có bốn hàng để trống, vừa đủ một khu đất cao - kèm ngôi nhà và
+        chỗ giấu quái. Lề dưới chỉ còn một hàng, nên vùng này KHÔNG có khu
+        trũng, và đó là đánh đổi có chủ ý: giữ hình dáng riêng của vùng đất
+        đáng hơn là có đủ cả hai kiểu địa hình ở mọi nơi.
+      */
+      // Quét ngang hết lề trên, thử khổ rộng trước: sân đấu trùm có thể đã
+      // chiếm một đầu của dải này (vùng Âm nhạc lớp 1 đúng như vậy), nên gõ
+      // cứng một chỗ đặt là mất cả khu đất cao của vùng ấy.
+      for (const span of [5, 4, 3]) {
+        for (let left = 1; !plateau && left + span <= rightEdge; left++) {
+          plateau = carveLevel(left, 1, left + span, MARGIN_TOP, "highland")
+        }
+        if (plateau) break
+      }
+    } else {
+      // Khổ rộng trước, hẹp sau: 4×4 vẫn đủ một ngôi nhà, một lối men và một
+      // góc để giấu quái - nhỏ hơn thì thôi, chứ không phải không có.
+      plateau = scanFor("highland", 4, 4, true) ?? scanFor("highland", 3, 3, true)
+      hollow = scanFor("hollow", 4, 3, false) ?? scanFor("hollow", 3, 3, false)
+    }
+  }
+  if (plateau) {
+    /*
+      NHÀ TRÊN KHU ĐẤT CAO: mái ở ô trên, cửa ở ô ngay dưới.
+
+      Hai ô chứ không một: một ô 16 điểm ảnh thì cái nhà bé bằng nhân vật và
+      đọc ra thành một bụi cây. Mái ở ô trên, cửa ở ô dưới - bước lên cửa là
+      vào nhà.
+    */
+    const doorRow = plateau.bottom - 1
+    const roofRow = doorRow - 1
+    if (roofRow > plateau.top) {
+      /*
+        QUÉT HẾT BỀ NGANG, lấy cột đầu tiên dựng được - tối đa hai nhà.
+
+        Bản trước gõ cứng hai vị trí, cột thứ ba và thứ sáu tính từ mép trái. Ở
+        một khu đất rộng năm cột thì cột thứ sáu rơi ra ngoài, còn cột thứ ba
+        đúng là cột bậc thang - nên vùng Toán lớp 1 không có ngôi nhà nào, mà
+        khu đất cao thì vẫn dựng ra bình thường. Quét thì chỉ mất chỗ đẹp.
+      */
+      for (let x = plateau.left + 1; x <= plateau.right - 1 && doors.length < 2; x++) {
+        // Chừa cột bậc thang: dựng nhà đè lên đó là bịt luôn lối vào.
+        if (stairs.some((st) => st.x === x)) continue
+        // Hai nhà dính nhau đọc ra thành một dãy tường, không ra hai ngôi nhà.
+        if (doors.some((d) => Math.abs(d.x - x) < 2)) continue
+        set(x, roofRow, "house")
+        set(x, doorRow, "door")
+        doors.push({ x, y: doorRow })
+      }
+    }
+  }
+
+  // --- QUÁI ẨN ----------------------------------------------------------------
+  //
+  // Hai ô, và cả hai đều nằm ở GÓC TRONG CÙNG của một khu đất phải leo thang mới
+  // vào được. Chọn góc chứ không chọn chỗ bất kỳ, vì góc là nơi người ta đi qua
+  // mà không bước vào: muốn giẫm trúng thì phải cố ý đi men hết một vòng.
+  //
+  // Không nằm trên đường chính, không cạnh cổng, và không có dấu hiệu gì trên
+  // mặt đất - phần thưởng ở đây trả cho việc TÌM RA, nên nó phải tìm mới ra.
+  const secrets: Array<{ x: number; y: number }> = []
+  const farCorner = (rect: ArenaRect | null): { x: number; y: number } | null => {
+    if (!rect) return null
+
+    /*
+      Quét HẾT phần trong, lấy ô xa bậc thang nhất.
+
+      Bản trước chỉ thử ba góc gõ cứng, và ở một khu đất rộng năm cột thì hai
+      ngôi nhà đứng đúng vào hai cột góc ấy - vùng Âm nhạc lớp 1 vì thế không có
+      chỗ giấu quái nào, dù khu đất và nhà đều dựng ra bình thường.
+
+      Xa bậc thang nhất chứ không phải một góc cố định: đó mới là thứ thật sự
+      cần: vào được rồi vẫn còn phải đi men thêm một quãng nữa mới giẫm trúng.
+    */
+    const stair = stairs.find((st) => st.y === rect.bottom)
+    let best: { x: number; y: number } | null = null
+    let bestFar = -1
+
+    for (let y = rect.top + 1; y <= rect.bottom - 1; y++) {
+      for (let x = rect.left + 1; x <= rect.right - 1; x++) {
+        if (!WALKABLE[tiles[y]![x]!]) continue
+        if (doors.some((d) => d.x === x && d.y === y)) continue
+        if (stairs.some((st) => st.x === x && st.y === y)) continue
+
+        const far = stair ? Math.abs(stair.x - x) + Math.abs(stair.y - y) : x + y
+        if (far > bestFar) {
+          bestFar = far
+          best = { x, y }
+        }
+      }
+    }
+    return best
+  }
+  for (const corner of [farCorner(plateau), farCorner(hollow)]) {
+    if (corner && !doors.some((d) => d.x === corner.x && d.y === corner.y)) secrets.push(corner)
+  }
+
   // --- Viền khép kín. Làm SAU CÙNG để chắc chắn không bị thứ khác đè -----------
   for (let x = 0; x < width; x++) {
     set(x, 0, opts.border)
@@ -325,7 +643,21 @@ export function buildRouteMap(
   // Cổng đặt cuối cùng để chắc chắn ô chặng luôn là cổng.
   for (const gate of gates) set(gate.x, gate.y, 'gate')
 
-  return { width, height, tiles, gates, start, arena, den, denSpots }
+  return {
+    width,
+    height,
+    tiles,
+    gates,
+    start,
+    arena,
+    den,
+    denSpots,
+    plateau,
+    hollow,
+    stairs,
+    doors,
+    secrets,
+  }
 }
 
 /**

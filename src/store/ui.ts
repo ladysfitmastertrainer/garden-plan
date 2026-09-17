@@ -34,6 +34,21 @@ interface UiState {
   adultUnlocked: boolean
   muted: boolean
   /**
+   * Con quái đang bị đánh, và những con đã bị hạ trong LẦN GHÉ NÀY.
+   *
+   * Nằm ở kho giao diện chứ không ở tiến độ của trẻ, vì nó không phải một
+   * thành tựu mà là trạng thái của chuyến đi: hạ xong thì con quái biến khỏi
+   * bản đồ cho tới khi trẻ rời vùng đất rồi quay lại. Đi hết một vòng bản đồ
+   * mà đường đi mỗi lúc một thoáng ra - đó là phần thưởng đọc được bằng mắt.
+   *
+   * KHÔNG lưu xuống kho: lần sau vào lại, cả đàn đứng dậy. Nếu nhớ vĩnh viễn
+   * thì một vùng đã đi hết sẽ trống trơn, và trẻ quay lại ôn bài trong một nơi
+   * không còn gì sống.
+   */
+  beatenMonsters: string[]
+  /** Con quái trẻ vừa đụng vào, chờ biết thắng hay thua. */
+  pendingMonster: string | null
+  /**
    * Nhạc nền đang bật hay tắt - CÔNG TẮC RIÊNG, không chung với `muted`.
    *
    * Hai thứ này bị tắt vì hai lý do khác nhau. `muted` tắt cả tiếng game, gần
@@ -87,6 +102,10 @@ interface UiState {
   setInstallInviteOpen: (open: boolean) => void
   unlockAdult: () => void
   setMuted: (muted: boolean) => void
+  /** Ghi nhận trẻ vừa đụng vào con quái nào. */
+  bumpMonster: (id: string | null) => void
+  /** Con quái đang đụng vừa bị hạ: xoá nó khỏi bản đồ tới khi rời vùng. */
+  beatPendingMonster: () => void
   setMusicOn: (on: boolean) => void
   dismissRotateHint: () => void
   enterRegion: (region: Region | null) => void
@@ -97,6 +116,8 @@ export const useUi = create<UiState>((set) => ({
   screen: 'game',
   adultUnlocked: false,
   muted: false,
+  beatenMonsters: [],
+  pendingMonster: null,
   musicOn: true,
   rotateHintDismissed: false,
   installInviteOpen: false,
@@ -108,9 +129,29 @@ export const useUi = create<UiState>((set) => ({
   setInstallInviteOpen: (installInviteOpen) => set({ installInviteOpen }),
   unlockAdult: () => set({ adultUnlocked: true }),
   setMuted: (muted) => set({ muted }),
+  bumpMonster: (pendingMonster) => set({ pendingMonster }),
+  beatPendingMonster: () =>
+    set((state) => {
+      const id = state.pendingMonster
+      if (!id || state.beatenMonsters.includes(id)) return { pendingMonster: null }
+      return { beatenMonsters: [...state.beatenMonsters, id], pendingMonster: null }
+    }),
   setMusicOn: (musicOn) => set({ musicOn }),
   dismissRotateHint: () => set({ rotateHintDismissed: true }),
-  enterRegion: (region) => set(region ? { region, lastRegion: region } : { region }),
+  /*
+    Bước vào hay bước ra khỏi một vùng đất thì XOÁ SỔ danh sách quái đã hạ.
+
+    Đó là cả ý nghĩa của "cho tới khi con quay lại map": trong một chuyến đi,
+    đường mỗi lúc một thoáng ra; rời đi rồi quay lại thì vùng đất sống dậy như
+    cũ. Nhớ vĩnh viễn thì một vùng đã đi hết sẽ trống trơn, và trẻ quay lại ôn
+    bài trong một nơi không còn gì sống.
+  */
+  enterRegion: (region) =>
+    set(
+      region
+        ? { region, lastRegion: region, beatenMonsters: [], pendingMonster: null }
+        : { region, beatenMonsters: [], pendingMonster: null },
+    ),
   rememberPos: (key, pos) =>
     set((state) => ({ overworldPos: { ...state.overworldPos, [key]: pos } })),
 }))

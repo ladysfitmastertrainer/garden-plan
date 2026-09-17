@@ -527,6 +527,9 @@ function SubjectMap({
    * con đầu đàn thì bấm tiếp là vào trận.
    */
   const [visit, setVisit] = useState<Visit | null>(null)
+  // Đàn quái đã hạ trong chuyến đi này, và chỗ ghi nhận con vừa đụng vào.
+  const beaten = useUi((s) => s.beatenMonsters)
+  const bumpMonster = useUi((s) => s.bumpMonster)
 
   // Con đầu đội hình đi theo trẻ trên bản đồ - đúng con sẽ ra trận đầu tiên.
   // PHẢI đọc qua selector: thu phục thêm thú xong thì con đi theo phải đổi ngay,
@@ -653,7 +656,11 @@ function SubjectMap({
         biome={biome}
         subject={subject}
         onWildEncounter={(variant) => onWild('wild', variant)}
-        onMonsterBump={(node) => (node ? onPlay(node) : setPreview('mini'))}
+        beaten={beaten}
+        onMonsterBump={(node, id) => {
+          bumpMonster(id ?? null)
+          if (!node) setPreview('mini')
+        }}
         onEnterHouse={enterHouse}
         onSecret={meetSecret}
         follower={follower}

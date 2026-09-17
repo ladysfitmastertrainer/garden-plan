@@ -22,6 +22,7 @@ import { createRng } from '../engine/rng'
 import {
   advance,
   beginAttack,
+  beginDefend,
   castSpell,
   createBattle,
   enemyAttackOf,
@@ -94,7 +95,14 @@ const hit = (s: BattleState, element: Subject) => castSpell(answerRight(s), spel
  * `enemyElement` là đọc đúng vào giữa lượt của quái, lúc hệ chưa kịp đổi.
  */
 const round = (s: BattleState, element: Subject): BattleState =>
-  beginAttack(advance(answerRight(advance(hit(s, element), numericQuestion, NOW)), numericQuestion, NOW), NOW)
+  beginAttack(
+    advance(
+      answerRight(beginDefend(advance(hit(s, element), numericQuestion, NOW), NOW)),
+      numericQuestion,
+      NOW,
+    ),
+    NOW,
+  )
 
 describe('bản khai của tháp', () => {
   it('đủ bốn tầng, mỗi môn một tầng, không tầng nào trùng số', () => {
@@ -221,7 +229,7 @@ describe('đổi hệ: cả trận không còn một nước đi đúng duy nh�
 
 describe('hút máu: đoán mò không còn là một chiến thuật', () => {
   it('trả lời sai thì quái hồi máu', () => {
-    const start = advance(hit(towerBattle('math', 3), 'ethics'), numericQuestion, NOW)
+    const start = beginDefend(advance(hit(towerBattle('math', 3), 'ethics'), numericQuestion, NOW), NOW)
     const hurt = start.enemyHp
     const after = answerWrong(start)
     expect(after.enemyHp).toBeGreaterThan(hurt)
@@ -229,7 +237,7 @@ describe('hút máu: đoán mò không còn là một chiến thuật', () => {
   })
 
   it('hết giờ cũng tính như trả lời sai', () => {
-    const start = advance(hit(towerBattle('math', 3), 'ethics'), numericQuestion, NOW)
+    const start = beginDefend(advance(hit(towerBattle('math', 3), 'ethics'), numericQuestion, NOW), NOW)
     expect(timeUp(start, NOW).enemyHp).toBeGreaterThan(start.enemyHp)
   })
 

@@ -114,7 +114,10 @@ async function playBattle(mode: 'win' | 'lose'): Promise<void> {
   for (let guard = 0; guard < 200; guard++) {
     const state = useGame.getState()
     if (!state.battle) break
-    if (state.battle.phase === 'ready') {
+    if (state.battle.phase === 'warning') {
+      // Trong app, nhịp cảnh báo tự hết sau một giây rưỡi. Ở test thì gọi thẳng.
+      state.defend()
+    } else if (state.battle.phase === 'ready') {
       // Pha chờ: sân đấu một mình trên màn hình, trẻ bấm "Tấn công" mới đi tiếp.
       state.attack()
     } else if (state.battle.phase === 'question' && state.battle.question) {

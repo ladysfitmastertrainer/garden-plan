@@ -4,6 +4,7 @@ import {
   advance,
   battleAccuracy,
   beginAttack,
+  beginDefend,
   castSpell,
   comboMultiplier,
   createBattle,
@@ -88,7 +89,14 @@ const start = (overrides: Partial<BattleConfig> = {}): BattleState =>
  * đường đi thật đã hỏng.
  */
 const enemyTurn = (state: BattleState): BattleState =>
-  advance(castSpell(submitAnswer(state, { kind: 'numeric', value: 7 }, NOW), NEUTRAL, NOW), numericQuestion, NOW)
+  beginDefend(
+    advance(
+      castSpell(submitAnswer(state, { kind: 'numeric', value: 7 }, NOW), NEUTRAL, NOW),
+      numericQuestion,
+      NOW,
+    ),
+    NOW,
+  )
 
 /** Trả lời đúng sau `ms` mili giây - dừng ở pha chọn phép. */
 const answerRight = (state: BattleState, ms = 6_000) =>
@@ -216,7 +224,7 @@ describe('trả lời đúng rồi tung phép', () => {
       damages.push(s.lastDamage!.toEnemy)
       // Một vòng đầy đủ: ra đòn xong thì tới lượt quái, đỡ được rồi mới tới
       // lượt sau của con.
-      s = advance(s, numericQuestion, NOW)
+      s = beginDefend(advance(s, numericQuestion, NOW), NOW)
       s = advance(answerRight(s), numericQuestion, NOW)
       s = beginAttack(s, NOW)
     }
@@ -373,12 +381,34 @@ describe('môn Đạo đức không trừ máu', () => {
   cả ở trận thường.
 */
 describe('hai lượt trong một vòng', () => {
-  it('ra đòn xong là tới lượt quái, kèm đồng hồ', () => {
-    const s = advance(rightAndCast(start()), numericQuestion, NOW)
-    expect(s.phase).toBe('question')
-    expect(s.stance).toBe('defend')
-    expect(questionLimitMs(s)).toBeGreaterThan(0)
-    expect(s.log.some((line) => line.includes('lao tới'))).toBe(true)
+  it('ra đòn xong thì quái GỒNG LÊN trước, chưa hỏi ngay', () => {
+    /*
+      Nhịp cảnh báo là thứ biến đòn của quái từ "một câu hỏi nữa" thành một cú
+      đánh đang bay tới. Thiếu nó thì trẻ vừa bấm "Tiếp tục" xong đã thấy đề
+      bài mới, không kịp hiểu rằng thế trận vừa đổi chủ.
+    */
+    const warned = advance(rightAndCast(start()), numericQuestion, NOW)
+    expect(warned.phase).toBe('warning')
+    expect(warned.stance).toBe('defend')
+    expect(warned.log.some((line) => line.includes('gồng lên'))).toBe(true)
+
+    const asked = beginDefend(warned, NOW)
+    expect(asked.phase).toBe('question')
+    expect(asked.stance).toBe('defend')
+    expect(questionLimitMs(asked)).toBeGreaterThan(0)
+  })
+
+  it('đồng hồ đỡ đòn chỉ chạy TỪ LÚC câu hỏi hiện ra', () => {
+    // Nhịp cảnh báo là của quái, không phải của trẻ. Tính nó vào thời gian
+    // suy nghĩ thì trẻ mất gần hai giây cho một việc mình không làm gì cả.
+    const warned = advance(rightAndCast(start()), numericQuestion, NOW)
+    const asked = beginDefend(warned, NOW + 1_500)
+    expect(asked.questionShownAt).toBe(NOW + 1_500)
+  })
+
+  it('chỉ pha cảnh báo mới mở được câu hỏi đỡ đòn', () => {
+    const s = start()
+    expect(beginDefend(s, NOW)).toBe(s)
   })
 
   it('TRẬN THƯỜNG cũng có đồng hồ ở lượt đỡ đòn - và chỉ ở đó', () => {
@@ -392,12 +422,12 @@ describe('hai lượt trong một vòng', () => {
     expect(mine.timeLimitMs).toBeNull()
     expect(questionLimitMs(mine)).toBeNull()
 
-    const theirs = advance(rightAndCast(mine), numericQuestion, NOW)
+    const theirs = beginDefend(advance(rightAndCast(mine), numericQuestion, NOW), NOW)
     expect(questionLimitMs(theirs)).toBe(theirs.defendLimitMs)
   })
 
   it('đỡ được thì quái MẤT LƯỢT ĐÁNH, và không ai mất máu', () => {
-    const s = answerRight(advance(rightAndCast(start()), numericQuestion, NOW))
+    const s = answerRight(enemyTurn(start()))
     expect(s.blocked).toBe(true)
     expect(s.playerHp).toBe(50)
     expect(s.lastDamage!.toPlayer).toBe(0)
@@ -408,14 +438,14 @@ describe('hai lượt trong một vòng', () => {
   })
 
   it('đỡ trượt thì ăn đúng cú đánh của quái', () => {
-    const s = answerWrong(advance(rightAndCast(start()), numericQuestion, NOW))
+    const s = answerWrong(enemyTurn(start()))
     expect(s.blocked).toBe(false)
     expect(s.playerHp).toBe(50 - 12)
     expect(s.lastDamage!.toPlayer).toBe(12)
   })
 
   it('đỡ xong là về đầu vòng, chờ trẻ bấm "Tấn công"', () => {
-    let s = advance(rightAndCast(start()), numericQuestion, NOW)
+    let s = enemyTurn(start())
     s = advance(answerRight(s), numericQuestion, NOW)
     expect(s.phase).toBe('ready')
     expect(s.stance).toBe('attack')
@@ -424,7 +454,7 @@ describe('hai lượt trong một vòng', () => {
 
   it('lượt đỡ KHÔNG tính vào số lượt ra đòn', () => {
     const before = start()
-    let s = advance(rightAndCast(before), numericQuestion, NOW)
+    let s = enemyTurn(before)
     expect(s.questionsAsked).toBe(before.questionsAsked)
     s = advance(answerRight(s), numericQuestion, NOW)
     expect(s.questionsAsked).toBe(before.questionsAsked + 1)
@@ -476,7 +506,7 @@ describe('advance - kết thúc trận', () => {
     s = rightAndCast(s)
     const goldEarned = s.goldEarned
     const xpEarned = s.xpEarned
-    s = advance(s, numericQuestion, NOW)
+    s = beginDefend(advance(s, numericQuestion, NOW), NOW)
     s = answerWrong(s)
     s = advance(s, numericQuestion, NOW)
 
@@ -497,14 +527,14 @@ describe('advance - kết thúc trận', () => {
     */
     let s = start({ maxQuestions: 2 })
     s = rightAndCast(s)
-    s = advance(s, numericQuestion, NOW) // tới lượt quái
+    s = beginDefend(advance(s, numericQuestion, NOW), NOW) // tới lượt quái
     expect(s.stance).toBe('defend')
     s = advance(answerRight(s), numericQuestion, NOW) // đỡ được, về đầu vòng
     expect(s.phase).toBe('ready')
     expect(s.questionsAsked).toBe(2)
 
     s = rightAndCast(beginAttack(s, NOW))
-    s = advance(s, numericQuestion, NOW)
+    s = beginDefend(advance(s, numericQuestion, NOW), NOW)
     s = advance(answerRight(s), numericQuestion, NOW)
     expect(s.phase).toBe('retreat')
   })
@@ -525,7 +555,7 @@ describe('advance - kết thúc trận', () => {
 
   it('hết câu ở đầu vòng thì kết thúc trận gọn gàng', () => {
     let s = rightAndCast(start())
-    s = advance(s, numericQuestion, NOW)
+    s = beginDefend(advance(s, numericQuestion, NOW), NOW)
     s = advance(answerRight(s), null, NOW)
     expect(s.phase).toBe('retreat')
   })
@@ -569,7 +599,7 @@ describe('hàm phụ trợ', () => {
 
   it('tỉ lệ đúng tính trên các câu đã trả lời', () => {
     let s = rightAndCast(start())
-    s = advance(s, mcQuestion, NOW)
+    s = beginDefend(advance(s, mcQuestion, NOW), NOW)
     s = submitAnswer(s, { kind: 'choice', choiceId: 'a' }, NOW + 3_000)
     expect(battleAccuracy(s)).toBe(0.5)
   })
@@ -599,7 +629,7 @@ describe('đếm giờ ở trận trùm', () => {
 
   it('hết giờ ở LƯỢT QUÁI: ăn đòn thật, combo đứt', () => {
     const s = rightAndCast(timed())
-    const afterCombo = advance(s, numericQuestion, NOW)
+    const afterCombo = beginDefend(advance(s, numericQuestion, NOW), NOW)
     expect(afterCombo.combo).toBe(1)
 
     const out = timeUp(afterCombo, NOW)
@@ -632,7 +662,7 @@ describe('đếm giờ ở trận trùm', () => {
     const soft = submitAnswer(ethics, { kind: 'choice', choiceId: 'do-loi' }, NOW + 1_000)
     expect(soft.playerHp).toBe(ethics.playerHp)
 
-    const enemy = advance(soft, scenarioQuestion, NOW)
+    const enemy = beginDefend(advance(soft, scenarioQuestion, NOW), NOW)
     expect(enemy.stance).toBe('defend')
     // Chọn phương án chưa hay ở lượt quái: vẫn không mất máu.
     expect(

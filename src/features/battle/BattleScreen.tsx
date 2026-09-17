@@ -13,6 +13,25 @@ import { DialogueBox } from '../../ui/DialogueBox'
 import { QuestionView } from '../question/QuestionView'
 import { questionLimitMs } from '../../engine/battle'
 
+/**
+ * Nhịp cảnh báo dài bao lâu, mili giây.
+ *
+ * Đủ để đọc hết một dòng sáu chữ và hiểu ra chuyện gì sắp xảy ra, chưa đủ để
+ * sốt ruột. Ngắn hơn thì nó chỉ là một cái chớp; dài hơn thì mỗi vòng đấu có
+ * một quãng chết, mà một trận có tới mười vòng.
+ */
+const WARNING_MS = 1_500
+
+/**
+ * Đòn đánh diễn ra trong bao lâu trước khi nút "Tiếp tục" hiện ra.
+ *
+ * Khớp với hoạt cảnh trong `PixelBattle`: khung trận rung, số sát thương bay
+ * lên, thanh máu tụt xuống. Hiện nút cùng lúc với hộp phản hồi thì trẻ bấm
+ * ngay và không bao giờ nhìn thấy đòn đánh của chính mình - cả phần hoạt cảnh
+ * hoá ra vẽ cho không ai xem.
+ */
+const HIT_MS = 1_100
+
 const SUBJECT_COLOR: Record<Subject, string> = {
   math: 'var(--color-math)',
   vietnamese: 'var(--color-vietnamese)',
@@ -25,6 +44,7 @@ export function BattleScreen() {
   const subject = useGame((s) => s.battleSubject)
   const answer = useGame((s) => s.answer)
   const attack = useGame((s) => s.attack)
+  const defend = useGame((s) => s.defend)
   const timeUp = useGame((s) => s.timeUp)
   const useHint = useGame((s) => s.useHint)
   const next = useGame((s) => s.next)
@@ -43,6 +63,39 @@ export function BattleScreen() {
     if (finished) void closeBattle()
   }, [finished, closeBattle])
 
+  /*
+    Nhịp cảnh báo TỰ HẾT, không đợi trẻ bấm.
+
+    Đây là lượt của QUÁI. Bắt trẻ bấm một nút để con quái được phép đánh mình
+    thì vừa vô lý vừa thêm một cú chạm vào mỗi vòng - mà một trận có tới mười
+    vòng. Trẻ không mất gì vì chờ: đồng hồ đỡ đòn chỉ bắt đầu chạy khi câu hỏi
+    hiện ra, tức là sau nhịp này.
+  */
+  const warning = battle?.phase === 'warning'
+  /**
+   * Đòn đánh đã diễn xong chưa - quyết định lúc nào nút "Tiếp tục" hiện ra.
+   *
+   * Đếm lại từ đầu ở mỗi lần vào pha phản hồi: `feedbackTurn` đổi giá trị theo
+   * số câu đã trả lời, nên hai lượt liên tiếp không dùng chung một lần đếm.
+   */
+  const [hitDone, setHitDone] = useState(false)
+  const feedbackTurn = battle?.phase === 'feedback' ? battle.answers.length : -1
+
+  useEffect(() => {
+    if (feedbackTurn < 0) {
+      setHitDone(false)
+      return
+    }
+    setHitDone(false)
+    const timer = window.setTimeout(() => setHitDone(true), HIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [feedbackTurn])
+  useEffect(() => {
+    if (!warning) return
+    const timer = window.setTimeout(defend, WARNING_MS)
+    return () => window.clearTimeout(timer)
+  }, [warning, defend])
+
   if (!battle || !subject || finished) return null
 
   const accent = SUBJECT_COLOR[subject]
@@ -59,6 +112,14 @@ export function BattleScreen() {
     tiếp theo - thứ mà một chuỗi câu hỏi nối đuôi nhau không bao giờ cho.
   */
   const inReady = battle.phase === 'ready'
+  /**
+   * Quái đang gồng lên, câu hỏi đỡ đòn chưa hiện.
+   *
+   * Nhịp này ngắn nhưng không bỏ được: thiếu nó thì đòn của quái tới như một
+   * câu hỏi nữa - trẻ vừa bấm "Tiếp tục" xong đã thấy đề bài mới, không kịp
+   * hiểu rằng thế trận vừa đổi chủ.
+   */
+  const inWarning = battle.phase === 'warning'
   /** Lượt của quái: câu hỏi này để ĐỠ ĐÒN, và luôn có đồng hồ. */
   const defending = battle.stance === 'defend'
   const limitMs = questionLimitMs(battle)
@@ -134,6 +195,36 @@ export function BattleScreen() {
           )}
         </AnimatePresence>
 
+        {/*
+          Cảnh báo quái sắp ra đòn, vẽ ĐÈ LÊN sân đấu.
+
+          Không dùng khung hỏi: khung hỏi là chỗ của câu hỏi, mà cả điểm của
+          nhịp này là lúc CHƯA có câu hỏi nào. Một dải chữ to giữa sân đấu, nền
+          đỏ, rung nhẹ - trẻ sáu tuổi đọc ra "sắp có chuyện" trước cả khi đọc
+          xong chữ.
+        */}
+        <AnimatePresence>
+          {inWarning && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center p-3"
+              style={{ zIndex: 8, background: 'rgb(120 20 20 / 0.28)' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.p
+                className="pixel-font battle-warning"
+                initial={{ scale: 0.7 }}
+                animate={{ scale: [0.7, 1.08, 1], x: [0, -5, 5, -3, 3, 0] }}
+                transition={{ duration: 0.5 }}
+                role="status"
+              >
+                ⚠️ {battle.enemy.name} sắp tấn công!
+              </motion.p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {inSpell && (
             <motion.div
@@ -200,14 +291,32 @@ export function BattleScreen() {
                   </p>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  autoFocus
-                  className="btn btn-primary mt-3 w-full text-xl"
-                >
-                  Tiếp tục →
-                </button>
+                {/*
+                  Nút chỉ hiện SAU khi đòn đánh diễn xong.
+
+                  Hiện cùng lúc với hộp phản hồi thì trẻ bấm ngay và không bao
+                  giờ nhìn thấy đòn đánh của chính mình - khung trận rung, số
+                  sát thương bay lên, thanh máu tụt - tất cả vẽ cho không ai
+                  xem. Giữ chỗ sẵn bằng một dòng chữ để hộp phản hồi không nhảy
+                  cao lên lúc nút xuất hiện.
+                */}
+                {hitDone ? (
+                  <motion.button
+                    type="button"
+                    onClick={handleNext}
+                    autoFocus
+                    className="btn btn-primary mt-3 w-full text-xl"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    Tiếp tục →
+                  </motion.button>
+                ) : (
+                  <p className="battle-hit-wait mt-3" aria-hidden="true">
+                    ⚔️ …
+                  </p>
+                )}
               </motion.div>
             </motion.div>
           )}
@@ -231,13 +340,14 @@ export function BattleScreen() {
         @media của hướng ngang.
       */}
       {/*
-        Pha chờ thì khung hỏi KHÔNG ĐƯỢC DỰNG RA, ở cả hai hướng máy.
+        Pha chờ và pha cảnh báo thì khung hỏi KHÔNG ĐƯỢC DỰNG RA, ở cả hai hướng
+        máy.
 
         Giấu bằng CSS thì ở màn hình dọc nó vẫn giữ nguyên chỗ, và sân đấu vẫn
         bị ép vào đúng khoảng cũ - trong khi cả điểm của pha chờ là để sân đấu
         nở ra. Không dựng thì khối co giãn tự trả chỗ ấy về cho sân đấu.
       */}
-      {!inReady && (
+      {!inReady && !inWarning && (
       <div className={`pixel-panel battle-ask${inFeedback || inSpell ? ' battle-ask-hidden' : ''}`}>
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="pixel-font text-lg uppercase" style={{ color: accent }}>

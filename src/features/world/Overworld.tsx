@@ -270,7 +270,14 @@ interface Props {
    * Trẻ đụng phải một con quái đang đi lang thang. `node` là chặng con quái đó
    * canh; `null` nghĩa là mini boss trong hang.
    */
-  onMonsterBump?: (node: MapNode | null) => void
+  onMonsterBump?: (node: MapNode | null, id?: string) => void
+  /**
+   * Những con quái ĐÃ BỊ HẠ trong lần ghé này - không vẽ ra nữa.
+   *
+   * Danh sách sống theo chuyến đi chứ không theo hồ sơ: rời vùng đất rồi quay
+   * lại thì cả đàn đứng dậy. Xem `beatenMonsters` trong `store/ui.ts`.
+   */
+  beaten?: string[]
   /**
    * Trẻ bước lên CỬA một ngôi nhà trên khu đất cao.
    *
@@ -312,6 +319,7 @@ export function Overworld({
   onMonsterBump,
   onEnterHouse,
   onSecret,
+  beaten,
   follower,
   startAt,
   onPosition,
@@ -392,6 +400,20 @@ export function Overworld({
 
     setMonsters([...roamers, ...minis])
   }, [map, nodes])
+
+  /**
+   * Đàn quái CÒN SỐNG - đây mới là danh sách được vẽ ra và đụng vào được.
+   *
+   * Lọc ở đây chứ không xoá khỏi `monsters`: `monsters` được dựng lại mỗi khi
+   * bản đồ đổi, còn danh sách đã hạ thì sống lâu hơn thế. Trộn hai vòng đời
+   * vào một mảng là có ngày con quái đã hạ sống lại giữa chuyến đi.
+   */
+  const alive = useMemo(
+    () => (beaten && beaten.length > 0 ? monsters.filter((m) => !beaten.includes(m.id)) : monsters),
+    [monsters, beaten],
+  )
+  const aliveRef = useRef(alive)
+  aliveRef.current = alive
 
   /**
    * Những ô cửa KHÔNG vẽ nữa: chặng đánh nào cũng có một con quái đứng làm mốc,
@@ -560,10 +582,12 @@ export function Overworld({
         setStepping(false)
         // Đụng quái được xét TRƯỚC ô cổng: con quái mới là thứ trẻ nhìn thấy
         // và nhắm tới, cái cổng chỉ là chỗ nó đứng canh.
-        const bumped = monstersRef.current.find((m) => m.x === next.x && m.y === next.y)
+        const bumped = aliveRef.current.find((m) => m.x === next.x && m.y === next.y)
         if (bumped) {
+          // Báo kèm id để bên ngoài nhớ được con nào vừa bị đụng: thắng trận thì
+          // đúng con đó biến khỏi bản đồ.
+          onMonsterBump?.(bumped.node, bumped.id)
           if (bumped.node) onEnterGate(bumped.node)
-          else onMonsterBump?.(null)
           return
         }
 
@@ -725,7 +749,7 @@ export function Overworld({
           )}
 
           {/* Đàn quái canh từng chặng */}
-          {monsters.map((m) => (
+          {alive.map((m) => (
             <div
               key={m.id}
               className="absolute"

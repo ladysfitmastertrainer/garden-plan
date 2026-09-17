@@ -10,6 +10,7 @@
 
 import { create } from 'zustand'
 import { createEnemy } from '../content/bestiary'
+import { useUi } from './ui'
 import type { Enemy } from '../engine/battle'
 import { getSkill } from '../content/curriculum'
 import { PETS, SPELLS, buildTeam, getPet } from '../content/pets'
@@ -22,6 +23,7 @@ import type { Grade, Question, Subject } from '../content/types'
 import {
   advance as advanceBattle,
   beginAttack,
+  beginDefend,
   createBattle,
   defendLimitFor,
   questionLimitMs,
@@ -212,6 +214,8 @@ interface GameState {
   startTowerBattle: (subject: Subject, grade?: Grade) => void
   /** Trẻ bấm "Tấn công" ở pha chờ: câu hỏi hiện ra và đồng hồ bắt đầu chạy. */
   attack: () => void
+  /** Hết nhịp cảnh báo: câu hỏi đỡ đòn hiện ra và đồng hồ bắt đầu chạy. */
+  defend: () => void
   /** Đánh dấu một chỗ trên bản đồ là đã tìm ra, và lưu lại ngay. */
   markFound: (key: string) => void
   answer: (input: AnswerInput) => void
@@ -623,6 +627,12 @@ export const useGame = create<GameState>((set, get) => ({
     set({ battle: beginAttack(battle, Date.now()) })
   },
 
+  defend() {
+    const { battle } = get()
+    if (!battle) return
+    set({ battle: beginDefend(battle, Date.now()) })
+  },
+
   answer(input) {
     const { battle, student } = get()
     if (!battle || !battle.question || !student) return
@@ -730,6 +740,20 @@ export const useGame = create<GameState>((set, get) => ({
     }
 
     const victory = battle.phase === 'victory'
+
+    /*
+      Thắng thì con quái vừa đụng biến khỏi bản đồ.
+
+      Đánh dấu ở ĐÂY chứ không ở lúc đụng vào: đụng vào mà thua thì con quái
+      vẫn đứng đó, và nó phải đứng đó - trẻ rút lui khỏi một trận chưa thắng
+      thì trận ấy chưa xong.
+
+      Kho giao diện giữ danh sách này chứ không phải tiến độ của trẻ: nó là
+      trạng thái của chuyến đi, không phải một thành tựu. Rời vùng đất là cả
+      đàn đứng dậy.
+    */
+    if (victory) useUi.getState().beatPendingMonster()
+    else useUi.getState().bumpMonster(null)
     const accuracy =
       battle.answers.length === 0
         ? 0

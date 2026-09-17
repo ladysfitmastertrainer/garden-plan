@@ -135,13 +135,25 @@ export interface PlayerStats {
 /**
  * Các pha của một trận.
  *
- * 'ready' là pha MỚI, và nó là lý do cả cái máy trạng thái này đổi hình: trước
- * đây trận đấu chỉ là một chuỗi câu hỏi nối nhau, câu hỏi luôn chiếm màn hình,
- * và sân đấu chỉ là cái nền phía sau. Giờ mỗi vòng có hai lượt rõ rệt - con
- * đánh, rồi quái đánh - và giữa hai lượt có một khoảnh khắc trận đấu đứng yên
- * cho trẻ nhìn: đó là 'ready', lúc màn hình chỉ có sân đấu và một nút "Tấn công".
+ * Hai pha KHÔNG có câu hỏi nào trên màn hình, và cả hai đều cố ý:
+ *
+ *   'ready'   - đầu vòng, trận đấu đứng yên cho trẻ nhìn. Màn hình chỉ có sân
+ *               đấu và một nút "Tấn công". Trước đây trận đấu chỉ là một chuỗi
+ *               câu hỏi nối nhau và sân đấu chỉ là cái nền phía sau.
+ *   'warning' - quái GỒNG LÊN chuẩn bị ra đòn, ngay trước khi câu hỏi đỡ đòn
+ *               hiện ra. Không có pha này thì đòn của quái tới như một câu hỏi
+ *               nữa: trẻ vừa bấm "Tiếp tục" xong là đã thấy đề bài mới, không
+ *               kịp hiểu rằng thế trận vừa đổi chủ. Một nhịp nghỉ có cảnh báo
+ *               biến nó thành một CÚ ĐÁNH đang bay tới.
  */
-export type BattlePhase = 'ready' | 'question' | 'spell' | 'feedback' | 'victory' | 'retreat'
+export type BattlePhase =
+  | 'ready'
+  | 'question'
+  | 'spell'
+  | 'feedback'
+  | 'warning'
+  | 'victory'
+  | 'retreat'
 
 /**
  * Câu hỏi đang hỏi để LÀM GÌ.
@@ -461,6 +473,18 @@ export function questionLimitMs(state: BattleState): number | null {
 export function beginAttack(state: BattleState, now: number): BattleState {
   if (state.phase !== 'ready' || !state.question) return state
   return { ...state, phase: 'question', stance: 'attack', questionShownAt: now, hintUsed: false }
+}
+
+/**
+ * Hết nhịp cảnh báo: câu hỏi đỡ đòn hiện ra và đồng hồ bắt đầu chạy.
+ *
+ * Đồng hồ chạy TỪ ĐÂY, không phải từ lúc cảnh báo hiện lên. Nhịp cảnh báo là
+ * của quái, không phải của trẻ - tính nó vào thời gian suy nghĩ thì trẻ mất
+ * gần hai giây cho một việc mình không làm gì cả.
+ */
+export function beginDefend(state: BattleState, now: number): BattleState {
+  if (state.phase !== 'warning' || !state.question) return state
+  return { ...state, phase: 'question', questionShownAt: now, hintUsed: false }
 }
 
 /**
@@ -839,9 +863,15 @@ export function advance(
   /*
     ---- VỪA XONG LƯỢT CỦA CON → TỚI LƯỢT QUÁI ----
 
-    Quái lao tới ngay, không có quãng nghỉ nào ở giữa: câu hỏi đỡ đòn hiện ra
-    luôn, đồng hồ chạy luôn. Quãng nghỉ ('ready') chỉ có ở đầu vòng, khi lượt
-    tiếp theo là lượt của trẻ và trẻ được quyền chọn lúc nào ra đòn.
+    Quái GỒNG LÊN trước, rồi mới ra đòn.
+
+    Câu hỏi đỡ đòn KHÔNG hiện ra ngay ở đây: pha 'warning' chen vào giữa, đủ
+    lâu để trẻ đọc được một dòng "quái sắp tấn công". Không có nhịp ấy thì đòn
+    của quái tới như một câu hỏi nữa - trẻ vừa bấm "Tiếp tục" xong đã thấy đề
+    bài mới, không kịp hiểu rằng thế trận vừa đổi chủ, và lượt của quái mất
+    hẳn cái sức nặng mà cả cơ chế hai lượt được dựng ra để có.
+
+    Đồng hồ chưa chạy ở pha này - nó bắt đầu ở `beginDefend`.
 
     HẾT CÂU THÌ KẾT THÚC TRẬN, KHÔNG quay về pha chờ.
 
@@ -857,7 +887,7 @@ export function advance(
   if (state.stance === 'attack' && nextQuestion) {
     return {
       ...state,
-      phase: 'question',
+      phase: 'warning',
       stance: 'defend',
       blocked: false,
       question: nextQuestion,
@@ -866,7 +896,7 @@ export function advance(
       lastJudgement: null,
       lastDamage: null,
       lastSpell: null,
-      log: [...state.log, `⚔️ ${state.enemy.name} lao tới! Trả lời kịp thì đỡ được.`],
+      log: [...state.log, `⚔️ ${state.enemy.name} gồng lên! Nó sắp ra đòn.`],
     }
   }
 

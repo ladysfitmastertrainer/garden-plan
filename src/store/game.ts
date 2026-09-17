@@ -859,9 +859,6 @@ export const useGame = create<GameState>((set, get) => ({
       battlesWon: progress.battlesWon + (victory ? 1 : 0),
     }
 
-    await repository.saveStudent(updatedStudent)
-    await repository.saveProgress(student.id, updatedProgress)
-
     if (levelAfter > levelBefore) playEffect('levelup')
 
     // Hai kỹ năng con sai NHIỀU NHẤT, không phải mọi kỹ năng con sai.
@@ -880,9 +877,27 @@ export const useGame = create<GameState>((set, get) => ({
       .map(([id]) => getSkill(id)?.name)
       .filter((name): name is string => Boolean(name))
 
+    /*
+      HIỆN PHẦN THƯỞNG TRƯỚC, LƯU SAU.
+
+      Bản trước chờ ba lượt gọi máy chủ nối nhau - lưu hồ sơ, lưu tiến độ, rồi
+      LẤY LẠI cả danh sách hồ sơ - xong mới đặt màn tổng kết. Trên mạng trường
+      học thì đó là một hai giây màn hình đứng im ngay sau khi trẻ vừa hạ được
+      con quái, tức là đúng khoảnh khắc đáng ăn mừng nhất lại là khoảnh khắc
+      game trông như bị treo.
+
+      Mọi con số ở đây đã tính xong rồi, không có gì phải chờ máy chủ trả lời
+      cả. Nên đặt trạng thái ngay, rồi mới lưu - phần lưu vẫn được chờ ở dưới,
+      nên trình tự với phần còn lại của app không đổi.
+
+      Danh sách hồ sơ cập nhật TẠI CHỖ thay vì đi lấy lại: chỉ đúng một hồ sơ
+      vừa đổi, và mình đang cầm bản mới trong tay.
+    */
     set({
       student: updatedStudent,
-      students: await repository.listStudents(),
+      students: get().students.map((profile) =>
+        profile.id === updatedStudent.id ? updatedStudent : profile,
+      ),
       progress: updatedProgress,
       battle: null,
       battleNode: null,
@@ -907,5 +922,10 @@ export const useGame = create<GameState>((set, get) => ({
         canRetry: get().lastFight !== null,
       },
     })
+
+    // Lưu SAU khi màn tổng kết đã hiện. Vẫn chờ ở đây, nên mọi thứ gọi
+    // `closeBattle` rồi đọc kho lưu trữ vẫn thấy dữ liệu mới.
+    await repository.saveStudent(updatedStudent)
+    await repository.saveProgress(student.id, updatedProgress)
   },
 }))

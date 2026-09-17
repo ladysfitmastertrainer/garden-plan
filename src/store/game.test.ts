@@ -227,6 +227,63 @@ describe('bản đồ', () => {
   })
 })
 
+describe('màn tổng kết hiện ngay, không đợi lưu xong', () => {
+  it('phần thưởng lên màn hình TRƯỚC khi kho lưu trữ trả lời', async () => {
+    /*
+      Bản trước chờ ba lượt gọi máy chủ nối nhau - lưu hồ sơ, lưu tiến độ, rồi
+      lấy lại cả danh sách hồ sơ - xong mới đặt màn tổng kết. Trên mạng trường
+      học thì đó là một hai giây màn hình đứng im ngay sau khi trẻ vừa hạ được
+      con quái: đúng khoảnh khắc đáng ăn mừng nhất lại là lúc game trông như
+      treo.
+
+      Test này giữ đúng thứ tự ấy, và nó phải giữ bằng một kho lưu trữ CHẬM -
+      với kho trong bộ nhớ thì mọi thứ xong trong cùng một nhịp, và cả hai thứ
+      tự đều xanh như nhau.
+    */
+    await newStudent(1)
+    const map = useGame.getState().worldMap('math')
+    useGame.getState().startBattle('math', map.nodes[0]!)
+
+    // Đánh cho tới lúc thắng, nhưng CHƯA chốt sổ.
+    for (let guard = 0; guard < 200; guard++) {
+      const state = useGame.getState()
+      const battle = state.battle
+      if (!battle || battle.phase === 'victory' || battle.phase === 'retreat') break
+      if (battle.phase === 'warning') state.defend()
+      else if (battle.phase === 'ready') state.attack()
+      else if (battle.phase === 'question' && battle.question) answerCorrectly(battle.question)
+      else if (battle.phase === 'spell') state.cast(battle.team[battle.activeIndex]!.pet.spellIds[0]!)
+      else if (battle.phase === 'feedback') state.next()
+    }
+    expect(useGame.getState().battle?.phase).toBe('victory')
+
+    // Kho lưu trữ đứng im cho tới khi mình cho phép.
+    let mocuatkho = () => {}
+    const cho = new Promise<void>((resolve) => {
+      mocuatkho = resolve
+    })
+    configureRepository({
+      ...repository,
+      saveProgress: async (id, progress) => {
+        await cho
+        return repository.saveProgress(id, progress)
+      },
+    })
+
+    const xong = useGame.getState().closeBattle()
+    // Nhường vài nhịp cho React và cho các lời hứa đã xong chạy tiếp.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(useGame.getState().summary, 'phần thưởng phải có mặt trước khi lưu xong').not.toBeNull()
+    expect(useGame.getState().summary?.victory).toBe(true)
+
+    mocuatkho()
+    await xong
+    configureRepository(repository)
+  })
+})
+
 describe('quái bị hạ thì biến khỏi bản đồ', () => {
   /*
     Đi qua ĐÚNG đường mà game đi: đụng vào con quái, đánh trọn trận, rồi mới xem

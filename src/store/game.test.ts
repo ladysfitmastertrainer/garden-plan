@@ -13,6 +13,7 @@ import { regionKey } from '../data/types'
 import type { Question } from '../content/types'
 import { petLevel, xpForLevel } from '../engine/pets'
 import { configureRepository, useGame } from './game'
+import { useUi } from './ui'
 
 // Web Audio không có trong môi trường test - chặn lại để không ném lỗi.
 vi.mock('../audio/synth', () => ({
@@ -144,6 +145,7 @@ async function newStudent(grade: 1 | 2 | 3 | 4 | 5 = 1) {
 
 beforeEach(() => {
   repository.reset()
+  useUi.setState({ beatenMonsters: [], pendingMonster: null })
   useGame.setState({
     ready: false,
     students: [],
@@ -222,6 +224,37 @@ describe('bản đồ', () => {
     await newStudent(2)
     const map = useGame.getState().worldMap('vietnamese')
     expect(map.nodes.at(-1)!.kind).toBe('boss')
+  })
+})
+
+describe('quái bị hạ thì biến khỏi bản đồ', () => {
+  /*
+    Đi qua ĐÚNG đường mà game đi: đụng vào con quái, đánh trọn trận, rồi mới xem
+    kết quả.
+
+    Kiểm riêng kho giao diện thì chỉ chứng minh mấy hàm ấy chạy đúng - không
+    chứng minh được rằng `closeBattle` có gọi tới chúng hay không, mà đó mới là
+    mối nối dễ đứt: nó nằm vắt giữa hai kho, và không có kiểu dữ liệu nào ràng
+    buộc hai bên với nhau.
+  */
+  it('đụng vào rồi THẮNG: con quái đó vào danh sách đã hạ', async () => {
+    await newStudent(1)
+    const map = useGame.getState().worldMap('math')
+    useUi.getState().bumpMonster('node-0')
+    useGame.getState().startBattle('math', map.nodes[0]!)
+    await playBattle('win')
+
+    expect(useUi.getState().beatenMonsters).toContain('node-0')
+  })
+
+  it('đụng vào rồi THUA: con quái vẫn đứng đó', async () => {
+    await newStudent(1)
+    const map = useGame.getState().worldMap('math')
+    useUi.getState().bumpMonster('node-0')
+    useGame.getState().startBattle('math', map.nodes[0]!)
+    await playBattle('lose')
+
+    expect(useUi.getState().beatenMonsters).toEqual([])
   })
 })
 

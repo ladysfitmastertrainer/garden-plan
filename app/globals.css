@@ -1642,23 +1642,3 @@ textarea.admin-input {
     padding: 6px 14px;
   }
 }
-
-/* Chỗ giữ sẵn cho nút "Tiếp tục" trong lúc đòn đánh còn đang diễn.
-
-   Cao đúng bằng cái nút sắp thay chỗ nó, nếu không thì hộp phản hồi nhảy vọt
-   lên đúng lúc nút hiện ra - và một hộp thoại nhảy chỗ ngay trước khi ngón tay
-   chạm xuống là cách chắc chắn nhất để bấm trượt. Xem `BattleScreen`. */
-.battle-hit-wait {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 56px;
-  font-size: 1.25rem;
-  opacity: 0.45;
-}
-
-@media (max-height: 560px) {
-  .battle-hit-wait {
-    min-height: 44px;
-  }
-}

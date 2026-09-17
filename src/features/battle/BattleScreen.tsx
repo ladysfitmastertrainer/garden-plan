@@ -23,12 +23,15 @@ import { questionLimitMs } from '../../engine/battle'
 const WARNING_MS = 1_500
 
 /**
- * Đòn đánh diễn ra trong bao lâu trước khi nút "Tiếp tục" hiện ra.
+ * Đòn đánh diễn ra trong bao lâu trước khi BẢNG GIẢI THÍCH hiện ra.
  *
  * Khớp với hoạt cảnh trong `PixelBattle`: khung trận rung, số sát thương bay
- * lên, thanh máu tụt xuống. Hiện nút cùng lúc với hộp phản hồi thì trẻ bấm
- * ngay và không bao giờ nhìn thấy đòn đánh của chính mình - cả phần hoạt cảnh
- * hoá ra vẽ cho không ai xem.
+ * lên, nhãn "Khắc chế!" nảy ra, thanh máu tụt xuống.
+ *
+ * Cả cái bảng chờ, không phải riêng cái nút. Bản trước chỉ hoãn cái nút, và
+ * như thế vẫn sai thứ tự: bảng giải thích đã che mất nửa dưới sân đấu ngay từ
+ * lúc đòn đánh còn đang bay, nên thứ trẻ nhìn thấy là một bảng chữ hiện ra
+ * trước khi hiểu vì sao. Đánh xong, máu tụt xong, RỒI mới tới lời giải thích.
  */
 const HIT_MS = 1_100
 
@@ -251,7 +254,7 @@ export function BattleScreen() {
           thời đó đặt lời thoại - và không thêm một điểm ảnh chiều cao nào.
         */}
         <AnimatePresence>
-          {inFeedback && judgement && (
+          {inFeedback && judgement && hitDone && (
             <motion.div
               className="absolute inset-0 flex items-end justify-center p-2"
               style={{ zIndex: 6, background: 'rgb(12 16 24 / 0.45)' }}
@@ -291,32 +294,14 @@ export function BattleScreen() {
                   </p>
                 )}
 
-                {/*
-                  Nút chỉ hiện SAU khi đòn đánh diễn xong.
-
-                  Hiện cùng lúc với hộp phản hồi thì trẻ bấm ngay và không bao
-                  giờ nhìn thấy đòn đánh của chính mình - khung trận rung, số
-                  sát thương bay lên, thanh máu tụt - tất cả vẽ cho không ai
-                  xem. Giữ chỗ sẵn bằng một dòng chữ để hộp phản hồi không nhảy
-                  cao lên lúc nút xuất hiện.
-                */}
-                {hitDone ? (
-                  <motion.button
-                    type="button"
-                    onClick={handleNext}
-                    autoFocus
-                    className="btn btn-primary mt-3 w-full text-xl"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    Tiếp tục →
-                  </motion.button>
-                ) : (
-                  <p className="battle-hit-wait mt-3" aria-hidden="true">
-                    ⚔️ …
-                  </p>
-                )}
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  autoFocus
+                  className="btn btn-primary mt-3 w-full text-xl"
+                >
+                  Tiếp tục →
+                </button>
               </motion.div>
             </motion.div>
           )}

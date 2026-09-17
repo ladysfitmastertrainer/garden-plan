@@ -409,11 +409,28 @@ export function buildRouteMap(
     if (right - left < 3 || bottom - top < 3) return null
     if (left < 1 || top < 1 || right > width - 2 || bottom > height - 2) return null
 
-    // Không được chạm vào cổng, sân đấu trùm, hang hay mặt nước - bốn thứ đã có chủ.
+    /*
+      Chỗ nào đã có chủ thì không đụng vào.
+
+      Cổng, sân đấu trùm, hang, mặt nước - bốn thứ hiển nhiên. Nhưng cả những ô
+      của một khu đất ĐÃ KHOÉT TRƯỚC nữa, và đấy mới là thứ dễ quên: hai khu
+      đất chồng lên nhau thì vách của khu sau nuốt mất bậc thang của khu trước,
+      và cả khu trước thành một bức tranh dán trên tường.
+    */
+    const TAKEN = new Set<TileKind>([
+      "gate",
+      "arena",
+      "water",
+      "cliff",
+      "stairs",
+      "highland",
+      "hollow",
+      "house",
+      "door",
+    ])
     for (let y = top; y <= bottom; y++) {
       for (let x = left; x <= right; x++) {
-        const kind = tiles[y]![x]!
-        if (kind === "gate" || kind === "arena" || kind === "water") return null
+        if (TAKEN.has(tiles[y]![x]!)) return null
         if (gates.some((g) => g.x === x && g.y === y)) return null
       }
     }
@@ -541,12 +558,37 @@ export function buildRouteMap(
       // Quét ngang hết lề trên, thử khổ rộng trước: sân đấu trùm có thể đã
       // chiếm một đầu của dải này (vùng Âm nhạc lớp 1 đúng như vậy), nên gõ
       // cứng một chỗ đặt là mất cả khu đất cao của vùng ấy.
-      for (const span of [5, 4, 3]) {
-        for (let left = 1; !plateau && left + span <= rightEdge; left++) {
-          plateau = carveLevel(left, 1, left + span, MARGIN_TOP, "highland")
+      const inTopBand = (fill: TileKind): ArenaRect | null => {
+        for (const span of [5, 4, 3]) {
+          for (let left = 1; left + span <= rightEdge; left++) {
+            const carved = carveLevel(left, 1, left + span, MARGIN_TOP, fill)
+            if (carved) return carved
+          }
         }
-        if (plateau) break
+        return null
       }
+
+      plateau = inTopBand("highland")
+      /*
+        Khu trũng CŨNG ở lề trên, nằm cạnh khu cao.
+
+        Bản trước bỏ hẳn khu trũng ở vùng này, vì trong khuông nhạc không có chỗ
+        nào lọt. Nhưng lề trên rộng tới mười một cột - đủ cho hai khu đất đứng
+        cạnh nhau, mỗi khu năm cột. Một sườn đồi có chỗ leo lên và một hõm sâu
+        ngay bên cạnh, cả hai nằm trên đầu khuông nhạc: khuông nhạc còn nguyên,
+        mà vùng Âm nhạc không còn là vùng duy nhất thiếu một kiểu địa hình.
+      */
+      hollow = inTopBand("hollow")
+
+      /*
+        Lề trên chật quá thì mới chịu khoét vào khuông nhạc.
+
+        Ở lớp 1 vùng Âm nhạc, sân đấu trùm chiếm hơn nửa lề trên, nên chỉ còn chỗ
+        cho một khu đất. Lúc ấy thà cắt một dòng kẻ còn hơn để cả vùng thiếu hẳn
+        một kiểu địa hình: khuông nhạc mất một dòng vẫn đọc ra là khuông nhạc,
+        còn một vùng không có chỗ trũng nào thì trẻ nhận ra ngay - và đã nhận ra.
+      */
+      hollow ??= scanFor("hollow", 3, 3, false)
     } else {
       // Khổ rộng trước, hẹp sau: 4×4 vẫn đủ một ngôi nhà, một lối men và một
       // góc để giấu quái - nhỏ hơn thì thôi, chứ không phải không có.

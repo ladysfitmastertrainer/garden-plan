@@ -594,6 +594,19 @@ export function Overworld({
         const gate = gateAt(map, next.x, next.y)
         const node = gate ? nodes[gate.nodeIndex] : null
         if (node) {
+          /*
+            Báo luôn con quái canh cổng này, y như khi đụng thẳng vào nó.
+
+            Đàn quái đi lang thang quanh chỗ của mình, nên con canh cổng có lúc
+            bước ra khỏi ô cổng. Lúc ấy trẻ đi thẳng lên cổng là vào trận mà
+            KHÔNG đụng vào con nào - và bản trước vì thế không nhớ được con nào
+            vừa bị hạ. Đánh thắng xong quay ra, nó vẫn đứng đó như chưa có gì.
+
+            Đây đúng là lỗi "đánh quái xong quái không biến mất": nó chỉ xảy ra
+            khi con quái vừa đi chệch khỏi cổng, nên lúc gặp lúc không.
+          */
+          const guard = aliveRef.current.find((m) => m.node?.id === node.id)
+          onMonsterBump?.(node, guard?.id)
           onEnterGate(node)
           return
         }

@@ -598,6 +598,9 @@ function SubjectMap({
       text: SECRET_MONSTER,
       action: () => {
         onFound(key)
+        // Quái ẩn không phải con nào đứng trên bản đồ, nên xoá cờ "vừa đụng vào
+        // con nào" - thắng trận này không được xoá nhầm một con quái khác.
+        bumpMonster(null)
         onWild('secret')
       },
     })

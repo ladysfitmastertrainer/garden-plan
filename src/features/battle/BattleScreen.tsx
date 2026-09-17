@@ -401,8 +401,11 @@ Lần này con còn vướng ở: ${summary.missedSkills.join(', ')}.`
         {summary.petsEvolved.map((evo) => (
           <Row
             key={evo.to}
-            label="🌟 TIẾN HOÁ"
-            value={`${evo.from} đã tiến hoá thành ${evo.to}!`}
+            // Một ngôi sao cho mỗi nấc đã qua, và nói rõ nấc mấy trên ba: nấc
+            // cuối cùng phải đọc ra KHÁC hẳn nấc đầu, nếu không thì cả quãng
+            // đường từ cấp 5 lên cấp 20 chỉ nhận được đúng một lời chúc như nhau.
+            label={`${'🌟'.repeat(evo.stage)} TIẾN HOÁ`}
+            value={`${evo.from} đã tiến hoá thành ${evo.to}! (nấc ${evo.stage}/3)`}
           />
         ))}
         {summary.leveledUp && <Row label="🎉 Lên cấp!" value={`Cấp ${summary.newLevel}`} />}

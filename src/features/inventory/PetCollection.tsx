@@ -9,7 +9,7 @@
  */
 
 import { PETS, SPELLS } from '../../content/pets'
-import { hasEvolved, petLevel, resolvePet, xpToNextLevel } from '../../engine/pets'
+import { evolutionStage, nextEvolution, petLevel, resolvePet, xpToNextLevel } from '../../engine/pets'
 import { SUBJECT_ELEMENT, SUBJECT_LABEL, SUBJECTS, type Subject } from '../../content/types'
 import { ALL_SPRITES, recolor } from '../pixel/creatures'
 import { PixelSprite } from '../pixel/sprite'
@@ -63,7 +63,8 @@ export function PetCollection({
 
       <p className="text-base opacity-70">
         Thú thu phục được khi thắng quái hoang gặp trong cỏ cao. Mỗi môn học một hệ thú riêng.
-        Đánh trận là thú lên cấp, tới <strong>cấp 5</strong> thì tiến hoá.
+        Đánh trận là thú lên cấp, và mỗi con tiến hoá <strong>ba lần</strong> - ở cấp 5, cấp 10
+        và cấp 20. Nấc cuối học thêm phép tối thượng của hệ mình.
       </p>
 
       {SUBJECTS.map((element) => {
@@ -80,7 +81,8 @@ export function PetCollection({
                 const xp = petXp[pet.id] ?? 0
                 const level = petLevel(xp)
                 const shown = resolvePet(pet, xp)
-                const evolved = hasEvolved(pet, xp)
+                const stage = evolutionStage(pet, xp)
+                const upcoming = nextEvolution(pet, xp)
                 const next = xpToNextLevel(xp)
                 return (
                   <div
@@ -96,7 +98,9 @@ export function PetCollection({
                     <div className="min-w-0 flex-1">
                       <p className="text-base font-bold leading-tight">
                         {have ? shown.name : '???'}
-                        {evolved && ' 🌟'}
+                        {/* Một ngôi sao cho mỗi nấc đã qua: nhìn cái là biết con
+                            đang ở đâu trên đường ba nấc, không phải mở ra đọc số. */}
+                        {have && stage > 0 && ` ${'🌟'.repeat(stage)}`}
                       </p>
                       <p className="text-sm opacity-70">
                         {have
@@ -126,9 +130,14 @@ export function PetCollection({
                           {shown.spellIds.map((id) => SPELLS[id]?.name).filter(Boolean).join(', ')}
                         </p>
                       )}
-                      {have && !evolved && pet.evolution && (
+                      {have && upcoming && (
                         <p className="text-sm leading-tight" style={{ color: ELEMENT_COLOR[element] }}>
-                          Cấp {pet.evolution.atLevel} → {pet.evolution.name}
+                          Cấp {upcoming.atLevel} → {upcoming.name}
+                        </p>
+                      )}
+                      {have && !upcoming && (
+                        <p className="text-sm leading-tight" style={{ color: ELEMENT_COLOR[element] }}>
+                          Đã tới hình thái cuối cùng.
                         </p>
                       )}
                     </div>

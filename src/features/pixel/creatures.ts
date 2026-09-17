@@ -409,6 +409,296 @@ export const BELL_GRAND: Sprite = {
   ],
 }
 
+// --- Hai nấc tiến hoá trên -------------------------------------------------------
+//
+// Nấc 1 (cấp 5) là con thú lớn lên: thêm sừng, thêm mũ, thân bệ vệ hơn. Hai nấc
+// trên đi tiếp theo đúng hướng đó, và mỗi nấc phải NHÌN RA NGAY từ xa - nếu phải
+// soi mới thấy khác thì cái mốc cấp 20 không đáng để trẻ đi tới.
+//
+// Cách phân biệt là DIỆN TÍCH SILHOUETTE, không phải chi tiết: nấc 2 thân chiếm
+// gần trọn khung, nấc 3 thêm hào quang (ký tự Y) toả kín mép khung. Trên một ô
+// 16×16 phóng to bằng CSS, chi tiết nhỏ biến mất còn khối lớn thì không.
+//
+// Vẫn dùng đúng bảng ký tự cũ (B thân, S phần tối, # viền) để `recolor` theo
+// nguyên tố còn tô được. Riêng Y giữ nguyên vàng ở mọi hệ - đó là ánh hào quang,
+// cố ý không nhuộm theo môn học.
+
+/** Slime khổng lồ, vương miện hai tầng. */
+export const SLIME_TITAN: Sprite = {
+  palette: { '#': '#14481f', B: '#6fe98a', S: '#3aa855', L: '#d6ffdc', E: '#ffffff', P: '#0d2414', Y: '#ffd447' },
+  rows: [
+    '..Y.Y.YYYY.Y.Y..',
+    '.YYYYYYYYYYYYYY.',
+    '.##############.',
+    '################',
+    '#BBBBBBBBBBBBBB#',
+    '#BSSSBBBBBBSSSB#',
+    '#BEEPBBBBBBPEEB#',
+    '#BEEPBBBBBBPEEB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BBBBSSSSSSBBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BLLLLLLLLLLLLB#',
+    '#LLLLLLLLLLLLLL#',
+    '.##############.',
+    '..Y..Y....Y..Y..',
+  ],
+}
+
+/** Slime hoá thần: hào quang phủ kín khung. */
+export const SLIME_AVATAR: Sprite = {
+  palette: { '#': '#0e3618', B: '#8bffa4', S: '#3aa855', L: '#eaffee', E: '#ffffff', P: '#08190d', Y: '#ffe66d' },
+  rows: [
+    'Y.Y.YYYYYYYY.Y.Y',
+    'YYYYYYYYYYYYYYYY',
+    'Y##############Y',
+    'Y##BBBBBBBBBB##Y',
+    '#BBBBBBBBBBBBBB#',
+    '#BSSSBBBBBBSSSB#',
+    '#BEEPBBBBBBPEEB#',
+    '#BEEPBBBBBBPEEB#',
+    'Y#BBBBBBBBBBBB#Y',
+    'Y#BBBSSSSSSBBB#Y',
+    '#BBBBBBBBBBBBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BLLLLLLLLLLLLB#',
+    '#LLLLLLLLLLLLLL#',
+    'Y##############Y',
+    '.Y.Y.YYYYYY.Y.Y.',
+  ],
+}
+
+/** Cú tiên tri: sừng dài, vòng nguyệt quế trên đầu. */
+export const OWL_ORACLE: Sprite = {
+  palette: { '#': '#33200f', B: '#bf8a56', S: '#7d5533', L: '#f2dcba', E: '#ffffff', P: '#150d06', Y: '#ffc94d' },
+  rows: [
+    '.##.YYYYYYYY.##.',
+    '#BB#YY####YY#BB#',
+    '#BBB########BBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BSSSSS##SSSSSB#',
+    '#B#EEPEEEEPEE#B#',
+    '#B#EEPEEEEPEE#B#',
+    '#BBBBBYYYYBBBBB#',
+    '#BBBBBBYYBBBBBB#',
+    '#BBBBLLLLLLBBBB#',
+    '#BBBLLLLLLLLBBB#',
+    '#BBBLLLLLLLLBBB#',
+    '#BBBBLLLLLLBBBB#',
+    '.#BBBBBBBBBBBB#.',
+    '..Y#BBBBBBBB#Y..',
+    '....Y#....#Y....',
+  ],
+}
+
+/** Cú thiên sứ: hào quang toả kín, sừng vàng. */
+export const OWL_ARCHON: Sprite = {
+  palette: { '#': '#2a1a0b', B: '#d9a26a', S: '#7d5533', L: '#fff0d8', E: '#ffffff', P: '#120a04', Y: '#ffe07a' },
+  rows: [
+    'Y##YYYYYYYYYY##Y',
+    '#BB#YY####YY#BB#',
+    '#BBB########BBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BSSSSS##SSSSSB#',
+    '#B#EEPEEEEPEE#B#',
+    '#B#EEPEEEEPEE#B#',
+    '#BBBBBYYYYBBBBB#',
+    'Y#BBBBBYYBBBBB#Y',
+    'Y#BBBLLLLLLBBB#Y',
+    '#BBBLLLLLLLLBBB#',
+    '#BBBLLLLLLLLBBB#',
+    '#BBBBLLLLLLBBBB#',
+    'Y#BBBBBBBBBBBB#Y',
+    'YY#BBBBBBBBBB#YY',
+    '.YY#YY####YY#YY.',
+  ],
+}
+
+/** Chuông thánh đường: vành kép, tháp nhọn. */
+export const BELL_CATHEDRAL: Sprite = {
+  palette: { '#': '#33245e', B: '#b79dfb', S: '#7c5cd6', L: '#efe7ff', E: '#ffffff', P: '#1d1538', Y: '#ffd447' },
+  rows: [
+    '...Y...YY...Y...',
+    '...YY.YYYY.YY...',
+    '...YYYY##YYYY...',
+    '..YYYY####YYYY..',
+    '..##BBBBBBBB##..',
+    '.##BBBBBBBBBB##.',
+    '.#BBBBBBBBBBBB#.',
+    '#BBBSSSSSSSSBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BBEPBBBBBBPEBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BLLLLLLLLLLLLB#',
+    '################',
+    'YYYYYYYYYYYYYYYY',
+    '..YY#YY..YY#YY..',
+  ],
+}
+
+/** Chuông vĩnh hằng: tiếng ngân thành vòng sáng quanh thân. */
+export const BELL_ETERNAL: Sprite = {
+  palette: { '#': '#281b4d', B: '#cdb8ff', S: '#7c5cd6', L: '#f8f4ff', E: '#ffffff', P: '#150f2b', Y: '#ffe66d' },
+  rows: [
+    'Y..Y...YY...Y..Y',
+    'YY.YY.YYYY.YY.YY',
+    'YYYYYYY##YYYYYYY',
+    'YYYYYY####YYYYYY',
+    'YY##BBBBBBBB##YY',
+    'Y##BBBBBBBBBB##Y',
+    'Y#BBBBBBBBBBBB#Y',
+    '#BBBSSSSSSSSBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BBEPBBBBBBPEBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BLLLLLLLLLLLLB#',
+    '################',
+    'YYYYYYYYYYYYYYYY',
+    'YYYY#YY..YY#YYYY',
+  ],
+}
+
+/** Cáo huyền bí: đuôi xoè rộng hơn, mõm sắc. */
+export const FOX_MYSTIC: Sprite = {
+  palette: { '#': '#6b3310', B: '#ffab63', S: '#d16a22', L: '#ffeacf', E: '#ffffff', P: '#241105', Y: '#ffd447' },
+  rows: [
+    '.##..........##.',
+    '#BB#........#BB#',
+    '#BBB#......#BBB#',
+    '#BSBB#....#BBSB#',
+    '#BBBB######BBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#SSSBBBBBBBBSSS#',
+    '#EEPBBBBBBBBPEE#',
+    'Y#BBBBBBBBBBBB#Y',
+    'YY#BBBBBBBBBB#YY',
+    'YYY#BBBBBBBB#YYY',
+    'YYY#BBLLLLBB#YYY',
+    '.YY#BLLLLLLB#YY.',
+    '..Y#BLLLLLLB#Y..',
+    '..Y#BLLLLLLB#Y..',
+    '...Y#YPPPPY#Y...',
+  ],
+}
+
+/** Cáo thiên giới: chín đuôi thành vòng lửa vàng. */
+export const FOX_CELESTIAL: Sprite = {
+  palette: { '#': '#5c2a0c', B: '#ffc089', S: '#d16a22', L: '#fff3e3', E: '#ffffff', P: '#1d0d04', Y: '#ffe66d' },
+  rows: [
+    'Y##.YYYYYYYY.##Y',
+    'Y#BB#YY##YY#BB#Y',
+    'Y#BBB#YYYY#BBB#Y',
+    '#BSBB#YYYY#BBSB#',
+    '#BBBB######BBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#SSSBBBBBBBBSSS#',
+    '#EEPBBBBBBBBPEE#',
+    'Y#BBBBBBBBBBBB#Y',
+    'YY#BBBBBBBBBB#YY',
+    'YYY#BBBBBBBB#YYY',
+    'YYY#BBLLLLBB#YYY',
+    'YYY#BLLLLLLB#YYY',
+    '.YY#BLLLLLLB#YY.',
+    '..Y#BLLLLLLB#Y..',
+    '...Y#YPPPPY#Y...',
+  ],
+}
+
+/** Gấu trấn thủ: vai rộng, đai vàng ngang ngực. */
+export const PANDA_WARDEN: Sprite = {
+  palette: { '#': '#17171a', B: '#fbfaf8', S: '#2b2b2f', L: '#ffffff', E: '#ffffff', P: '#17171a', Y: '#ffd447' },
+  rows: [
+    '.##..........##.',
+    '#BB#........#BB#',
+    '#BBB#YYYYYY#BBB#',
+    '#BBBB######BBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BSSSBBBBBBSSSB#',
+    '#BSEPSBBBBSPESB#',
+    '#BSSSBBYYBBSSSB#',
+    '#BBBBBBYYBBBBBB#',
+    '#BBBBLLLLLLBBBB#',
+    '#BBBLLLLLLLLBBB#',
+    '#BBBLLLLLLLLBBB#',
+    '#BBBBLLLLLLBBBB#',
+    '.#BBBBBBBBBBBB#.',
+    '.#SS#BBBBBB#SS#.',
+    '..##........##..',
+  ],
+}
+
+/** Gấu khổng lồ: hào quang sau lưng, đai vàng kín thân. */
+export const PANDA_COLOSSUS: Sprite = {
+  palette: { '#': '#101012', B: '#ffffff', S: '#2b2b2f', L: '#ffffff', E: '#ffffff', P: '#101012', Y: '#ffe66d' },
+  rows: [
+    'Y##YYYYYYYYYY##Y',
+    '#BB#YY####YY#BB#',
+    '#BBB#YYYYYY#BBB#',
+    '#BBBB######BBBB#',
+    '#BBBBBBBBBBBBBB#',
+    '#BSSSBBBBBBSSSB#',
+    '#BSEPSBBBBSPESB#',
+    '#BSSSBBYYBBSSSB#',
+    'Y#BBBBBYYBBBBB#Y',
+    'Y#BBBLLLLLLBBB#Y',
+    '#BBBLLLLLLLLBBB#',
+    '#BBBLLLLLLLLBBB#',
+    '#BBBBLLLLLLBBBB#',
+    'Y#BBBBBBBBBBBB#Y',
+    '.#SS#BBBBBB#SS#.',
+    '..##.YYYYYY.##..',
+  ],
+}
+
+/** Rồng đế vương: mào gai, vuốt vàng. */
+export const DRAGON_SOVEREIGN: Sprite = {
+  palette: { '#': '#123a4d', B: '#67d6e8', S: '#3a9ac6', L: '#dcf7ff', E: '#ffffff', P: '#0a1f2b', Y: '#ffd447' },
+  rows: [
+    '..Y..........Y..',
+    '..Y.YYYYYYYY.Y..',
+    '..############..',
+    '.##BBBBBBBBBB##.',
+    '#BBBBBBBBBBBBBB#',
+    '#BSSBBBBBBBBSSB#',
+    '#BEPBBBBBBBBPEB#',
+    '#BBBBBYYYYBBBBB#',
+    '#BBBBBB##BBBBBB#',
+    '#BBBBBBBBBBBBBB#',
+    'Y#BBBLLLLLLBBB#Y',
+    'YY#BLLLLLLLLB#YY',
+    'YYY#LLLLLLLL#YYY',
+    '.YY#BBBBBBBB#YY.',
+    '..Y##BB##BB##Y..',
+    '....##....##....',
+  ],
+}
+
+/** Rồng thiên giới: hào quang phủ kín, mào vàng rực. */
+export const DRAGON_CELESTIAL: Sprite = {
+  palette: { '#': '#0d2c3b', B: '#8ae6f5', S: '#3a9ac6', L: '#edfcff', E: '#ffffff', P: '#06161e', Y: '#ffe66d' },
+  rows: [
+    'Y.Y.YYYYYYYY.Y.Y',
+    'YYY#YYYYYYYY#YYY',
+    'YY############YY',
+    'Y##BBBBBBBBBB##Y',
+    '#BBBBBBBBBBBBBB#',
+    '#BSSBBBBBBBBSSB#',
+    '#BEPBBBBBBBBPEB#',
+    '#BBBBBYYYYBBBBB#',
+    'Y#BBBBB##BBBBB#Y',
+    'Y#BBBBBBBBBBBB#Y',
+    'Y#BBBLLLLLLBBB#Y',
+    'YY#BLLLLLLLLB#YY',
+    'YYY#LLLLLLLL#YYY',
+    'YYY#BBBBBBBB#YYY',
+    '.YY##BB##BB##YY.',
+    '..Y.##....##.Y..',
+  ],
+}
+
 // --- Bầy quái của từng môn ------------------------------------------------------
 //
 // Mỗi môn có BỐN con quái khác hình hẳn nhau, đúng theo bốn cái tên trong
@@ -816,6 +1106,26 @@ export const BOSS_SPRITE: Record<Subject, Sprite> = {
  * Hình của một con quái. Dùng chung cho cả bản đồ đi cảnh lẫn khung trận đấu, để
  * con trẻ thấy trên đường đi đúng là con bước vào trận.
  */
+/**
+ * Bảng màu của trùm trong Tháp Trí Tuệ: thân xám đá, viền đen, điểm nhấn vàng.
+ *
+ * Cố ý tô lại hình TRÙM của chính môn đó chứ không vẽ bốn con mới. Bốn con trong
+ * tháp là cùng một loài với trùm vùng đất, chỉ ở một bậc khác - "Rồng Số Học" và
+ * "Đại Toán Sư Vô Cực" phải nhìn ra họ hàng với nhau thì cái bậc ấy mới có nghĩa.
+ * Vẽ bốn con lạ hoắc thì chúng chỉ là bốn con quái nữa.
+ */
+const TOWER_TINT: Record<string, string> = {
+  B: '#b9c2d6',
+  S: '#6d7690',
+  '#': '#15161f',
+  Y: '#ffd447',
+}
+
+/** Hình con trùm trong tháp: hình trùm của môn đó, tô lại thành tượng đá dát vàng. */
+export function towerSpriteFor(subject: Subject): Sprite {
+  return recolor(BOSS_SPRITE[subject], TOWER_TINT)
+}
+
 export function monsterSpriteFor(subject: Subject, variant: number, isBoss: boolean): Sprite {
   if (isBoss) return BOSS_SPRITE[subject]
   const family = MONSTER_FAMILY[subject]
@@ -852,6 +1162,18 @@ export const ALL_SPRITES: Record<string, Sprite> = {
   'panda-guardian': PANDA_GUARDIAN,
   'dragon-elder': DRAGON_ELDER,
   'bell-grand': BELL_GRAND,
+  'slime-titan': SLIME_TITAN,
+  'slime-avatar': SLIME_AVATAR,
+  'owl-oracle': OWL_ORACLE,
+  'owl-archon': OWL_ARCHON,
+  'bell-cathedral': BELL_CATHEDRAL,
+  'bell-eternal': BELL_ETERNAL,
+  'fox-mystic': FOX_MYSTIC,
+  'fox-celestial': FOX_CELESTIAL,
+  'panda-warden': PANDA_WARDEN,
+  'panda-colossus': PANDA_COLOSSUS,
+  'dragon-sovereign': DRAGON_SOVEREIGN,
+  'dragon-celestial': DRAGON_CELESTIAL,
 }
 
 // --- Tô lại bảng màu -------------------------------------------------------------

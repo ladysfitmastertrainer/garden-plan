@@ -24,6 +24,13 @@ export interface Tuning {
   bossSeconds: number
   /** Giờ cho mỗi câu khi đánh đầu đàn trong hang. */
   miniBossSeconds: number
+  /**
+   * Giờ cho mỗi câu khi đánh trùm trong Tháp Trí Tuệ.
+   *
+   * Gấp hơn trùm vùng đất, vì ở đó việc phải làm nhiều hơn: đọc lại hệ của quái
+   * rồi mới chọn phép. Cơn giận còn rút tiếp một phần tư số này.
+   */
+  towerSeconds: number
   /** Nhân thêm giờ cho lớp 1-2, vì các em còn đánh vần cả đề bài. */
   youngReaderFactor: number
 
@@ -48,6 +55,7 @@ export const DEFAULT_TUNING: Tuning = {
   questionsPerBattle: 10,
   bossSeconds: 16,
   miniBossSeconds: 26,
+  towerSeconds: 13,
   youngReaderFactor: 1.4,
   enemyHpScale: 1,
   enemyAttackScale: 1,
@@ -68,6 +76,7 @@ export const TUNING_RANGE: Record<keyof Tuning, { min: number; max: number; step
   questionsPerBattle: { min: 3, max: 20, step: 1 },
   bossSeconds: { min: 5, max: 120, step: 1 },
   miniBossSeconds: { min: 5, max: 120, step: 1 },
+  towerSeconds: { min: 5, max: 120, step: 1 },
   youngReaderFactor: { min: 1, max: 3, step: 0.1 },
   enemyHpScale: { min: 0.3, max: 3, step: 0.1 },
   enemyAttackScale: { min: 0.2, max: 3, step: 0.1 },

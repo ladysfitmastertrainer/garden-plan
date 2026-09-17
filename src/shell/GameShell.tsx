@@ -23,10 +23,23 @@ import { DashboardScreen } from '../features/dashboard/DashboardScreen'
 import { InventoryScreen } from '../features/inventory/InventoryScreen'
 import { useAuth } from '../store/auth'
 import { useGame } from '../store/game'
+import { usePvp } from '../store/pvp'
+import { PvpScreen } from '../features/pvp/PvpScreen'
 import { useUi } from '../store/ui'
 import { InstallPrompt } from '../ui/InstallPrompt'
 import { RotateHint } from '../ui/RotateHint'
 import { useAppChrome } from './useAppChrome'
+import type { PvpStatus } from '../data/pvp-types'
+
+/**
+ * Những trạng thái trận PVP chiếm CẢ màn hình.
+ *
+ * 'pending' và 'declined' cố ý không có mặt: cả hai mới chỉ là tin nhắn về một
+ * trận đấu chưa từng xảy ra, và chúng thuộc về khung hỏi nhỏ ở màn bản đồ
+ * (`PvpLobby`). Chiếm cả màn hình để báo "bạn ấy chưa muốn đấu" thì lời từ chối
+ * hoá ra to tiếng hơn cả trận đấu.
+ */
+const PVP_FULLSCREEN = new Set<PvpStatus>(['active', 'finished', 'abandoned'])
 
 export function GameShell() {
   const initAuth = useAuth((s) => s.init)
@@ -84,6 +97,7 @@ function Screen() {
   const battle = useGame((s) => s.battle)
   const summary = useGame((s) => s.summary)
   const screen = useUi((s) => s.screen)
+  const pvpMatch = usePvp((s) => s.match)
 
   if (!authReady) return <Loading />
   if (mode === 'signed-out') return <AuthScreen />
@@ -142,6 +156,18 @@ function Screen() {
   // Trận đấu và màn tổng kết luôn được ưu tiên: không để trẻ bị kéo ra giữa chừng.
   if (battle) return <BattleScreen />
   if (summary) return <BattleSummaryScreen onDone={() => useGame.setState({ summary: null })} />
+
+  /*
+    Trận PVP chiếm cả màn hình, nhưng đứng SAU trận đánh quái.
+
+    Thứ tự này quan trọng: một lời thách đấu tới nơi trong lúc trẻ đang đánh trùm
+    mà kéo em ấy ra khỏi trận thì vừa mất công vừa mất cả con trùm. Lời thách vẫn
+    nằm đó chờ - đánh xong quay ra bản đồ là thấy.
+
+    'pending' KHÔNG vào đây: lúc ấy chưa có trận nào cả, mới chỉ là một lời mời,
+    và nó thuộc về khung hỏi nhỏ ở màn bản đồ (`PvpLobby`).
+  */
+  if (pvpMatch && PVP_FULLSCREEN.has(pvpMatch.status)) return <PvpScreen />
 
   if (screen === 'profiles') return <ProfileScreen />
   if (screen === 'inventory') return <InventoryScreen />

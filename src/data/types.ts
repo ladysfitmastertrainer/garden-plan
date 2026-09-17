@@ -51,6 +51,17 @@ export interface StudentProgress {
    * thì bản đồ lớp 1 sẽ hiện đã qua hết trong khi em chưa đánh chặng nào.
    */
   clearedNodes: Record<string, number>
+  /**
+   * Những tầng Tháp Trí Tuệ đã hạ, khoá dạng `math.g2` y như `clearedNodes`.
+   *
+   * Tách khỏi `clearedNodes` vì tháp KHÔNG phải một chặng trên bản đồ: nó không
+   * có số thứ tự, không mở khoá gì cho chặng sau, và không được tính vào tiến độ
+   * của vùng đất. Nhét chung vào đó thì thanh "17/18 chặng" của vùng Toán tự
+   * nhiên nhảy lên 18/18 chỉ vì trẻ vừa thắng một con trùm ở nơi khác.
+   *
+   * Không bắt buộc: hồ sơ lưu từ trước bản cập nhật tháp sẽ thiếu trường này.
+   */
+  towerCleared?: string[]
   battlesPlayed: number
   battlesWon: number
 }
@@ -68,6 +79,7 @@ export function emptyProgress(): StudentProgress {
     petXp: {},
     virtues: {},
     clearedNodes: {},
+    towerCleared: [],
     battlesPlayed: 0,
     battlesWon: 0,
   }

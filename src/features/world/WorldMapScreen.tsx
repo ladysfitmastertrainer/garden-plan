@@ -15,7 +15,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import { SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from '../../content/types'
-import { creatureFromAvatar, viewFor } from '../pixel/creatures'
+import { creatureFromAvatar, towerSpriteFor, viewFor } from '../pixel/creatures'
+import { TOWER_FLOORS, towerFloorLabel } from '../../content/tower'
 import {
   ISO_MEDIUM,
   PROP_ABACUS,
@@ -176,7 +177,11 @@ interface Props {
   grade: Grade
   avatar: string
   clearedByRegion: Record<string, number>
+  /** Những tầng tháp đã hạ, khoá dạng `math.g2`. */
+  towerCleared: string[]
   onEnterRegion: (subject: Subject, grade: Grade) => void
+  /** Bước vào một tầng Tháp Trí Tuệ ở giữa lục địa. */
+  onEnterTower: (subject: Subject, grade: Grade) => void
 }
 
 interface RegionView {
@@ -189,7 +194,14 @@ interface RegionView {
   r: number
 }
 
-export function WorldMapScreen({ grade, avatar, clearedByRegion, onEnterRegion }: Props) {
+export function WorldMapScreen({
+  grade,
+  avatar,
+  clearedByRegion,
+  towerCleared,
+  onEnterRegion,
+  onEnterTower,
+}: Props) {
   const creature = creatureFromAvatar(avatar)
   const open = useMemo(() => unlockedGrades(clearedByRegion, grade), [clearedByRegion, grade])
   const highest = highestUnlockedGrade(clearedByRegion, grade)
@@ -207,6 +219,7 @@ export function WorldMapScreen({ grade, avatar, clearedByRegion, onEnterRegion }
   const lastRegion = useUi((state) => state.lastRegion)
   const here = lastRegion && lastRegion.grade === view ? lastRegion.subject : null
   const [gateOpen, setGateOpen] = useState(false)
+  const [towerOpen, setTowerOpen] = useState(false)
   const [scale, setScale] = useState(2)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -347,9 +360,25 @@ export function WorldMapScreen({ grade, avatar, clearedByRegion, onEnterRegion }
           </Marker>
         ))}
 
+        {/*
+          Toà tháp giữa lục địa - giờ BẤM ĐƯỢC.
+
+          Trước đây nó là hình trang trí: vẽ to nhất bản đồ, đứng đúng giữa, và
+          chạm vào thì không có gì xảy ra. Thứ to nhất màn hình mà không bấm được
+          là một lời hứa suông với một đứa bé sáu tuổi.
+        */}
         {castle && (
           <Marker grade={view} cell={castle} scale={scale} lift={TILE_H} big>
-            <PixelSprite sprite={PROP_CASTLE} scale={scale * 2} />
+            <button
+              type="button"
+              onClick={() => setTowerOpen(true)}
+              className="block"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              aria-label="Tháp Trí Tuệ - bốn trùm cuối cùng"
+              title="Tháp Trí Tuệ"
+            >
+              <PixelSprite sprite={PROP_CASTLE} scale={scale * 2} />
+            </button>
           </Marker>
         )}
 
@@ -417,6 +446,18 @@ export function WorldMapScreen({ grade, avatar, clearedByRegion, onEnterRegion }
           region={selected}
           onClose={() => setSelected(null)}
           onEnter={() => onEnterRegion(selected.subject, selected.grade)}
+        />
+      )}
+
+      {towerOpen && (
+        <TowerModal
+          grade={view}
+          towerCleared={towerCleared}
+          onClose={() => setTowerOpen(false)}
+          onEnter={(subject) => {
+            setTowerOpen(false)
+            onEnterTower(subject, view)
+          }}
         />
       )}
 
@@ -495,6 +536,78 @@ function RegionModal({
 }
 
 /** Khung cổng sang lớp sau: hoặc chúc mừng, hoặc nói rõ còn thiếu môn nào. */
+/**
+ * Cửa vào Tháp Trí Tuệ: bốn tầng, mỗi tầng một con trùm của một môn.
+ *
+ * KHÔNG KHOÁ TẦNG NÀO, y như mọi chặng khác trên bản đồ (xem ghi chú "KHÔNG CÓ
+ * KHOÁ CHẶNG" trong `content/worldmap.ts`). Cái chặn nằm ở con quái chứ không ở
+ * ổ khoá - và khung này nói thẳng ra điều đó thay vì để trẻ tự đâm đầu vào.
+ */
+function TowerModal({
+  grade,
+  towerCleared,
+  onClose,
+  onEnter,
+}: {
+  grade: Grade
+  towerCleared: string[]
+  onClose: () => void
+  onEnter: (subject: Subject) => void
+}) {
+  const done = new Set(towerCleared)
+  const cleared = TOWER_FLOORS.filter((f) => done.has(`${f.subject}.g${grade}`)).length
+
+  return (
+    <PixelModal title={`Tháp Trí Tuệ — lớp ${grade}`} onClose={onClose}>
+      <div className="grid gap-2">
+        <div className="grid justify-items-center gap-1 text-center">
+          <PixelSprite sprite={PROP_CASTLE} scale={2} />
+          <h3 className="pixel-font text-3xl leading-none">THÁP TRÍ TUỆ</h3>
+          <p className="pixel-font text-xl leading-none" style={{ color: '#4c4a7a' }}>
+            {cleared}/{TOWER_FLOORS.length} tầng đã hạ
+          </p>
+          <p className="text-base leading-snug opacity-80">
+            Bốn vị trùm mạnh nhất thế giới ngồi đây. Chúng <strong>đổi hệ</strong> giữa trận, có{' '}
+            <strong>giáp</strong> chặn đòn sai hệ, <strong>hút máu</strong> mỗi lần con trả lời sai,
+            và <strong>nổi giận</strong> khi sắp gục. Đề hỏi cả bài của những lớp trước.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          {TOWER_FLOORS.map((floor) => {
+            const beaten = done.has(`${floor.subject}.g${grade}`)
+            return (
+              <button
+                key={floor.subject}
+                type="button"
+                onClick={() => onEnter(floor.subject)}
+                className="card flex items-center gap-3 text-left"
+                style={{ padding: 10, cursor: 'pointer' }}
+              >
+                <PixelSprite sprite={towerSpriteFor(floor.subject)} scale={2} />
+                <span className="min-w-0 flex-1">
+                  <span className="pixel-font block text-lg leading-tight opacity-70">
+                    {towerFloorLabel(floor)}
+                  </span>
+                  <span className="block text-base font-bold leading-tight">
+                    {beaten && '✓ '}
+                    {floor.name}
+                  </span>
+                  <span className="block text-sm leading-tight opacity-70">{floor.tagline}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        <button type="button" onClick={onClose} className="btn btn-ghost w-full text-lg">
+          Để sau
+        </button>
+      </div>
+    </PixelModal>
+  )
+}
+
 function GateModal({
   grade,
   unlocked,

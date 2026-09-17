@@ -50,6 +50,7 @@ src/
     pixel/     sprite nhân vật và ô cảnh, viết thẳng bằng lưới ký tự
     world/     bản đồ ô vuông, sinh tuyến đường, màn đi bộ
     battle/    trận đấu theo lượt
+    pvp/       đấu trường lớp học - bản đồ chung và trận tay đôi
     ...        hồ sơ, kho đồ, khu vực người lớn
   audio/       tổng hợp âm thanh bằng Web Audio (không dùng file mp3)
 supabase/
@@ -76,6 +77,23 @@ import React và không đọc `Date.now()` (thời điểm luôn truyền vào)
 có mạng - tầng đồng bộ offline, hàng đợi gửi lên và luật hợp nhất đã được gỡ bỏ,
 khoảng sáu trăm dòng phức tạp nhất dự án.
 
+## Ba nơi để đi
+
+**Bản đồ vùng đất.** Mười tám chặng mỗi môn mỗi lớp, chặng cuối là trùm. Không
+có khoá chặng nào - cái chặn nằm ở con quái, và thua thì không mất gì.
+
+**Tháp Trí Tuệ** (`src/content/tower.ts`) đứng giữa lục địa: bốn tầng, mỗi tầng
+một con trùm của một môn. Chúng khó hơn trùm vùng đất bằng CƠ CHẾ chứ không bằng
+máu - đổi hệ ba câu một lần, có giáp chặn đòn sai hệ, hút máu mỗi lần trẻ trả
+lời sai, và nổi giận ở mốc 40% máu. `src/content/tower.test.ts` giữ đúng bốn
+nét đó, kể cả cái trần "máu không được trâu quá ba lần trùm thường".
+
+**Đấu trường lớp học** (`src/server/pvp.ts`): trẻ cùng một lớp thấy nhau trên
+bản đồ và thách đấu được bạn đang đứng CÙNG HÒN ĐẢO. Hai bên nhận cùng một câu
+hỏi, có đồng hồ đếm ngược; ai trả lời đúng trước thì giành quyền tấn công. Máy
+chủ là trọng tài duy nhất - thứ tự xếp theo thời điểm yêu cầu tới nơi, nên máy
+chậm không bị thiệt và máy khai gian không được lợi.
+
 ## Đồ hoạ pixel
 
 Toàn bộ nhân vật và ô cảnh **viết thẳng trong code** dưới dạng lưới ký tự + bảng
@@ -98,6 +116,14 @@ phân biệt dấu hỏi với dấu ngã ở độ phân giải thấp rất d�
 3. **Một cửa duy nhất vào dữ liệu.** Mọi lần đọc/ghi đi qua `/api`, và phân
    quyền là TypeScript đọc được chứ không phải SQL trong bảng điều khiển của nhà
    cung cấp. Đổi lại, app cần mạng - mất mạng giữa buổi học thì trẻ dừng lại.
+
+## Thú đồng hành
+
+Mười hai con, ba con mỗi hệ, và hệ chính là môn học. Mỗi con tiến hoá **ba lần**
+- cấp 5, cấp 10 và cấp 20 - đổi tên, đổi hình và mạnh lên hẳn một bậc ở mỗi nấc;
+nấc cuối học thêm phép tối thượng của hệ mình. Tiến hoá gắn thẳng vào con gốc nên
+bộ sưu tập vẫn là 12 ô: đó là con thú của trẻ lớn lên, không phải con mới phải đi
+bắt lại.
 
 ## Thêm nội dung
 

@@ -19,7 +19,12 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useReduceMotion } from '../../shell/useReduceMotion'
 import type { Subject } from '../../content/types'
 import type { BattleState } from '../../engine/battle'
-import { creatureFromAvatar, monsterSpriteFor, HERO_CREATURES } from '../pixel/creatures'
+import {
+  creatureFromAvatar,
+  monsterSpriteFor,
+  towerSpriteFor,
+  HERO_CREATURES,
+} from '../pixel/creatures'
 import { PixelSprite } from '../pixel/sprite'
 
 /**
@@ -29,6 +34,22 @@ import { PixelSprite } from '../pixel/sprite'
  * bấm tiếp sau chừng một giây im lặng.
  */
 const INTRO_MS = 1150
+
+/** Tên hệ viết tắt cho cái nhãn trên thanh máu quái - chỗ đó chỉ đủ vài chữ. */
+const ELEMENT_SHORT: Record<Subject, string> = {
+  math: 'Số',
+  vietnamese: 'Chữ',
+  music: 'Âm',
+  ethics: 'Sáng',
+}
+
+/** Màu nền của nhãn hệ, trùng màu môn học ở mọi nơi khác trong app. */
+const ELEMENT_BADGE: Record<Subject, string> = {
+  math: '#f7d98b',
+  vietnamese: '#f7b3c5',
+  music: '#cbb9fb',
+  ethics: '#a8e0f5',
+}
 
 /** Mỗi môn một loài quái riêng. */
 /**
@@ -130,7 +151,9 @@ export function PixelBattle({
   const scene = SCENE_BY_SUBJECT[subject]
   const heroSprite = HERO_CREATURES[creatureFromAvatar(avatar)]
   // Mỗi con quái một hình riêng, khớp với cái tên nó mang.
-  const enemySprite = monsterSpriteFor(subject, battle.enemy.variant, battle.enemy.isBoss)
+  const enemySprite = battle.enemy.isTower
+    ? towerSpriteFor(subject)
+    : monsterSpriteFor(subject, battle.enemy.variant, battle.enemy.isBoss)
 
   const answerCount = battle.answers.length
   const [turn, setTurn] = useState<{ key: number; kind: Turn }>({ key: -1, kind: null })
@@ -303,6 +326,32 @@ export function PixelBattle({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: reduceMotion ? 0 : 0.85 }}
       >
+        {/*
+          Hệ HIỆN TẠI của quái, chỉ hiện với con biết đổi hệ.
+
+          Khung diễn biến có báo "đổi sang hệ Thanh Âm", nhưng dòng đó trôi đi
+          mất sau một câu, còn quyết định chọn phép thì diễn ra ở câu SAU. Cái
+          nhãn này đứng yên ngay trên thanh máu quái, nên lúc bảng phép mở ra
+          trẻ vẫn nhìn thấy mình đang đánh vào hệ gì.
+        */}
+        {battle.enemy.shiftEvery ? (
+          <div className="mb-1 flex justify-end">
+            <span
+              className="pixel-font text-base"
+              style={{
+                padding: '1px 8px',
+                borderRadius: 4,
+                border: '3px solid #1b2432',
+                background: ELEMENT_BADGE[battle.enemyElement],
+                color: '#101620',
+              }}
+            >
+              Hệ {ELEMENT_SHORT[battle.enemyElement]}
+              {battle.enraged && ' · 😡'}
+            </span>
+          </div>
+        ) : null}
+
         <HpBox
           name={battle.enemy.name}
           level={enemyLevel}

@@ -246,7 +246,20 @@ export async function getProgress(studentId: string): Promise<StudentProgress> {
   }
 
   const progressRow = progressResult.data as unknown as
-    | { cleared_nodes: Record<string, number>; battles_played: number; battles_won: number }
+    | {
+        cleared_nodes: Record<string, number>
+        battles_played: number
+        battles_won: number
+        /*
+          Bốn cột dưới đây thêm ở migration 0008. Hàng ghi trước đó không có
+          chúng, nên mọi chỗ đọc đều phải chịu được giá trị trống - đọc thẳng
+          vào là một hồ sơ cũ đủ làm cả màn hình kho đồ trắng xoá.
+        */
+        pets?: string[] | null
+        pet_xp?: Record<string, number> | null
+        loadout?: string[] | null
+        tower_cleared?: string[] | null
+      }
     | null
 
   return {
@@ -257,6 +270,10 @@ export async function getProgress(studentId: string): Promise<StudentProgress> {
     ),
     virtues,
     clearedNodes: { ...base.clearedNodes, ...(progressRow?.cleared_nodes ?? {}) },
+    pets: progressRow?.pets ?? [],
+    petXp: progressRow?.pet_xp ?? {},
+    loadout: progressRow?.loadout ?? [],
+    towerCleared: progressRow?.tower_cleared ?? [],
     battlesPlayed: progressRow?.battles_played ?? 0,
     battlesWon: progressRow?.battles_won ?? 0,
   }
@@ -279,6 +296,18 @@ export async function saveProgress(studentId: string, progress: StudentProgress)
         {
           student_id: studentId,
           cleared_nodes: progress.clearedNodes,
+          /*
+            Bốn trường này TỪNG bị rơi mất ở đúng chỗ này - xem migration 0008.
+
+            Chúng không bắt buộc trong `StudentProgress` (hồ sơ cũ thiếu), nên
+            phải có giá trị thay thế: một hồ sơ cũ mà ghi giá trị trống đè lên
+            cột `not null` là cả lượt lưu thất bại, và lượt lưu ấy đang mang
+            theo cả tiến độ bài học của trẻ.
+          */
+          pets: progress.pets ?? [],
+          pet_xp: progress.petXp ?? {},
+          loadout: progress.loadout ?? [],
+          tower_cleared: progress.towerCleared ?? [],
           battles_played: progress.battlesPlayed,
           battles_won: progress.battlesWon,
           updated_at: new Date().toISOString(),

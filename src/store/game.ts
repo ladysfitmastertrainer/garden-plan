@@ -12,10 +12,11 @@ import { create } from 'zustand'
 import { createEnemy } from '../content/bestiary'
 import { getSkill } from '../content/curriculum'
 import { PETS, SPELLS, buildTeam, getPet } from '../content/pets'
-import { justEvolved } from '../engine/pets'
+import { currentEvolution, evolutionStage, justEvolved } from '../engine/pets'
 import { contentSource } from '../content/registry'
 import { getTuning } from '../content/tuning'
 import { buildWorldMap, type MapNode, type WorldMap } from '../content/worldmap'
+import { TOWER_QUESTIONS, createTowerBoss, towerGrades } from '../content/tower'
 import type { Grade, Question, Subject } from '../content/types'
 import {
   advance as advanceBattle,
@@ -68,6 +69,14 @@ export function configureRepository(next: Repository): void {
   repository = next
 }
 
+/**
+ * Loại trận đang đánh.
+ *
+ * 'tower' là trận trong Tháp Trí Tuệ: đề bốc qua nhiều lớp, quái đổi hệ giữa
+ * trận, có giáp và biết nổi giận. Xem `content/tower.ts`.
+ */
+export type BattleKind = 'node' | 'wild' | 'mini' | 'tower'
+
 /** Số câu tối đa trong một trận. Đủ dài để có tiến triển, đủ ngắn để không chán. */
 
 export interface BattleSummary {
@@ -84,8 +93,8 @@ export interface BattleSummary {
   petCaught: { id: string; name: string } | null
   /** Kinh nghiệm mỗi thú trong đội nhận được sau trận. */
   petXpGained: number
-  /** Thú vừa tiến hoá: tên cũ và tên mới. */
-  petsEvolved: Array<{ from: string; to: string }>
+  /** Thú vừa tiến hoá: tên cũ, tên mới, và nấc thứ mấy trong ba nấc. */
+  petsEvolved: Array<{ from: string; to: string; stage: number }>
   /**
    * Những kỹ năng con trả lời sai trong trận, tên đọc được.
    *
@@ -117,11 +126,11 @@ interface GameState {
     subject: Subject
     grade: Grade
     node: MapNode | null
-    kind: 'node' | 'wild' | 'mini'
+    kind: BattleKind
     variant?: number
   } | null
   /** Loại trận đang đánh. Quyết định tỉ lệ thu phục thú. */
-  battleKind: 'node' | 'wild' | 'mini'
+  battleKind: BattleKind
   /** Lớp của vùng đất đang chơi - có thể thấp hơn lớp của trẻ. */
   battleGrade: Grade | null
   /** Câu hỏi đã chọn sẵn cho cả trận. */
@@ -150,6 +159,13 @@ interface GameState {
     /** Con thứ mấy trong bầy - để con nhảy ra khỏi bụi cỏ đúng là con vào trận. */
     variant?: number,
   ) => void
+  /**
+   * Bước vào một tầng Tháp Trí Tuệ.
+   *
+   * Không nhận `MapNode`: tháp không nằm trên bản đồ chặng nào, nó là một cánh
+   * cửa riêng ở giữa lục địa.
+   */
+  startTowerBattle: (subject: Subject, grade?: Grade) => void
   answer: (input: AnswerInput) => void
   /** Hết giờ một câu ở trận trùm / trận đầu đàn. Tính như trả lời sai. */
   timeUp: () => void
@@ -461,6 +477,93 @@ export const useGame = create<GameState>((set, get) => ({
     })
   },
 
+  startTowerBattle(subject, grade) {
+    const { student, progress } = get()
+    if (!student) return
+
+    const target: Grade = grade ?? student.grade
+    const grades = towerGrades(target)
+
+    /*
+      Đề bốc qua NHIỀU LỚP, không riêng lớp hiện tại.
+
+      Một nửa số câu ở lớp hiện tại, nửa còn lại chia đều cho các lớp dưới. Đây
+      là chỗ tháp khác hẳn trùm vùng đất: trùm vùng đất kiểm tra một lớp, tháp
+      kiểm tra cả quãng đường trẻ đã đi. Một em quên sạch bài lớp trước thì vẫn
+      qua được trùm lớp này, nhưng sẽ không qua được tháp - và đó là ý.
+    */
+    const lower = grades.filter((g) => g !== target)
+    const forCurrent = lower.length === 0 ? TOWER_QUESTIONS : Math.ceil(TOWER_QUESTIONS / 2)
+    const quota = new Map<Grade, number>([[target, forCurrent]])
+    let left = TOWER_QUESTIONS - forCurrent
+    lower.forEach((g, index) => {
+      const take = Math.floor(left / (lower.length - index))
+      quota.set(g, take)
+      left -= take
+    })
+
+    const rng = createRng(`${student.id}-tower-${subject}-${Date.now()}`)
+    const picked: Question[] = []
+    for (const [g, count] of quota) {
+      if (count <= 0) continue
+      const ctx: SelectionContext = {
+        subject,
+        grade: g,
+        mastery: progress.mastery,
+        now: Date.now(),
+        rng,
+        source: contentSource,
+        // Dồn hết sang nhóm thử thách và nâng độ khó HAI bậc - trùm vùng đất chỉ
+        // nâng một. Đây là bài cuối cùng, không phải một chặng nữa.
+        weights: { challenge: 85, review: 15, learning: 0 },
+        difficultyBoost: 2,
+      }
+      picked.push(...selectQuestions(ctx, count).map((s) => s.question))
+    }
+    if (picked.length === 0) return
+
+    // Xáo lên: xếp theo lớp thì trẻ đọc ra ngay "ba câu dễ rồi tới phần khó", và
+    // nhịp của trận đấu vỡ làm mấy khúc rời nhau.
+    const queue = rng.shuffle(picked)
+
+    const level = levelFromTotalXp(student.totalXp).level
+    const bonus = student.equippedItemIds.reduce(
+      (acc, id) => {
+        const item = findLootItem(id)
+        return {
+          bonusHp: acc.bonusHp + (item?.bonus.bonusHp ?? 0),
+          bonusPower: acc.bonusPower + (item?.bonus.bonusPower ?? 0),
+        }
+      },
+      { bonusHp: 0, bonusPower: 0 },
+    )
+
+    set({
+      battle: createBattle(
+        {
+          enemy: createTowerBoss(subject, target),
+          player: statsForLevel(level, bonus),
+          // Đội thú ĐẦY ĐỦ bốn con, không phải ba như trận thường: quái đổi qua
+          // cả bốn hệ, mà đội ba con thì luôn có một hệ không ai gánh được - lúc
+          // ấy trẻ có bấm gì cũng sai, và đó không còn là quyết định nữa.
+          team: buildTeam(progress.pets ?? [], subject, 4, progress.petXp ?? {}),
+          maxQuestions: queue.length,
+          timeLimitMs: timeLimitFor('tower', target),
+        },
+        queue[0]!,
+        Date.now(),
+      ),
+      battleSubject: subject,
+      battleNode: null,
+      lastFight: { subject, grade: target, node: null, kind: 'tower' },
+      battleKind: 'tower',
+      battleGrade: target,
+      queue,
+      queueIndex: 0,
+      summary: null,
+    })
+  },
+
   answer(input) {
     const { battle, student } = get()
     if (!battle || !battle.question || !student) return
@@ -550,6 +653,10 @@ export const useGame = create<GameState>((set, get) => ({
       get().startBattle(lastFight.subject, lastFight.node, lastFight.grade)
       return
     }
+    if (lastFight.kind === 'tower') {
+      get().startTowerBattle(lastFight.subject, lastFight.grade)
+      return
+    }
     get().startWildBattle(lastFight.subject, lastFight.grade, lastFight.kind === 'mini' ? 'mini' : 'wild', lastFight.variant)
   },
 
@@ -600,13 +707,21 @@ export const useGame = create<GameState>((set, get) => ({
       clearedNodes[key] = Math.max(clearedNodes[key] ?? 0, battleNode.index + 1)
     }
 
+    // Tầng tháp vừa hạ. Ghi riêng, KHÔNG cộng vào tiến độ vùng đất - xem ghi chú
+    // ở `towerCleared` trong `data/types.ts`.
+    const towerKey = regionKey(battleSubject, battleGrade ?? student.grade)
+    const towerCleared =
+      victory && battleKind === 'tower'
+        ? [...new Set([...(progress.towerCleared ?? []), towerKey])]
+        : (progress.towerCleared ?? [])
+
     // Kinh nghiệm cho thú: chia đều cho cả đội, kể cả con chưa phải ra đánh.
     // Con dự bị vẫn theo trẻ suốt trận, và bắt trẻ phải "cho từng con ra đánh
     // đủ lượt" thì việc chọn phép biến thành việc chia ca, không còn là chiến
     // thuật nữa.
     const petXpGained = Math.max(1, Math.round(battle.xpEarned / 2))
     const petXp = { ...(progress.petXp ?? {}) }
-    const petsEvolved: Array<{ from: string; to: string }> = []
+    const petsEvolved: BattleSummary['petsEvolved'] = []
 
     for (const member of battle.team) {
       const id = member.pet.id
@@ -618,8 +733,16 @@ export const useGame = create<GameState>((set, get) => ({
       // trong trận đã mang tên sau tiến hoá rồi, so ở đó thì không bao giờ thấy
       // khoảnh khắc chuyển.
       const source = getPet(id)
-      if (source && justEvolved(source, before, after)) {
-        petsEvolved.push({ from: source.name, to: source.evolution!.name })
+      const gained = source ? justEvolved(source, before, after) : null
+      if (source && gained) {
+        petsEvolved.push({
+          // Tên CŨ là tên con thú vừa mang, có thể đã là một nấc tiến hoá rồi -
+          // không phải tên lúc mới bắt. Lấy `source.name` thì con lên nấc ba sẽ
+          // được báo là "Sóc Số → Sóc Vũ Trụ", bỏ mất hai nấc ở giữa.
+          from: currentEvolution(source, before)?.name ?? source.name,
+          to: gained.name,
+          stage: evolutionStage(source, after),
+        })
       }
     }
 
@@ -630,14 +753,20 @@ export const useGame = create<GameState>((set, get) => ({
     // Mini boss là phần thưởng cho việc chịu khó tìm hang, nên tỉ lệ ra thú cao
     // hơn hẳn quái hoang gặp dọc đường.
     const catchChance = battleKind === 'mini' ? 0.85 : 0.5
+    // Chỉ quái hoang và đầu đàn mới rơi thú. Trận ở cổng không rơi để trẻ có lý
+    // do đi lang thang; trận trong tháp không rơi vì ở đó phần thưởng là chính
+    // cái tầng vừa hạ, và một con thú cấp 1 rơi ra sau trận khó nhất game thì
+    // vừa lạc lõng vừa hạ giá trị của nó.
+    const wildKind = battleKind === 'wild' || battleKind === 'mini'
     const caught =
-      victory && battleKind !== 'node' && catchable.length > 0 && rng.chance(catchChance)
+      victory && wildKind && catchable.length > 0 && rng.chance(catchChance)
         ? rng.pick(catchable)
         : null
 
     const updatedProgress: StudentProgress = {
       ...progress,
       clearedNodes,
+      towerCleared,
       pets: caught ? [...owned, caught.id] : owned,
       petXp,
       inventory: loot ? [...progress.inventory, loot.id] : progress.inventory,

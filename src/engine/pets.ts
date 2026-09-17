@@ -77,7 +77,7 @@ export interface Spell {
 // --- Thú đồng hành ------------------------------------------------------------
 
 /**
- * Hình thái tiến hoá của một thú.
+ * Một hình thái tiến hoá của thú.
  *
  * Gắn THẲNG vào con gốc chứ không tạo một con riêng trong bộ thú: tiến hoá là
  * cùng một con lớn lên, không phải bắt được con mới. Nhờ vậy danh sách thú đã
@@ -88,9 +88,9 @@ export interface PetEvolution {
   sprite: string
   maxHp: number
   power: number
-  /** Phép học thêm khi tiến hoá. Gộp vào phép cũ chứ không thay thế. */
+  /** Phép học thêm ở nấc này. Gộp vào phép cũ chứ không thay thế. */
   spellIds: string[]
-  /** Cấp cần đạt để tiến hoá. */
+  /** Cấp cần đạt để lên nấc này. */
   atLevel: number
 }
 
@@ -105,16 +105,35 @@ export interface Pet {
   power: number
   /** Các phép thú này biết. Luôn có ít nhất một phép cùng nguyên tố. */
   spellIds: string[]
-  evolution?: PetEvolution
+  /**
+   * BA nấc tiến hoá, xếp theo cấp tăng dần.
+   *
+   * Là một MẢNG chứ không phải một trường `evolution` duy nhất như bản đầu. Một
+   * nấc duy nhất ở cấp 5 để lại một khoảng trống dài: từ đó tới kịch cấp con thú
+   * chỉ nhích thêm hai điểm máu mỗi cấp, không còn cái mốc nào để ngóng. Ba nấc
+   * chia quãng đường thành ba chặng, mỗi chặng có một hình mới ở cuối.
+   */
+  evolutions: PetEvolution[]
 }
 
 // --- Cấp độ và tiến hoá --------------------------------------------------------
 
-export const MAX_PET_LEVEL = 10
+/**
+ * Kịch cấp là 20 - đúng bằng cấp của nấc tiến hoá cuối.
+ *
+ * Không đặt cao hơn: cấp nằm sau nấc cuối là cấp không dẫn tới đâu, và chính
+ * khoảng trống ấy là thứ bản trước mắc phải khi kịch cấp 10 mà nấc duy nhất
+ * nằm ở cấp 5.
+ */
+export const MAX_PET_LEVEL = 20
 
 /**
  * Kinh nghiệm cần để ĐẠT một cấp. Dùng công thức thay vì bảng tra để không có
  * chỗ nào gõ lệch: cấp 1 cần 0, cấp 2 cần 40, cấp 5 cần 400.
+ *
+ * Bậc hai nên quãng đường dài dần: cấp 10 cần 1.800, cấp 20 cần 7.600. Một trận
+ * chia cho thú chừng 50-80 điểm, nên nấc cuối là mục tiêu của cả năm học chứ
+ * không phải của một buổi chiều - và nó nên như vậy.
  */
 export function xpForLevel(level: number): number {
   return 20 * level * (level - 1)
@@ -136,16 +155,45 @@ export function xpToNextLevel(xp: number): { need: number; into: number; span: n
   return { need: ceiling - xp, into: xp - floor, span: ceiling - floor }
 }
 
+/** Những nấc tiến hoá thú đã qua, theo thứ tự. Rỗng nghĩa là còn hình gốc. */
+export function evolutionsReached(pet: Pet, xp: number): PetEvolution[] {
+  const level = petLevel(xp)
+  return pet.evolutions.filter((e) => level >= e.atLevel)
+}
+
 /**
- * Thú ở trạng thái THỰC TẾ: đã cộng chỉ số theo cấp và đã tiến hoá nếu đủ cấp.
+ * Thú đang ở nấc thứ mấy: 0 là hình gốc, 1..3 là các nấc đã tiến hoá.
+ *
+ * Giao diện dùng số này để vẽ số sao cạnh tên - một ngôi sao đơn lẻ kiểu bản
+ * một nấc không nói được con ở nấc hai khác con ở nấc ba chỗ nào.
+ */
+export function evolutionStage(pet: Pet, xp: number): number {
+  return evolutionsReached(pet, xp).length
+}
+
+/** Hình thái hiện tại. null nghĩa là thú vẫn ở hình gốc. */
+export function currentEvolution(pet: Pet, xp: number): PetEvolution | null {
+  const reached = evolutionsReached(pet, xp)
+  return reached[reached.length - 1] ?? null
+}
+
+/** Nấc tiến hoá kế tiếp đang chờ. null khi đã lên hết. */
+export function nextEvolution(pet: Pet, xp: number): PetEvolution | null {
+  const level = petLevel(xp)
+  return pet.evolutions.find((e) => level < e.atLevel) ?? null
+}
+
+/**
+ * Thú ở trạng thái THỰC TẾ: đã cộng chỉ số theo cấp và đã tiến hoá tới nấc cao
+ * nhất mà cấp hiện tại với tới.
  *
  * Mọi nơi dùng thú trong trận đều phải đi qua hàm này. Dùng thẳng dữ liệu gốc
  * thì con thú đã tiến hoá vẫn đánh yếu như lúc mới bắt.
  */
 export function resolvePet(pet: Pet, xp: number): Pet {
   const level = petLevel(xp)
-  const evolved = pet.evolution && level >= pet.evolution.atLevel ? pet.evolution : null
-  const base = evolved ?? pet
+  const reached = evolutionsReached(pet, xp)
+  const base = reached[reached.length - 1] ?? pet
 
   return {
     ...pet,
@@ -154,21 +202,27 @@ export function resolvePet(pet: Pet, xp: number): Pet {
     // Mỗi cấp cộng thêm một chút máu và sức mạnh, ngoài cú nhảy khi tiến hoá.
     maxHp: base.maxHp + (level - 1) * 2,
     power: Math.round((base.power + (level - 1) * 0.03) * 1000) / 1000,
-    spellIds: evolved ? [...new Set([...pet.spellIds, ...evolved.spellIds])] : pet.spellIds,
+    // Gộp phép của MỌI nấc đã qua, không chỉ nấc hiện tại: nhảy thẳng từ cấp 4
+    // lên cấp 12 trong một trận thì phép của nấc giữa cũng phải theo về.
+    spellIds: [...new Set([...pet.spellIds, ...reached.flatMap((e) => e.spellIds)])],
   }
 }
 
-/** Con thú này đã tiến hoá chưa. */
+/** Con thú này đã tiến hoá ít nhất một nấc chưa. */
 export function hasEvolved(pet: Pet, xp: number): boolean {
-  return Boolean(pet.evolution && petLevel(xp) >= pet.evolution.atLevel)
+  return evolutionStage(pet, xp) > 0
 }
 
 /**
- * Thú nào vừa tiến hoá khi kinh nghiệm đi từ `before` lên `after`.
+ * Nấc thú VỪA lên khi kinh nghiệm đi từ `before` tới `after`, hoặc null.
+ *
  * Dùng ở màn tổng kết để báo tin - tiến hoá mà không ai báo thì mất hẳn ý nghĩa.
+ * Trả về NẤC CAO NHẤT khi một trận đưa thú qua hai mốc một lúc: trẻ cần thấy
+ * hình cuối cùng con thú đang mang, không phải hình nó vừa đi ngang qua.
  */
-export function justEvolved(pet: Pet, before: number, after: number): boolean {
-  return !hasEvolved(pet, before) && hasEvolved(pet, after)
+export function justEvolved(pet: Pet, before: number, after: number): PetEvolution | null {
+  const gained = evolutionsReached(pet, after).slice(evolutionStage(pet, before))
+  return gained[gained.length - 1] ?? null
 }
 
 /** Thú khi đã vào trận - thêm máu hiện tại. */

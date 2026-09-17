@@ -23,6 +23,8 @@ import type { MapNode } from '../../content/worldmap'
 import { levelFromTotalXp } from '../../engine/rewards'
 import { useAuth } from '../../store/auth'
 import { useGame } from '../../store/game'
+import { PvpLobby } from '../pvp/PvpLobby'
+import { usePvpSync } from '../pvp/usePvpSync'
 
 const SUBJECT_STYLE: Record<Subject, { color: string; emoji: string; land: string }> = {
   math: { color: 'var(--color-math)', emoji: '🔢', land: 'Thung lũng Con Số' },
@@ -36,6 +38,7 @@ export function MapScreen() {
   const worldMap = useGame((s) => s.worldMap)
   const startBattle = useGame((s) => s.startBattle)
   const startWildBattle = useGame((s) => s.startWildBattle)
+  const startTowerBattle = useGame((s) => s.startTowerBattle)
   const leaveStudent = useGame((s) => s.leaveStudent)
   const go = useUi((s) => s.go)
   // Vùng đất đang mở: null = đang ở bản đồ thế giới. Giữ ở store chứ không ở
@@ -57,7 +60,18 @@ export function MapScreen() {
     [region, worldMap, progress],
   )
 
+  /*
+    Nhịp tim của đấu trường lớp học, và nó PHẢI đứng trước mọi lệnh `return` sớm
+    ở dưới - đó là luật của hook.
+
+    Báo lên đúng hòn đảo trẻ đang đứng, nên bạn cùng lớp thấy em ấy ở đâu và
+    thách đấu được ngay tại đó. Trẻ không ở lớp nào thì đây là một việc không
+    làm gì cả (xem `heartbeat` trong `server/pvp.ts`) - app ở nhà vẫn chạy y hệt.
+  */
+  usePvpSync(student?.id ?? null, region)
+
   if (!student) return null
+
   const { level, xpIntoLevel, xpForNext } = levelFromTotalXp(student.totalXp)
   // Đang đứng trong một vùng đất: phần đầu trang phải nhường chỗ cho bản đồ.
   const inRegion = region !== null
@@ -117,12 +131,23 @@ export function MapScreen() {
 
       <InstallPrompt />
 
+      {/*
+        Bảng bạn cùng lớp, và cửa vào một trận PVP.
+
+        Đặt ở ĐÂY - trên cả bản đồ thế giới lẫn bản đồ trong vùng - chứ không
+        riêng một chỗ: bạn bè xuất hiện và biến mất suốt cả buổi học, nên trẻ
+        phải thấy được điều đó dù đang đứng ở đâu. Tự thu lại khi cả lớp tắt máy.
+      */}
+      <PvpLobby student={student} progress={progress} region={region} />
+
       {region === null ? (
         <WorldMapScreen
           grade={student.grade}
           avatar={student.avatar}
           clearedByRegion={progress.clearedNodes}
+          towerCleared={progress.towerCleared ?? []}
           onEnterRegion={(subject, grade) => setRegion({ subject, grade })}
+          onEnterTower={(subject, grade) => startTowerBattle(subject, grade)}
         />
       ) : (
         regionMap && (

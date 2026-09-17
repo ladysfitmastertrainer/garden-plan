@@ -49,6 +49,12 @@ const GROUPS: Array<{ title: string; note: string; fields: Field[] }> = [
         format: (v) => `${v} giây`,
       },
       {
+        key: 'towerSeconds',
+        label: 'Giờ mỗi câu khi đánh trùm trong tháp',
+        hint: 'Gấp hơn trùm vùng đất - ở đó còn phải đọc lại hệ của quái trước khi chọn phép.',
+        format: (v) => `${v} giây`,
+      },
+      {
         key: 'youngReaderFactor',
         label: 'Thêm giờ cho lớp 1-2',
         hint: 'Các em còn đánh vần cả đề bài.',

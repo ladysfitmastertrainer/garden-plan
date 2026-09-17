@@ -50,7 +50,7 @@ export function SpellPicker({
   loadout: string[]
   onCast: (spellId: string, casterIndex: number) => void
 }) {
-  const enemyElement = battle.enemy.element
+  const enemyElement = battle.enemyElement
 
   // Liệt kê phép của MỌI con còn sống, không chỉ con đang đứng.
   //

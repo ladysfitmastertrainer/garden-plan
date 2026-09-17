@@ -6,13 +6,23 @@
 
 import { describe, expect, it } from 'vitest'
 import { SUBJECTS, type Subject } from '../content/types'
-import { PETS, SPELLS, buildTeam, getPet, petsOfElement, starterTeam } from '../content/pets'
+import {
+  EVOLUTION_LEVELS,
+  PETS,
+  SPELLS,
+  buildTeam,
+  getPet,
+  petsOfElement,
+  starterTeam,
+} from '../content/pets'
 import { ALL_SPRITES } from '../features/pixel/creatures'
 import {
   counterElement,
+  evolutionStage,
   hasEvolved,
   justEvolved,
   MAX_PET_LEVEL,
+  nextEvolution,
   petLevel,
   resolvePet,
   xpForLevel,
@@ -255,64 +265,131 @@ describe('cấp độ và tiến hoá', () => {
     }
   })
 
-  it('thú nào cũng có hình thái tiến hoá', () => {
+  it('thú nào cũng có ĐỦ BA nấc tiến hoá, ở cấp 5, 10 và 20', () => {
     for (const pet of PETS) {
-      expect(pet.evolution, `${pet.id} chưa có tiến hoá`).toBeDefined()
+      expect(
+        pet.evolutions.map((e) => e.atLevel),
+        `${pet.id}: mốc tiến hoá sai`,
+      ).toEqual([...EVOLUTION_LEVELS])
     }
   })
 
-  it('tiến hoá làm thú KHOẺ HƠN, không bao giờ yếu đi', () => {
+  it('nấc cuối đúng bằng cấp kịch trần - không có cấp nào thừa ra', () => {
+    // Cấp nằm sau nấc cuối là cấp không dẫn tới đâu, và chính khoảng trống ấy là
+    // thứ bản một nấc mắc phải: kịch cấp 10 mà nấc duy nhất nằm ở cấp 5.
+    expect(EVOLUTION_LEVELS[EVOLUTION_LEVELS.length - 1]).toBe(MAX_PET_LEVEL)
+  })
+
+  it('tiến hoá làm thú KHOẺ HƠN ở MỌI nấc, không bao giờ yếu đi', () => {
     // Tiến hoá mà chỉ số tụt thì trẻ mất động lực nuôi thú ngay lập tức.
     for (const pet of PETS) {
-      const before = resolvePet(pet, xpForLevel(pet.evolution!.atLevel) - 1)
-      const after = resolvePet(pet, xpForLevel(pet.evolution!.atLevel))
-      expect(after.maxHp, `${pet.id}: máu tụt sau tiến hoá`).toBeGreaterThan(before.maxHp)
-      expect(after.power, `${pet.id}: sức mạnh tụt sau tiến hoá`).toBeGreaterThan(before.power)
+      for (const evolution of pet.evolutions) {
+        const before = resolvePet(pet, xpForLevel(evolution.atLevel) - 1)
+        const after = resolvePet(pet, xpForLevel(evolution.atLevel))
+        expect(after.maxHp, `${pet.id} nấc ${evolution.atLevel}: máu tụt`).toBeGreaterThan(
+          before.maxHp,
+        )
+        expect(after.power, `${pet.id} nấc ${evolution.atLevel}: sức mạnh tụt`).toBeGreaterThan(
+          before.power,
+        )
+      }
     }
   })
 
-  it('tiến hoá học THÊM phép chứ không mất phép cũ', () => {
+  it('tiến hoá học THÊM phép chứ không mất phép cũ, kể cả khi nhảy hai nấc một lúc', () => {
     for (const pet of PETS) {
-      const after = resolvePet(pet, xpForLevel(pet.evolution!.atLevel))
+      const top = resolvePet(pet, xpForLevel(MAX_PET_LEVEL))
       for (const id of pet.spellIds) {
-        expect(after.spellIds, `${pet.id} mất phép ${id}`).toContain(id)
+        expect(top.spellIds, `${pet.id} mất phép gốc ${id}`).toContain(id)
       }
-      expect(after.spellIds.length).toBeGreaterThan(pet.spellIds.length - 1)
+      // Nhảy thẳng từ cấp 1 lên kịch cấp: phép của những nấc đi ngang qua cũng
+      // phải theo về, không chỉ phép của nấc cuối.
+      for (const evolution of pet.evolutions) {
+        for (const id of evolution.spellIds) {
+          expect(top.spellIds, `${pet.id} thiếu phép nấc ${evolution.atLevel}`).toContain(id)
+        }
+      }
+    }
+  })
+
+  it('tới nấc cuối thú biết ĐỦ CẢ BỐN phép của hệ mình', () => {
+    // Nuôi tới cấp 20 mà bảng phép vẫn thiếu thì phần thưởng của nấc cuối chỉ là
+    // vài điểm máu - không đáng cả trăm trận.
+    for (const pet of PETS) {
+      const top = resolvePet(pet, xpForLevel(MAX_PET_LEVEL))
+      const ofElement = Object.values(SPELLS).filter((s) => s.element === pet.element)
+      for (const spell of ofElement) {
+        expect(top.spellIds, `${pet.id} thiếu phép ${spell.id}`).toContain(spell.id)
+      }
     }
   })
 
   it('phép học thêm khi tiến hoá đều là phép có thật và cùng hệ', () => {
     for (const pet of PETS) {
-      for (const id of pet.evolution!.spellIds) {
-        expect(SPELLS[id], `${pet.id}: phép tiến hoá không tồn tại`).toBeDefined()
-        expect(SPELLS[id]!.element, `${pet.id}: phép tiến hoá khác hệ`).toBe(pet.element)
+      for (const evolution of pet.evolutions) {
+        for (const id of evolution.spellIds) {
+          expect(SPELLS[id], `${pet.id}: phép tiến hoá không tồn tại`).toBeDefined()
+          expect(SPELLS[id]!.element, `${pet.id}: phép tiến hoá khác hệ`).toBe(pet.element)
+        }
       }
     }
   })
 
   it('tiến hoá KHÔNG đổi hệ - con thú vẫn là con thú đó', () => {
     for (const pet of PETS) {
-      expect(resolvePet(pet, xpForLevel(10)).element).toBe(pet.element)
-      expect(resolvePet(pet, xpForLevel(10)).id).toBe(pet.id)
+      for (const level of EVOLUTION_LEVELS) {
+        expect(resolvePet(pet, xpForLevel(level)).element).toBe(pet.element)
+        expect(resolvePet(pet, xpForLevel(level)).id).toBe(pet.id)
+      }
     }
   })
 
-  it('đổi tên và đổi hình đúng lúc đạt cấp tiến hoá', () => {
+  it('đổi tên và đổi hình đúng lúc đạt từng cấp tiến hoá', () => {
     const pet = PETS[0]!
-    const at = pet.evolution!.atLevel
-    expect(resolvePet(pet, xpForLevel(at) - 1).name).toBe(pet.name)
-    expect(resolvePet(pet, xpForLevel(at)).name).toBe(pet.evolution!.name)
-    expect(hasEvolved(pet, xpForLevel(at) - 1)).toBe(false)
-    expect(hasEvolved(pet, xpForLevel(at))).toBe(true)
+    let previousName = pet.name
+    for (const evolution of pet.evolutions) {
+      const mark = xpForLevel(evolution.atLevel)
+      expect(resolvePet(pet, mark - 1).name).toBe(previousName)
+      expect(resolvePet(pet, mark).name).toBe(evolution.name)
+      previousName = evolution.name
+    }
+  })
+
+  it('đếm đúng nấc thú đang đứng', () => {
+    const pet = PETS[0]!
+    expect(evolutionStage(pet, 0)).toBe(0)
+    expect(hasEvolved(pet, 0)).toBe(false)
+    pet.evolutions.forEach((evolution, index) => {
+      expect(evolutionStage(pet, xpForLevel(evolution.atLevel) - 1)).toBe(index)
+      expect(evolutionStage(pet, xpForLevel(evolution.atLevel))).toBe(index + 1)
+      expect(hasEvolved(pet, xpForLevel(evolution.atLevel))).toBe(true)
+    })
+  })
+
+  it('nấc kế tiếp luôn là nấc gần nhất còn ở phía trước', () => {
+    const pet = PETS[0]!
+    expect(nextEvolution(pet, 0)?.atLevel).toBe(EVOLUTION_LEVELS[0])
+    expect(nextEvolution(pet, xpForLevel(EVOLUTION_LEVELS[0]))?.atLevel).toBe(EVOLUTION_LEVELS[1])
+    // Lên hết rồi thì không còn gì để ngóng - giao diện dựa vào null này để đổi
+    // sang câu "đã tới hình thái cuối cùng".
+    expect(nextEvolution(pet, xpForLevel(MAX_PET_LEVEL))).toBeNull()
   })
 
   it('chỉ báo tiến hoá ĐÚNG MỘT LẦN, ở trận vượt qua mốc', () => {
     // Báo lại ở mọi trận sau đó thì lời chúc mừng thành tiếng ồn.
     const pet = PETS[0]!
-    const mark = xpForLevel(pet.evolution!.atLevel)
-    expect(justEvolved(pet, mark - 10, mark)).toBe(true)
-    expect(justEvolved(pet, mark, mark + 10)).toBe(false)
-    expect(justEvolved(pet, 0, mark - 10)).toBe(false)
+    const mark = xpForLevel(pet.evolutions[0]!.atLevel)
+    expect(justEvolved(pet, mark - 10, mark)?.name).toBe(pet.evolutions[0]!.name)
+    expect(justEvolved(pet, mark, mark + 10)).toBeNull()
+    expect(justEvolved(pet, 0, mark - 10)).toBeNull()
+  })
+
+  it('nhảy qua hai nấc trong một trận thì báo NẤC CAO NHẤT', () => {
+    // Trẻ cần thấy hình cuối cùng con thú đang mang, không phải hình nó vừa đi
+    // ngang qua - báo nấc giữa là báo một con thú không còn tồn tại.
+    const pet = PETS[0]!
+    const crossed = justEvolved(pet, 0, xpForLevel(pet.evolutions[1]!.atLevel))
+    expect(crossed?.name).toBe(pet.evolutions[1]!.name)
   })
 
   it('đội hình dùng thú ĐÃ tiến hoá khi đủ cấp', () => {
@@ -325,17 +402,24 @@ describe('cấp độ và tiến hoá', () => {
 })
 
 describe('hình thái tiến hoá phải NHÌN THẤY được', () => {
-  it('tiến hoá ĐỔI HÌNH, không chỉ đổi tên', () => {
+  /** Số điểm ảnh đặc của một hình - thước đo "to hơn" duy nhất đọc được bằng máy. */
+  const filled = (id: string) =>
+    ALL_SPRITES[id]!.rows.join('').split('').filter((c) => c !== '.').length
+
+  it('mỗi nấc ĐỔI HÌNH, không chỉ đổi tên', () => {
     // Đây đúng là lỗi đã mắc một lần: mọi hình tiến hoá trỏ về chính hình gốc,
     // nên trẻ nuôi cả chục trận mà con thú trông y hệt lúc mới bắt.
     for (const pet of PETS) {
-      expect(pet.evolution!.sprite, `${pet.id}: hình tiến hoá trùng hình gốc`).not.toBe(pet.sprite)
+      const sprites = [pet.sprite, ...pet.evolutions.map((e) => e.sprite)]
+      expect(new Set(sprites).size, `${pet.id}: có hai nấc trùng hình`).toBe(sprites.length)
     }
   })
 
   it('mọi hình tiến hoá đều có thật trong bộ sprite', () => {
     for (const pet of PETS) {
-      expect(ALL_SPRITES[pet.evolution!.sprite], `${pet.id}: thiếu hình`).toBeDefined()
+      for (const evolution of pet.evolutions) {
+        expect(ALL_SPRITES[evolution.sprite], `${pet.id}: thiếu hình ${evolution.sprite}`).toBeDefined()
+      }
     }
   })
 
@@ -343,20 +427,22 @@ describe('hình thái tiến hoá phải NHÌN THẤY được', () => {
     // `recolor` chỉ đổi các ký tự B, S và viền. Hình nào không dùng B thì tiến
     // hoá xong mất luôn màu hệ, nhìn thành một con xám lạc loài.
     for (const pet of PETS) {
-      const sprite = ALL_SPRITES[pet.evolution!.sprite]!
-      expect(sprite.palette.B, `${pet.evolution!.sprite}: không có ký tự thân B`).toBeDefined()
+      for (const evolution of pet.evolutions) {
+        const sprite = ALL_SPRITES[evolution.sprite]!
+        expect(sprite.palette.B, `${evolution.sprite}: không có ký tự thân B`).toBeDefined()
+      }
     }
   })
 
-  it('hình tiến hoá to hơn hình gốc - phải bệ vệ hơn thấy rõ', () => {
-    const filled = (id: string) =>
-      ALL_SPRITES[id]!.rows.join('').split('').filter((c) => c !== '.').length
-
+  it('nấc sau to hơn nấc trước - mỗi lần tiến hoá phải bệ vệ hơn thấy rõ', () => {
     for (const pet of PETS) {
-      expect(
-        filled(pet.evolution!.sprite),
-        `${pet.id}: hình tiến hoá không to hơn hình gốc`,
-      ).toBeGreaterThan(filled(pet.sprite))
+      const chain = [pet.sprite, ...pet.evolutions.map((e) => e.sprite)]
+      for (let i = 1; i < chain.length; i++) {
+        expect(
+          filled(chain[i]!),
+          `${pet.id}: hình ${chain[i]} không to hơn ${chain[i - 1]}`,
+        ).toBeGreaterThan(filled(chain[i - 1]!))
+      }
     }
   })
 })

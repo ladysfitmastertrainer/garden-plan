@@ -29,6 +29,7 @@ const pet = (id: string, element: Element, maxHp: number, power = 1): Pet => ({
   maxHp,
   power,
   spellIds: [],
+  evolutions: [],
 })
 
 /** Phép trung tính với quái hệ Toán - dùng làm mốc so sánh sát thương. */

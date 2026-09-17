@@ -66,6 +66,64 @@ export interface Enemy {
    * là con trùm mất hình trùm.
    */
   isBoss: boolean
+  /**
+   * Trùm trong Tháp Trí Tuệ.
+   *
+   * Lại là một CỜ RIÊNG, vì đúng lý do cũ: giao diện cần biết để đổi hình và đổi
+   * khung, và đoán ra từ dữ liệu (kiểu "có `shiftEvery` thì chắc là trùm tháp")
+   * là đúng cái bẫy mà cờ `isBoss` sinh ra để tránh.
+   */
+  isTower?: boolean
+
+  /*
+    ---- Bốn nét dưới đây làm nên ĐỘ KHÓ THẬT, và chỉ trùm trong tháp mới có ----
+
+    Cách dễ nhất để một con quái khó hơn là cho nó nhiều máu hơn. Đó cũng là cách
+    tệ nhất: trận đấu không khó hơn một chút nào, nó chỉ DÀI hơn. Trẻ vẫn bấm
+    đúng những nút cũ, chỉ phải bấm thêm mười lần nữa - và cái đó không gọi là
+    thử thách, nó gọi là mỏi tay.
+
+    Bốn nét dưới đây đổi CÂU HỎI mà trận đấu đặt ra cho trẻ, chứ không đổi độ dài
+    của nó. Trùm vùng đất hỏi "con có thuộc bài không". Trùm trong tháp hỏi thêm
+    "con có ĐANG NHÌN không", và đó là câu hỏi không học thuộc trước được.
+  */
+
+  /**
+   * Giáp: trừ THẲNG một lượng sát thương sau khi đã nhân mọi hệ số.
+   *
+   * Đây là nét quan trọng nhất. Bình thường chọn đúng hệ được gấp 1,5 lần chọn
+   * sai - hơn, nhưng chưa tới mức bắt buộc, nên trẻ cứ bấm phép quen tay cũng
+   * qua. Giáp cắt một khoản CỐ ĐỊNH, nên nó ăn gần trọn một đòn yếu mà chỉ sứt
+   * một góc đòn khắc chế: cùng con số giáp ấy biến khoảng cách 1,5 lần thành
+   * hơn mười lần. Chọn đúng hệ từ chỗ "nên làm" thành chỗ "phải làm".
+   *
+   * Vẫn không bao giờ về 0 - xem ghi chú ở `elementMultiplier`. Đòn sai hệ còn
+   * đúng một điểm sát thương: đủ để trẻ thấy mình vẫn làm được gì đó, đủ ít để
+   * thấy ngay là mình vừa chọn sai.
+   */
+  armor?: number
+  /**
+   * Cứ bấy nhiêu câu thì quái ĐỔI NGUYÊN TỐ một lần.
+   *
+   * Không có nó thì cả trận chỉ có một nước đi đúng, tìm ra ở câu đầu rồi lặp
+   * lại mười ba lần. Có nó thì bảng phép phải được ĐỌC LẠI, và con thú vừa là
+   * chủ lực ba câu trước bỗng thành con bị khắc.
+   */
+  shiftEvery?: number
+  /** Vòng nguyên tố quái xoay qua. Bỏ trống thì đi hết bốn hệ theo vòng khắc chế. */
+  elementCycle?: Element[]
+  /**
+   * Trẻ trả lời sai hoặc để hết giờ thì quái HỒI bấy nhiêu máu.
+   *
+   * Phạt cái đoán mò, chứ không phạt cái chậm. Ở trận thường đoán bừa mười câu
+   * vẫn có thể thắng nhờ ba câu đúng cuối; ở đây mỗi câu bừa trả lại cho quái
+   * đúng phần trẻ vừa lấy đi, nên chỉ đường nào thật sự chắc mới dẫn tới đích.
+   */
+  regenOnMiss?: number
+  /** Máu tụt dưới tỉ lệ này (0..1) thì quái nổi giận. Bỏ trống là không bao giờ. */
+  enrageAt?: number
+  /** Nổi giận rồi thì sát thương nhân lên bấy nhiêu, và đồng hồ rút ngắn một phần tư. */
+  enrageAttackScale?: number
 }
 
 export interface PlayerStats {
@@ -99,6 +157,17 @@ export interface BattleState {
   phase: BattlePhase
   enemy: Enemy
   enemyHp: number
+  /**
+   * Nguyên tố quái đang mang NGAY LÚC NÀY.
+   *
+   * Tách khỏi `enemy.element` vì trùm trong tháp đổi hệ giữa trận: `enemy` là
+   * bản khai bất biến của con quái, còn đây là trạng thái. Mọi chỗ tính khắc chế
+   * phải đọc trường này - đọc `enemy.element` thì bảng phép vẫn tô "Khắc chế!"
+   * theo cái hệ con quái đã bỏ lại từ ba câu trước.
+   */
+  enemyElement: Element
+  /** Quái đã nổi giận chưa. Một chiều: nổi rồi thì không nguôi. */
+  enraged: boolean
   player: PlayerStats
   /** Máu CẢ ĐỘI thú, không phải máu riêng con nào. */
   playerHp: number
@@ -164,6 +233,17 @@ const QUALITY_MULTIPLIER: Record<ChoiceQuality, number> = { good: 1, ok: 0.6, po
 
 const DEFAULT_MAX_QUESTIONS = 10
 
+/** Tên hệ tiếng Việt, dùng trong khung diễn biến trận đấu. */
+const ELEMENT_NAME: Record<Element, string> = {
+  math: 'Số Học',
+  vietnamese: 'Ngôn Từ',
+  music: 'Thanh Âm',
+  ethics: 'Ánh Sáng',
+}
+
+/** Vòng đổi hệ mặc định: đúng vòng khắc chế, nên đoán trước được. */
+const DEFAULT_ELEMENT_CYCLE: Element[] = ['math', 'vietnamese', 'music', 'ethics']
+
 /**
  * Giờ cho mỗi câu ở trận trùm và trận đầu đàn.
  *
@@ -171,13 +251,17 @@ const DEFAULT_MAX_QUESTIONS = 10
  * kiểm tra cuối vùng đất. Trẻ nào còn phải nhẩm từng bước sẽ không kịp trùm,
  * và đó chính là ý - phải thạo mới qua được.
  *
+ * Trùm trong tháp gấp hơn nữa, vì ở đó mỗi câu còn phải đọc lại hệ con quái
+ * vừa đổi rồi mới chọn phép - hai việc trong cùng một khoảng thời gian ngắn hơn.
+ *
  * Đây là hàm CẤU HÌNH, không phải một bước của máy trạng thái, nên nó được phép
  * đọc kho thiết lập. Phần lõi (`submitAnswer`, `castSpell`) vẫn thuần: mọi con
  * số nó cần đều đi vào qua `BattleConfig`.
  */
-export function timeLimitFor(kind: 'boss' | 'mini', grade: Grade): number {
+export function timeLimitFor(kind: 'boss' | 'mini' | 'tower', grade: Grade): number {
   const tuning = getTuning()
-  const seconds = kind === 'boss' ? tuning.bossSeconds : tuning.miniBossSeconds
+  const seconds =
+    kind === 'tower' ? tuning.towerSeconds : kind === 'boss' ? tuning.bossSeconds : tuning.miniBossSeconds
   return Math.round(seconds * (grade <= 2 ? tuning.youngReaderFactor : 1) * 1000)
 }
 
@@ -193,6 +277,46 @@ export function comboMultiplier(combo: number): number {
   return 1 + Math.min(combo, MAX_COMBO_STACKS) * COMBO_STEP
 }
 
+/**
+ * Nguyên tố kế tiếp trong vòng xoay của quái.
+ *
+ * Mặc định đi theo đúng VÒNG KHẮC CHẾ (Số Học → Ngôn Từ → Thanh Âm → Ánh Sáng),
+ * không bốc ngẫu nhiên. Ngẫu nhiên thì hai lượt liền có thể ra cùng một hệ và
+ * trẻ tưởng cơ chế hỏng; đi vòng thì sau vài lượt trẻ ĐOÁN TRƯỚC được hệ sắp
+ * tới - và đoán trước được chính là phần thưởng cho việc chịu khó nhìn.
+ */
+export function nextEnemyElement(state: BattleState): Element {
+  const cycle = state.enemy.elementCycle ?? DEFAULT_ELEMENT_CYCLE
+  const at = cycle.indexOf(state.enemyElement)
+  return cycle[(at + 1) % cycle.length] ?? state.enemyElement
+}
+
+/** Sát thương một đòn của quái, đã tính cả cơn giận. */
+export function enemyAttackOf(state: BattleState): number {
+  const scale = state.enraged ? (state.enemy.enrageAttackScale ?? 1) : 1
+  return Math.max(1, Math.round(state.enemy.attack * scale))
+}
+
+/**
+ * Quái hồi máu vì trẻ trả lời sai.
+ *
+ * Không bao giờ vượt quá máu tối đa - một con trùm đầy máu lại trồi lên trên
+ * vạch đầy là một thanh máu nói dối. Và không hồi khi quái đã gục: trận đã xong.
+ */
+function regenAfterMiss(state: BattleState, log: string[]): Pick<BattleState, 'enemyHp' | 'log'> {
+  const heal = state.enemy.regenOnMiss ?? 0
+  if (heal <= 0 || state.enemyHp <= 0) return { enemyHp: state.enemyHp, log }
+
+  const healed = Math.min(state.enemy.maxHp, state.enemyHp + heal)
+  const gained = healed - state.enemyHp
+  if (gained <= 0) return { enemyHp: state.enemyHp, log }
+
+  return {
+    enemyHp: healed,
+    log: [...log, `🩸 ${state.enemy.name} hút lại ${gained} máu từ câu trả lời sai.`],
+  }
+}
+
 // --- Vòng đời trận đấu -------------------------------------------------------
 
 export function createBattle(
@@ -205,6 +329,8 @@ export function createBattle(
     phase: 'question',
     enemy: config.enemy,
     enemyHp: config.enemy.maxHp,
+    enemyElement: config.enemy.element,
+    enraged: false,
     player: config.player,
     playerHp: teamHp(team).hp,
     team,
@@ -255,11 +381,13 @@ export function timeUp(state: BattleState, now: number): BattleState {
     answeredAt: now,
   }
 
+  const attacked = applyEnemyAttack(state, enemyAttackOf(state))
   return {
     ...state,
     answers: [...state.answers, record],
     lastJudgement: { correct: false, message: 'Hết giờ mất rồi! Câu sau nhanh hơn nhé.' },
-    ...applyEnemyAttack(state, state.enemy.attack),
+    ...attacked,
+    ...regenAfterMiss(state, attacked.log),
     phase: 'feedback',
     combo: 0,
     lastSpell: null,
@@ -358,9 +486,11 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
     }
   }
 
+  const attacked = applyEnemyAttack(state, enemyAttackOf(state))
   return {
     ...base,
-    ...applyEnemyAttack(state, state.enemy.attack),
+    ...attacked,
+    ...regenAfterMiss(state, attacked.log),
     phase: 'feedback',
     combo: 0,
     lastSpell: null,
@@ -421,25 +551,47 @@ export function castSpell(
     state.team[casterIndex]!.hp > 0
   const active = swap ? casterIndex! : state.activeIndex
   const pet = state.team[active] ?? null
-  const multiplier = elementMultiplier(spell.element, state.enemy.element)
-  const damage = Math.max(
-    1,
-    Math.round(state.pendingDamage * spell.power * multiplier * (pet?.pet.power ?? 1)),
-  )
-  const matchup = matchupLabel(spell.element, state.enemy.element)
+  const multiplier = elementMultiplier(spell.element, state.enemyElement)
+  const raw = Math.round(state.pendingDamage * spell.power * multiplier * (pet?.pet.power ?? 1))
+  // Giáp trừ SAU khi đã nhân mọi hệ số, nên nó ăn gần trọn một đòn sai hệ mà chỉ
+  // sứt một góc đòn khắc chế. Vẫn để lại 1 - không đòn nào của trẻ là vô ích.
+  const damage = Math.max(1, raw - (state.enemy.armor ?? 0))
+  const matchup = matchupLabel(spell.element, state.enemyElement)
 
   const log = [...state.log]
   if (swap) log.push(`🔄 ${pet?.pet.name} bước ra tung phép!`)
   log.push(`⚔️ ${pet?.pet.name ?? 'Thú'} ${spell.flavour} - ${damage} sát thương!`)
   if (matchup === 'strong') log.push('🔥 Khắc chế! Sát thương tăng mạnh.')
   else if (matchup === 'weak') log.push('🪨 Bị khắc. Lần sau thử phép hệ khác xem sao.')
+  if (matchup !== 'strong' && raw - damage > 0) {
+    log.push(`🛡️ Giáp chặn mất ${raw - damage} sát thương. Đánh đúng hệ mới xuyên qua được.`)
+  }
   if (state.combo >= 3) log.push(`✨ Chuỗi ${state.combo} câu đúng liên tiếp!`)
+
+  const enemyHp = Math.max(0, state.enemyHp - damage)
+
+  // Nổi giận ngay tại đòn làm máu tụt qua ngưỡng, để dòng báo nằm sát dòng sát
+  // thương vừa gây ra - đọc là hiểu ngay vì sao nó nổi giận.
+  const threshold = state.enemy.enrageAt ?? 0
+  const enraged =
+    state.enraged || (threshold > 0 && enemyHp > 0 && enemyHp <= state.enemy.maxHp * threshold)
+  const justEnraged = enraged && !state.enraged
+  if (justEnraged) {
+    log.push(`😡 ${state.enemy.name} nổi giận! Đòn đánh mạnh hơn và thời gian rút ngắn.`)
+  }
 
   return {
     ...state,
     phase: 'feedback',
     activeIndex: active,
-    enemyHp: Math.max(0, state.enemyHp - damage),
+    enemyHp,
+    enraged,
+    // Cơn giận rút đồng hồ đi một phần tư. Đây là chỗ DUY NHẤT `timeLimitMs` đổi
+    // giữa trận, và nó chỉ rút ngắn - không bao giờ nới ra.
+    timeLimitMs:
+      justEnraged && state.timeLimitMs !== null
+        ? Math.round(state.timeLimitMs * 0.75)
+        : state.timeLimitMs,
     lastDamage: { toEnemy: damage, toPlayer: 0 },
     lastSpell: { spell, damage, matchup },
     pendingDamage: null,
@@ -494,6 +646,13 @@ export function advance(
     }
   }
 
+  // Đổi hệ TRƯỚC khi câu hỏi mới hiện ra, để trẻ thấy hệ mới cùng lúc với câu
+  // hỏi mới chứ không phải sau khi đã trả lời xong và không sửa được nữa.
+  const questionsAsked = state.questionsAsked + 1
+  const shiftEvery = state.enemy.shiftEvery ?? 0
+  const shifting = shiftEvery > 0 && (questionsAsked - 1) % shiftEvery === 0
+  const enemyElement = shifting ? nextEnemyElement(state) : state.enemyElement
+
   return {
     ...state,
     phase: 'question',
@@ -503,7 +662,11 @@ export function advance(
     lastJudgement: null,
     lastDamage: null,
     lastSpell: null,
-    questionsAsked: state.questionsAsked + 1,
+    questionsAsked,
+    enemyElement,
+    log: shifting
+      ? [...state.log, `🌀 ${state.enemy.name} đổi sang hệ ${ELEMENT_NAME[enemyElement]}!`]
+      : state.log,
   }
 }
 

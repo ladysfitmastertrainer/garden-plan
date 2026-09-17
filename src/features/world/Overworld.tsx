@@ -141,6 +141,80 @@ export function pickViewport(
   }
 }
 
+/**
+ * Khung nhìn lấp đầy màn hình, kèm một bước kéo giãn LẺ.
+ *
+ * Bội số vẽ vẫn là số nguyên - pixel art vẽ ở bội số lẻ là gợn ngay. Phần lẻ
+ * còn thiếu để chạm mép màn hình do CSS kéo giãn cả khung một lần, đúng cách
+ * bản đồ thế giới đã làm.
+ */
+export interface FillViewport extends Viewport {
+  fit: number
+}
+
+/**
+ * Khung nhìn cho chế độ TOÀN MÀN HÌNH trên điện thoại.
+ *
+ * Khác `pickViewport` ở đúng một điều, nhưng là điều quyết định: SỐ HÀNG SUY RA
+ * TỪ TỈ LỆ MÀN HÌNH, không phải từ một hằng số.
+ *
+ * Bản cũ cố định trần chín hàng, và chín hàng là một con số hợp lý cho một khung
+ * game nằm giữa trang. Nhưng khi khung game LÀ cả màn hình thì nó thành sai:
+ * điện thoại dựng đứng cao gấp đôi bề ngang, mà chín hàng ở bội số 2 chỉ cao
+ * 288px trên một máy 844px - đo thật trên ảnh chụp, hơn 550px bỏ trắng. Xoay
+ * ngang thì lỗi đổi chiều: mười lăm cột (hết bề rộng bản đồ) ở bội số 3 rộng
+ * 720px trên một màn 844px, và hai dải trắng đứng hai bên.
+ *
+ * Nên: bề ngang lấy được bao nhiêu cột thì lấy, rồi số hàng nhân theo đúng tỉ lệ
+ * của cái màn hình đang cầm. Khung game và màn hình cùng một hình dạng, và bước
+ * kéo giãn cuối cùng xoá nốt phần lẻ.
+ *
+ * Hàm THUẦN, kiểm được bằng test - xem viewport.test.ts.
+ */
+export function pickFillViewport(
+  width: number,
+  height: number,
+  mapWidth: number,
+  mapHeight: number,
+  shortScreen: boolean,
+): FillViewport {
+  const minRows = shortScreen ? MIN_ROWS_WIDE : MIN_ROWS
+
+  /*
+    Bước kéo giãn LUÔN tính lại từ số ô cuối cùng, không bao giờ mang theo.
+
+    Đây chính là chỗ đã sai một lần: nhánh dự phòng ở cuối hàm nâng số hàng lên
+    cho đủ sàn nhưng vẫn dùng lại `fit` tính từ số hàng CŨ, và khung game cao
+    313px trên một màn 280px. Test bắt được (940×280), mắt thì không.
+  */
+  const frame = (scale: number, cols: number, rows: number): FillViewport => {
+    const tile = TILE * scale
+    // Lấy bên CHẬT hơn, nên khung không bao giờ tràn ra ngoài mép nào.
+    return { scale, cols, rows, fit: Math.min(width / (cols * tile), height / (rows * tile)) }
+  }
+
+  const build = (scale: number): FillViewport => {
+    const tile = TILE * scale
+    // Chặn trên là bề rộng bản đồ: quá mép chỉ còn nền trống, và một dải nền
+    // trống bên phải nhìn như khung game bị hỏng.
+    const cols = Math.max(1, Math.min(mapWidth, Math.floor(width / tile)))
+    // Cùng tỉ lệ với màn hình: rows / cols = height / width.
+    const rows = Math.max(1, Math.min(mapHeight, Math.round((cols * height) / width)))
+    return frame(scale, cols, rows)
+  }
+
+  for (let scale = MAX_SCALE; scale >= 2; scale--) {
+    const view = build(scale)
+    if (view.cols >= MIN_COLS && view.rows >= minRows) return view
+  }
+
+  // Máy quá nhỏ cho cả bội số 2: lấy những gì còn lấy được, và vẫn giữ sàn hàng
+  // để nhân vật không đứng sát mép trên dưới. Ở đây khung THÀ hụt còn hơn tràn -
+  // `frame` tính lại bước kéo giãn cho đúng số hàng mới.
+  const floor = build(2)
+  return frame(2, floor.cols, Math.min(mapHeight, Math.max(FLOOR_ROWS, floor.rows)))
+}
+
 type Direction = 'up' | 'down' | 'left' | 'right'
 
 const DELTA: Record<Direction, { dx: number; dy: number }> = {
@@ -176,6 +250,14 @@ interface Props {
    * trên tấm bản đồ, đúng một chỗ ở mọi cỡ máy và mọi hướng xoay.
    */
   hud?: React.ReactNode
+  /**
+   * Khung game LẤP ĐẦY màn hình - bật trên điện thoại, tắt trên máy tính.
+   *
+   * Trên máy tính khung game là một khối nằm giữa trang, có phần đầu trang và
+   * hàng nút ở trên, nên nó phải chừa chỗ cho chúng. Trên điện thoại nó là cả
+   * màn hình, và mọi điểm ảnh bỏ trắng là một điểm ảnh lấy mất của trò chơi.
+   */
+  fill?: boolean
   /**
    * Gọi khi trẻ bước vào ô cỏ cao và gặp quái hoang.
    *
@@ -216,6 +298,7 @@ export function Overworld({
   paused = false,
   dialogue,
   hud,
+  fill = false,
   onWildEncounter,
   onMonsterBump,
   follower,
@@ -390,6 +473,8 @@ export function Overworld({
   // Tên là `viewport` chứ không phải `view`: `view` bên dưới đã là góc nhìn
   // sprite của nhân vật.
   const [viewport, setViewport] = useState({ cols: MIN_COLS, rows: VIEW_ROWS })
+  /** Bước kéo giãn LẺ chồng lên bội số vẽ. 1 = không kéo giãn (máy tính). */
+  const [fit, setFit] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Bản đồ đổi (đổi môn) thì đặt nhân vật vào chỗ đã nhớ của vùng đó, hoặc điểm
@@ -425,9 +510,17 @@ export function Overworld({
     // Chỗ trống còn lại theo chiều dọc: tất cả những gì dưới phần đầu trang.
     // Khung game lấy TRỌN bề ngang - bốn mũi tên nằm đè lên nó nên không ăn chỗ.
     const top = el.getBoundingClientRect().top + window.scrollY
-    const spare = window.innerHeight - top - VIEW_MARGIN
+    /*
+      Lề dưới trang chỉ có nghĩa khi khung game còn đứng trong một trang.
 
-    const pick = pickViewport(width, spare, map.width, isShortScreen())
+      Ở chế độ toàn màn hình nó KHÔNG còn: dưới khung không có gì nữa cả, nên
+      28px chừa lại ở đó là 28px bỏ trắng ngay sát mép máy.
+    */
+    const spare = fill ? fillHeightBelow(el, top) : window.innerHeight - top - VIEW_MARGIN
+
+    const pick = fill
+      ? pickFillViewport(width, spare, map.width, map.height, isShortScreen())
+      : { ...pickViewport(width, spare, map.width, isShortScreen()), fit: 1 }
 
     setScale(pick.scale)
     setViewport((current) =>
@@ -435,6 +528,8 @@ export function Overworld({
         ? current
         : { cols: pick.cols, rows: pick.rows },
     )
+    // So sánh xấp xỉ: số thực đổi ở chữ số thứ mười hai vẫn là một lần vẽ lại.
+    setFit((current) => (Math.abs(current - pick.fit) < 0.01 ? current : pick.fit))
   })
 
   const tryMove = useCallback(
@@ -529,11 +624,27 @@ export function Overworld({
 
   return (
     <div ref={containerRef} className="pixel-ui overworld-layout grid justify-items-center gap-3">
+      {/*
+        HAI LỚP LỒNG NHAU, mỗi lớp một việc - giống hệt bản đồ thế giới.
+
+        Lớp NGOÀI giữ kích thước THẬT sau khi kéo giãn, nên bố cục quanh nó biết
+        khung game chiếm bao nhiêu chỗ, và mọi lớp phủ - bốn mũi tên, hộp thoại,
+        hai nút góc trên - treo vào đây để KHÔNG bị kéo giãn theo. Chữ và nút mà
+        giãn theo bản đồ thì trên máy rộng chúng phình ra, trên máy hẹp co lại,
+        mà chẳng vì lý do gì cả.
+
+        Lớp TRONG giữ toạ độ GỐC: mọi thứ bên trong được đặt theo `ô × TILE ×
+        scale`, và một phép nhân nữa cho bước kéo giãn sẽ len vào vài chục chỗ
+        tính toạ độ. Một lần `transform: scale` ở đây làm xong việc ấy.
+      */}
+      <div className="relative" style={{ width: viewWidth * fit, height: viewHeight * fit }}>
       <div
-        className="relative overflow-hidden"
+        className="absolute left-0 top-0 overflow-hidden"
         style={{
           width: viewWidth,
           height: viewHeight,
+          transform: fit === 1 ? undefined : `scale(${fit})`,
+          transformOrigin: 'top left',
           border: '4px solid #1b2432',
           borderRadius: 6,
           background: biome.colors[biome.ground === 'sand' ? 'sand' : 'grass'],
@@ -705,6 +816,8 @@ export function Overworld({
           </div>
         </div>
 
+      </div>
+
         {/* Hộp thoại nằm ĐÈ LÊN đáy khung game, không nằm dưới bản đồ - nếu đặt
             dưới thì trên màn hình dọc nó rơi khỏi tầm nhìn và trẻ không thấy. */}
         {dialogue && (
@@ -729,7 +842,7 @@ export function Overworld({
           <TouchPad
             onMove={tryMove}
             disabled={stepping || ambush !== null}
-            viewHeight={viewHeight}
+            viewHeight={viewHeight * fit}
           />
         )}
 
@@ -739,6 +852,28 @@ export function Overworld({
       </div>
     </div>
   )
+}
+
+/**
+ * Chỗ trống còn lại bên dưới `el` ở chế độ toàn màn hình.
+ *
+ * KHÔNG phải `window.innerHeight - top`, và phần chênh lệch là phần khuyết của
+ * máy tai thỏ: khối bọc ngoài đã đệm `env(safe-area-inset-bottom)` ở đáy (xem
+ * `globals.css`), nên đo tới tận đáy CỬA SỔ là đo quá xuống dưới vạch gạt về
+ * màn hình chính - đúng chỗ bốn mũi tên đi cảnh đứng. Ngón tay chạm xuống đó thì
+ * máy hiểu là muốn thoát app, không phải muốn đi sang trái.
+ *
+ * Nên phép đo dừng ở đáy phần NỘI DUNG của khối bọc. Không có khối bọc thì quay
+ * về phép đo cũ - thà khung game hơi thấp còn hơn không dựng được.
+ */
+function fillHeightBelow(el: HTMLElement, top: number): number {
+  const host = el.parentElement
+  if (!host) return window.innerHeight - top
+
+  const style = window.getComputedStyle(host)
+  const bottom = host.getBoundingClientRect().bottom - (parseFloat(style.paddingBottom) || 0)
+  const spare = bottom + window.scrollY - top
+  return spare > 0 ? spare : window.innerHeight - top
 }
 
 function clamp(value: number, min: number, max: number): number {

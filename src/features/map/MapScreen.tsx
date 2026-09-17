@@ -262,28 +262,34 @@ export function MapScreen() {
         {mapArea}
 
         {/*
-          Ngăn kéo đóng lại bằng một dấu ✕ ĐÚNG CHỖ nút ☰ vừa đứng.
+          Lối ra của ngăn kéo: một nút GỌI TÊN NƠI NÓ TRẢ VỀ.
 
-          Chỗ cũ của nó là một nút "← Quay lại bản đồ" chạy hết bề ngang dưới
-          đáy ngăn kéo, và cái nhãn ấy nói dối: trong một vùng đất, "quay lại
-          bản đồ" là đúng việc mà mũi tên ← trên khung game làm - về bản đồ thế
-          giới. Hai nút cạnh nhau, cùng một lời hứa, hai kết quả khác hẳn.
+          Nút cũ ở đây viết "← Quay lại bản đồ" và nằm dưới đáy ngăn kéo. Cái
+          nhãn ấy nói dối khi trẻ đang đứng trong một vùng đất - "quay lại bản
+          đồ" là việc mà mũi tên ← trên khung game làm, tức về bản đồ thế giới -
+          nên nó bị bỏ đi. Nhưng bỏ đi rồi thì ngăn kéo không còn lối ra nào có
+          chữ, và đó là một ngõ cụt còn tệ hơn một cái nhãn mập mờ.
 
-          Dấu ✕ thì không hứa gì ngoài "đóng cái này lại", và nó nằm đúng nơi
-          ngón tay vừa chạm để mở - mở và đóng cùng một chỗ. Nó neo theo màn hình
-          (position: fixed) nên cuộn xuống cuối cây kỹ năng nó vẫn còn đó.
+          Nên nó quay lại, lần này nói đúng tên chỗ nó trả về: tên vùng đất khi
+          đang ở trong vùng, "bản đồ thế giới" khi đang ở ngoài. Không còn hai
+          nút hứa cùng một việc mà làm hai việc khác nhau.
+
+          DÍNH LÊN ĐỈNH ngăn kéo (`position: sticky`): ngăn kéo giờ chứa cả cây
+          kỹ năng, một bảng cuộn dài, và một lối ra chỉ thấy được khi đã cuộn
+          hết thì cũng gần như không có.
         */}
         {menuOpen && (
           <div className="map-immersive-sheet" role="dialog" aria-label="Bảng điều khiển">
-            <div className="map-immersive-sheet-inner flex flex-col gap-3">{chrome}</div>
-            <button
-              type="button"
-              onClick={() => setMenuOpen(false)}
-              className="pixel-font hud-btn hud-btn-close"
-              aria-label="Đóng bảng điều khiển"
-            >
-              ✕
-            </button>
+            <div className="map-immersive-sheet-inner flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                className="btn btn-primary map-immersive-sheet-back w-full text-lg"
+              >
+                ← Quay lại {region ? biomeFor(region.subject, region.grade).land : 'bản đồ thế giới'}
+              </button>
+              {chrome}
+            </div>
           </div>
         )}
       </div>
@@ -597,6 +603,7 @@ function SubjectMap({
         onPosition={onPosition}
         onEnterGate={(node) => (node.kind === 'battle' ? onPlay(node) : setPreview(node))}
         paused={preview !== null}
+        fill={immersive}
         /*
           Mũi tên ← và nút ☰ đi VÀO TRONG khung game, hai góc trên.
 

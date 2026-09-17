@@ -308,7 +308,18 @@ export function WorldMapScreen({
     // Không còn trừ chiều cao hàng tiêu đề: tên vùng và hai mũi tên giờ nằm ĐÈ
     // LÊN bản đồ chứ không đứng thành một hàng riêng phía trên nó.
     const top = el.getBoundingClientRect().top + window.scrollY
-    const spare = window.innerHeight - top - MAP_MARGIN
+    /*
+      Khe dưới bản đồ chỉ có nghĩa khi bản đồ còn đứng trong một trang. Ở chế độ
+      toàn màn hình dưới nó không còn gì, nên 24px ấy là 24px bỏ trắng.
+
+      Đổi lại, ở đó phải trừ phần khuyết của máy tai thỏ: khối này tự đệm
+      `env(safe-area-inset-bottom)` ở đáy (xem `globals.css`), nên đo tới đáy
+      cửa sổ là đo quá xuống dưới vạch gạt, và phần thừa ra bị cắt mất.
+    */
+    const padBottom = parseFloat(window.getComputedStyle(el).paddingBottom) || 0
+    const spare = compact
+      ? el.getBoundingClientRect().bottom + window.scrollY - padBottom - top
+      : window.innerHeight - top - MAP_MARGIN
 
     // Bội số VẼ luôn là số nguyên: canvas được tô ở đúng bội số này, nên điểm
     // ảnh của nó vuông vắn không lệch.
@@ -356,8 +367,48 @@ export function WorldMapScreen({
         phóng to theo bản đồ thì trên máy cầm tay nó che mất nửa lục địa.
       */}
       <div
-        className="relative mx-auto"
-        style={{ width: CANVAS_WIDTH * scale * fit, height: CANVAS_HEIGHT * scale * fit }}
+        className="relative mx-auto overflow-hidden"
+        style={{
+          /*
+            BIỂN PHỦ KÍN MÀN HÌNH, lục địa nổi ở giữa.
+
+            Lục địa là một bức hình NẰM NGANG cố định (336×180), nên nó không bao
+            giờ cùng hình dạng với cái máy đang cầm: dựng đứng thì thừa chiều
+            cao, xoay ngang thì thừa bề ngang. Phóng to thêm cho vừa mép thì phải
+            cắt mất một phần lục địa, mà một hòn đảo bị cắt khỏi tầm nhìn là một
+            hòn đảo trẻ không biết là mình có.
+
+            Nên chỗ thừa ấy không được lấp bằng cách kéo bản đồ ra - nó được lấp
+            bằng chính BIỂN. Khung nền trải hết màn hình, lục địa nằm giữa, và
+            hai dải trắng hai bên - thứ trông như trang web bị hụt - thành ra mặt
+            nước, thứ vốn dĩ phải có quanh một quần đảo.
+          */
+          width: compact ? '100%' : CANVAS_WIDTH * scale * fit,
+          height: compact ? '100%' : CANVAS_HEIGHT * scale * fit,
+          border: '4px solid #1b2432',
+          borderRadius: 6,
+          background:
+            `repeating-linear-gradient(0deg, ${layout.sea.light} 0 14px, ${layout.sea.dark} 14px 15px),` +
+            `repeating-linear-gradient(90deg, ${layout.sea.light} 0 14px, ${layout.sea.dark} 14px 15px)`,
+        }}
+      >
+      {/*
+        Lục địa, CĂN GIỮA trong mặt biển.
+
+        `inset: 0` cộng `margin: auto` trên một khối có kích thước cố định là
+        cách căn giữa cả hai chiều mà không đụng tới `transform` - mà
+        `transform` thì đã có chủ khác: lớp bên trong dùng nó để kéo giãn, với
+        gốc ở góc trên - trái, vì mọi dấu mốc bên trong đều đặt theo toạ độ gốc
+        ấy.
+      */}
+      <div
+        className="absolute"
+        style={{
+          inset: 0,
+          margin: 'auto',
+          width: CANVAS_WIDTH * scale * fit,
+          height: CANVAS_HEIGHT * scale * fit,
+        }}
       >
       <div
         className="absolute left-0 top-0 overflow-hidden"
@@ -366,12 +417,7 @@ export function WorldMapScreen({
           height: CANVAS_HEIGHT * scale,
           transform: fit === 1 ? undefined : `scale(${fit})`,
           transformOrigin: 'top left',
-          border: '4px solid #1b2432',
-          borderRadius: 6,
           imageRendering: 'pixelated',
-          background:
-            `repeating-linear-gradient(0deg, ${layout.sea.light} 0 14px, ${layout.sea.dark} 14px 15px),` +
-            `repeating-linear-gradient(90deg, ${layout.sea.light} 0 14px, ${layout.sea.dark} 14px 15px)`,
         }}
       >
         {/* Cả lục địa nằm gọn trong một canvas. Các dấu mốc bên dưới chỉ là lớp
@@ -452,6 +498,7 @@ export function WorldMapScreen({
           />
         )}
 
+      </div>
       </div>
 
         {/*

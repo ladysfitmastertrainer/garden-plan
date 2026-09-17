@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { pickViewport } from './Overworld'
+import { pickFillViewport, pickViewport } from './Overworld'
 
 const TILE = 16
 
@@ -96,5 +96,69 @@ describe('khung đi cảnh lấp đầy màn hình', () => {
     expect(view.scale).toBeGreaterThanOrEqual(2)
     expect(view.cols).toBeGreaterThan(0)
     expect(view.rows).toBeGreaterThan(0)
+  })
+})
+
+/*
+  Chế độ TOÀN MÀN HÌNH trên điện thoại, và đây là một mức đòi hỏi khác hẳn.
+
+  `pickViewport` chỉ hứa "gần bằng màn hình" vì khung game của nó còn đứng
+  trong một trang, dưới phần đầu trang. Ở chế độ này khung game LÀ màn hình, nên
+  mọi điểm ảnh bỏ trắng là một điểm ảnh lấy mất của trò chơi - và hai con số đo
+  được từ ảnh chụp thật trước khi sửa là 556px bỏ trắng lúc dựng đứng, 124px bỏ
+  trắng hai bên lúc xoay ngang.
+
+  Kích thước ở đây là kích thước MÀN HÌNH đầy đủ, không trừ lề nào.
+*/
+const PHONE = { portrait: { width: 390, height: 844 }, landscape: { width: 844, height: 390 } }
+const MAP_ROWS = 44
+
+/** Bề ngang và chiều cao khung game SAU bước kéo giãn. */
+const fillWidth = (v: { cols: number; scale: number; fit: number }) => v.cols * TILE * v.scale * v.fit
+const fillHeight = (v: { rows: number; scale: number; fit: number }) => v.rows * TILE * v.scale * v.fit
+
+describe('khung đi cảnh toàn màn hình', () => {
+  it('DỰNG ĐỨNG: lấp kín cả bề ngang lẫn chiều cao', () => {
+    const { width, height } = PHONE.portrait
+    const view = pickFillViewport(width, height, WIDE_MAP, MAP_ROWS, false)
+    expect(fillWidth(view)).toBeGreaterThan(width * 0.97)
+    expect(fillHeight(view)).toBeGreaterThan(height * 0.97)
+  })
+
+  it('XOAY NGANG: lấp kín luôn, kể cả hai mép trái phải', () => {
+    /*
+      Đây là lỗi người dùng chỉ ra: mười lăm cột là hết bề rộng bản đồ, mà mười
+      lăm cột ở bội số 3 chỉ rộng 720px trên một màn 844px - hai dải trắng đứng
+      hai bên. Bội số không cứu được, vì bội số 4 thì chiều cao hụt.
+    */
+    const { width, height } = PHONE.landscape
+    const view = pickFillViewport(width, height, WIDE_MAP, MAP_ROWS, true)
+    expect(fillWidth(view)).toBeGreaterThan(width * 0.97)
+    expect(fillHeight(view)).toBeGreaterThan(height * 0.97)
+  })
+
+  it('không bao giờ tràn ra ngoài màn hình, ở mọi cỡ máy', () => {
+    for (let width = 280; width <= 1000; width += 20) {
+      for (let height = 280; height <= 1000; height += 20) {
+        for (const short of [true, false]) {
+          const view = pickFillViewport(width, height, WIDE_MAP, MAP_ROWS, short)
+          const label = `${width}×${height}`
+          // Một điểm ảnh dôi ra là do làm tròn số thực, không phải do tính sai.
+          expect(fillWidth(view), label).toBeLessThanOrEqual(width + 0.01)
+          expect(fillHeight(view), label).toBeLessThanOrEqual(height + 0.01)
+          expect(view.cols, label).toBeLessThanOrEqual(WIDE_MAP)
+          expect(view.rows, label).toBeLessThanOrEqual(MAP_ROWS)
+          expect(view.rows, label).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  it('bội số VẼ vẫn là số nguyên - phần lẻ do bước kéo giãn lo', () => {
+    // Pixel art vẽ ở bội số lẻ là gợn ngay: có điểm ảnh rộng 2, có điểm ảnh
+    // rộng 3. Cả cái khung kéo giãn một lần thì gợn ấy đều nhau khắp khung.
+    const view = pickFillViewport(844, 390, WIDE_MAP, MAP_ROWS, true)
+    expect(Number.isInteger(view.scale)).toBe(true)
+    expect(view.scale).toBeGreaterThanOrEqual(2)
   })
 })

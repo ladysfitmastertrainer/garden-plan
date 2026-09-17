@@ -1126,16 +1126,13 @@ textarea.admin-input {
   right: 6px;
 }
 
-/* Nút đóng ngăn kéo: NEO THEO MÀN HÌNH, không theo ngăn kéo.
+/* Lối ra của ngăn kéo DÍNH LÊN ĐỈNH, không cuộn đi mất.
 
-   Ngăn kéo cuộn được, và giờ nó chứa cả cây kỹ năng - một bảng dài. Neo theo
-   ngăn kéo thì nút đóng cuộn mất tăm lên phía trên, và trẻ đang ở cuối cây kỹ
-   năng phải cuộn ngược lên đầu mới ra được. Ở đây "fixed" là đúng nghĩa đen:
-   nó đứng yên một chỗ trên màn hình, đúng chỗ ngón tay vừa chạm để mở. */
-.hud-btn-close {
-  position: fixed;
-  top: calc(8px + env(safe-area-inset-top, 0px));
-  right: 8px;
+   Ngăn kéo giờ chứa cả cây kỹ năng - một bảng cuộn dài - và một lối ra chỉ thấy
+   được sau khi đã cuộn hết thì cũng gần như không có. */
+.map-immersive-sheet-back {
+  position: sticky;
+  top: 0;
   z-index: 6;
 }
 
@@ -1285,7 +1282,19 @@ textarea.admin-input {
    Cách đúng: phần tử được đo luôn chiếm TRỌN khung (đầy bề ngang, mép trên ở số
    0), còn việc căn giữa xảy ra bên trong nó. Lúc ấy phép đo không còn phụ thuộc
    vào chính kết quả của nó. */
-.map-immersive > .world-layout,
 .map-immersive .overworld-layout {
   align-content: center;
+}
+
+/* Bản đồ thế giới thì KHÔNG căn giữa nữa - nó KÉO GIÃN ra kín màn hình.
+
+   Việc căn giữa đã chuyển vào bên trong: mặt biển phủ kín màn hình, còn lục địa
+   nổi ở giữa mặt biển ấy (xem `WorldMapScreen`). Căn giữa thêm một lần ở đây
+   thì khung nền co lại vừa khít lục địa, và hai dải trắng hai bên quay về.
+
+   `1fr` chứ không phải `auto`: một hàng cỡ tự động thì cao bằng nội dung, nên
+   `height: 100%` của khung nền đo vào chính nó và ra 0 - khung nền tụt xuống
+   còn đúng 8px viền. Một hàng `1fr` có chiều cao dứt khoát để đo vào. */
+.map-immersive > .world-layout {
+  grid-template-rows: 1fr;
 }

@@ -171,9 +171,20 @@ export function BattleScreen() {
       <TeamStrip team={battle.team} activeIndex={battle.activeIndex} />
       </div>
 
-      {/* Hộp thoại ở đáy màn hình - đúng chỗ game thời đó đặt lời thoại và lệnh.
-          Máy nằm ngang thì nó là CỘT PHẢI và tự cuộn riêng. */}
-      <div className="pixel-panel battle-ask">
+      {/*
+        Hộp thoại ở đáy màn hình - đúng chỗ game thời đó đặt lời thoại và lệnh.
+
+        Máy nằm ngang thì nó rời khỏi dòng chảy và NỔI LÊN GIỮA MÀN HÌNH như một
+        khung hỏi, để sân đấu lấy trọn chỗ (xem `.battle-ask` trong globals.css).
+        Và ở hai pha mà trận đánh mới là thứ đáng nhìn - trẻ đang chọn phép, hoặc
+        đang xem kết quả câu vừa rồi - nó biến hẳn đi: cả hai pha ấy đã có lớp
+        phủ riêng ngay trên sân đấu, nên khung hỏi đứng đó chỉ để che.
+
+        Chỉ khi nằm ngang. Màn hình dọc thì đây vẫn là một khối xếp dưới sân đấu,
+        và `.battle-ask-hidden` không có tác dụng gì - luật ấy nằm trong
+        @media của hướng ngang.
+      */}
+      <div className={`pixel-panel battle-ask${inFeedback || inSpell ? ' battle-ask-hidden' : ''}`}>
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="pixel-font text-lg uppercase" style={{ color: accent }}>
             {SUBJECT_LABEL[subject]}

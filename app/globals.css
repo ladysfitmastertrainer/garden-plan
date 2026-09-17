@@ -345,13 +345,36 @@ body {
   /* Chiếm hết chỗ trống còn lại sau khung hỏi. */
   flex: 1 1 auto;
   min-height: 0;
-  --arena-height: 100%;
+  /*
+    'auto' chứ KHÔNG PHẢI '100%', và đây là chỗ đã sập một lần.
+
+    PixelBattle đặt chiều cao khung trận bằng `var(--arena-height)`. Khi cả màn
+    trận còn tự khai `height: 100dvh` thì '100%' giải được, vì trên nó là một
+    chuỗi chiều cao dứt khoát. Từ lúc màn trận nhận chiều cao từ một CỘT CO GIÃN
+    (để dải nhắc cài app không đẩy nó xuống dưới mép máy), chuỗi ấy đứt: phần
+    trăm không giải được vào một chiều cao do co giãn chia ra, nên khung trận
+    tụt về 0 - sân đấu biến mất, chỉ còn một mảng xám, mà không có lỗi nào cả.
+
+    Chuyển hẳn sang co giãn thì không còn phần trăm nào để giải: mỗi tầng lấy
+    phần còn lại của tầng trên, từ cột ngoài cùng xuống tới khung trận.
+  */
+  --arena-height: auto;
 }
 
 .battle-arena {
+  /* Cột co giãn một tầng nữa, để khung trận bên trong kéo giãn đầy chỗ này. */
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   /* Dưới mức này thì thanh máu treo trên đầu nhân vật bắt đầu bị cắt cụt. */
   min-height: 200px;
+}
+
+/* Khung trận (do PixelBattle vẽ) lấp đầy ô của nó. Lớp phủ bên trong - bảng
+   chọn phép, khung phản hồi - đều định vị tuyệt đối nên không dính luật này. */
+.battle-arena > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .battle-ask {
@@ -364,26 +387,38 @@ body {
 
 @media (orientation: landscape) and (max-height: 560px) {
   /*
-    XOAY NGANG PHẢI ĐƯỢC NHIỀU HƠN, KHÔNG PHẢI ÍT HƠN.
+    XOAY NGANG: SÂN ĐẤU LẤY CẢ MÀN HÌNH, CÂU HỎI THÀNH KHUNG NỔI.
 
-    Bản trước chia 44/56 và giữ nguyên lề 12px. Trên một máy 844×390 thì khung
-    trận còn 355px ngang - hẹp hơn cả khi dựng đứng (366px) - nên xoay máy ra
-    xong sân đấu lại bé đi. Chia đôi và bóp lề xuống còn 6px thì nó lên 404px,
-    đủ để hai nhân vật nhảy lên một bội số phóng (xem `arenaScales`).
+    Bản trước chia đôi màn hình - sân đấu trái, câu hỏi phải. Chia đôi thì sân
+    đấu chỉ còn khoảng 320-400px ngang, và ở bề ngang ấy hai khung máu bắt đầu
+    đè lên nhau lẫn đè lên hai nhân vật: khung "Con" nuốt mất con quái bên phải,
+    khung máu quái nằm đè lên chính con thú của trẻ. Đo trên máy 667×375 thì
+    thấy rõ cả hai.
+
+    Gốc rễ là một phép chia sai: hai thứ trên màn hình này KHÔNG dùng cùng lúc.
+    Lúc trẻ đọc đề thì sân đấu chỉ đứng im làm nền; lúc con thú tung phép và
+    quái đánh trả thì đề bài đã trả lời xong rồi. Bắt chúng chia nhau bề ngang
+    là bắt cả hai cùng bé lại để phục vụ một tình huống không có thật.
+
+    Nên: sân đấu lấy trọn màn hình, còn câu hỏi nổi lên trên nó như một khung
+    hỏi - và TỰ BIẾN ĐI ở pha chọn phép và pha phản hồi (xem `battle-ask-hidden`
+    trong BattleScreen), đúng hai pha mà thứ đáng nhìn là trận đánh.
 
     Nhân đôi tên lớp để thắng `px-3 py-3` của Tailwind - cùng độ đặc hiệu thì cái
     nào viết sau thắng, mà thứ tự ấy phụ thuộc vào cách gói CSS, không đáng tin.
   */
   .battle-layout.battle-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 50fr) minmax(0, 50fr);
-    align-items: stretch;
+    display: flex;
+    flex-direction: column;
     max-width: none;
-    height: 100dvh;
+    height: auto;
+    flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-    padding: 6px 8px;
-    gap: 0.5rem;
+    /* Máy tai thỏ xoay ngang thì phần khuyết nằm ở CẠNH BÊN, không phải trên. */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+      env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    gap: 0;
   }
 
   /* Dải đội thú nén lại: mỗi điểm ảnh nó nhường ra là một điểm ảnh sân đấu cao
@@ -396,31 +431,66 @@ body {
     font-size: 0.95rem;
   }
 
-  /* Khung trận cao bằng cột - xem `--arena-height` trong PixelBattle.tsx. */
+  /* Khung trận lấy cả màn hình - xem ghi chú ở `--arena-height` phía trên. */
   .battle-stage {
-    --arena-height: 100%;
+    flex: 1 1 auto;
     min-height: 0;
+    gap: 0.35rem;
   }
 
   .battle-arena {
     flex: 1 1 auto;
+    /* Bỏ sàn 200px của màn hình dọc: ở đây sân đấu đã cao gần cả màn hình, mà
+       trên một máy xoay ngang thật thấp thì sàn ấy lại đẩy dải đội thú ra ngoài. */
     min-height: 0;
   }
 
-  /* Đề bài dài thì CỘT PHẢI tự cuộn, không kéo cả trang - khung trận bên trái
-     phải đứng yên tại chỗ. */
+  /*
+    CÂU HỎI LÀ MỘT KHUNG NỔI, không còn là một cột.
+
+    `position: fixed` chứ không `absolute`: nó phải thoát khỏi `overflow: hidden`
+    của khung bọc màn trận, và phải đo theo màn hình chứ không theo sân đấu.
+
+    NỀN MỜ LÀ MỘT CÁI BÓNG ĐỔ, không phải một khối phủ.
+
+    Hai cách viết hiển nhiên hơn đều hỏng, và hỏng lặng lẽ:
+
+    Một khối phủ riêng trong DOM thì phải thêm một tầng chỉ sống ở một hướng
+    xoay, và phải nhớ ẩn nó cùng lúc với khung hỏi ở hai pha kia.
+
+    Một `::before` thì hỏng hai lần. Thứ nhất, `z-index: -1` bên trong một khối
+    ĐÃ TẠO NGỮ CẢNH XẾP LỚP (vì có `z-index: 40`) nằm sau phần nội dung nhưng
+    vẫn TRƯỚC nền của chính khối ấy - nên nó phủ mờ luôn cái khung hỏi, và khung
+    hỏi xám xịt. Thứ hai, một khối `position: fixed` nằm trong một khối CÓ
+    `transform` thì lấy khối ấy làm gốc toạ độ chứ không lấy màn hình - nên
+    `inset: 0` của nó phủ đúng bằng cái khung, không phủ gì khác. Đo ra đúng
+    triệu chứng ấy: khung xám, còn dải đội thú phía dưới vẫn sáng nguyên.
+
+    Một cái bóng đổ lan 100vmax thì không dính cả hai: bóng vẽ NGOÀI hộp, không
+    bị `overflow` của khung cắt, không cần ngữ cảnh xếp lớp nào, và biến mất
+    cùng khung mà không phải nhớ gì thêm.
+
+    Căn giữa bằng `inset: 0` + `margin: auto` chứ không bằng `transform`: giữ
+    cho khung không tạo ra một gốc toạ độ mới, vì đó là cái bẫy vừa nói.
+  */
   .battle-ask {
-    min-height: 0;
+    position: fixed;
+    z-index: 40;
+    inset: 0;
+    margin: auto;
+    width: min(94vw, 680px);
+    height: fit-content;
+    /* Đề bài dài bất thường thì RIÊNG khung hỏi cuộn. */
+    max-height: 92dvh;
     overflow-y: auto;
-    /* Bỏ trần 58dvh của màn hình dọc: ở đây cột phải đã cao bằng cả màn hình,
-       giữ trần đó là cắt cụt mất dòng "TOÁN" trên đầu đề bài. */
-    max-height: none;
+    padding: 10px 12px;
+    box-shadow: 0 0 0 100vmax rgb(12 16 24 / 0.55);
   }
 
-  /* Cột phải phải vừa MỘT MÀN, không để trẻ cuộn mới thấy đáp án cuối. Chữ và
-     khoảng đệm co lại; ô chạm vẫn giữ 52px, trên mức 44px tối thiểu cho ngón tay. */
-  .battle-ask {
-    padding: 10px 12px;
+  /* Pha chọn phép và pha phản hồi: khung hỏi biến đi để nhường chỗ cho trận
+     đánh. Cả hai pha ấy đều đã có lớp phủ riêng ngay trên sân đấu. */
+  .battle-ask-hidden {
+    display: none;
   }
 
   .battle-prompt {
@@ -1064,6 +1134,35 @@ textarea.admin-input {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
+}
+
+/*
+  MỌI MÀN CON CHIẾM TRỌN BỀ NGANG, và dòng này là bắt buộc chứ không phải dọn dẹp.
+
+  Gần như màn nào cũng tự căn giữa bằng `mx-auto` cộng một trần bề ngang. Trong
+  một khối thường thì `margin: auto` nghĩa là "chiếm hết chỗ rồi căn giữa phần
+  thừa". Trong một CỘT CO GIÃN thì nó nghĩa ngược lại: một ô có lề tự động KHÔNG
+  kéo giãn nữa mà co lại vừa khít nội dung, rồi đứng giữa.
+
+  Hậu quả đo được: màn trận trên máy 844px ngang co còn 388px - đúng bằng bề
+  ngang của nội dung bên trong nó - và sân đấu nằm gọn giữa màn hình như cũ dù
+  đã bỏ lối chia hai cột. Một dòng ở đây trả lại nghĩa cũ cho `mx-auto`: rộng
+  hết cỡ, rồi trần bề ngang của từng màn tự lo việc căn giữa.
+*/
+.app-shell > * {
+  width: 100%;
+}
+
+/*
+  Màn trận cũng lấy phần còn lại của cột, không tự đòi trọn một màn hình.
+
+  Nó khai `h-dvh`, mà `h-dvh` không biết có dải nhắc cài app ở trên hay không -
+  có dải thì trang cao hơn màn hình đúng bằng dải ấy, và phần rơi xuống dưới mép
+  máy là đáy khung hỏi. Cùng một lẽ với màn chơi bản đồ ở dưới. */
+.app-shell > .battle-layout {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* `flex: 1` thay cho `height: 100dvh`, và `min-height: 0` để nó co được thật.

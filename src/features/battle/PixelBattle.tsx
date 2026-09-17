@@ -14,9 +14,10 @@
  * mất - hiện lại vài lần, thay vì ám đỏ hay nổ hạt.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useReduceMotion } from '../../shell/useReduceMotion'
+import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import type { Subject } from '../../content/types'
 import type { BattleState } from '../../engine/battle'
 import {
@@ -34,6 +35,55 @@ import { PixelSprite } from '../pixel/sprite'
  * bấm tiếp sau chừng một giây im lặng.
  */
 const INTRO_MS = 1150
+
+/*
+  ---- SPRITE PHẢI CO GIÃN THEO KHUNG TRẬN ----
+
+  Trước đây hai nhân vật dùng bội số CỐ ĐỊNH: 8 cho trẻ (128 điểm ảnh) và 6 cho
+  quái (96 điểm ảnh), bất kể khung trận to bằng nào. Con số ấy được chọn cho một
+  màn hình máy tính, và nó đứng nguyên ở mọi nơi khác:
+
+    * Điện thoại dọc: khung trận rộng chừng 360px. Một con quái 96px và một nhân
+      vật 128px trong đó thì hai bên gần như chạm nhau giữa sân, và thanh máu
+      treo trên đầu bị đội lên sát mép.
+    * Điện thoại nằm ngang: khung trận CAO có 270px. Cũng hai cái sprite ấy, giờ
+      chiếm gần trọn chiều cao - nên xoay ngang xong mọi thứ còn chật hơn lúc
+      dựng đứng, đúng ngược với cái người ta mong đợi khi xoay máy.
+
+  Giờ đo khung trận thật rồi suy ra bội số. Vẫn là SỐ NGUYÊN - pixel art phóng
+  theo số lẻ là méo hết điểm ảnh, đó là điều kiện sống còn chứ không phải sở
+  thích. Nên các bước nhảy hơi thô (7 → 8 là to thêm 14%), và đó là cái giá phải
+  trả, không phải lỗi.
+*/
+
+/**
+ * Khung trận mà hai con số 8 và 6 dưới đây được vẽ vừa.
+ *
+ * 400×320 không phải con số tròn cho đẹp: nó được chọn để một điện thoại phổ
+ * thông XOAY NGANG rơi vào đúng hệ số 1,0 (khung trận khi đó rộng chừng 402px),
+ * còn khi dựng đứng thì rơi xuống khoảng 0,89 - tức thấp hơn đúng một bậc. Nhờ
+ * vậy xoay máy ra là sân đấu to lên thấy được, chứ không phải to lên trên giấy.
+ */
+const ARENA_REFERENCE = { width: 400, height: 320 }
+const HERO_SCALE = 8
+const ENEMY_SCALE = 6
+
+/**
+ * Bội số phóng của hai nhân vật, vừa với một khung trận cỡ này.
+ *
+ * Lấy chiều CHẬT HƠN trong hai chiều làm chuẩn: khung rộng mà thấp thì chiều cao
+ * là thứ chặn, và ngược lại. Lấy trung bình hay lấy bề ngang thôi là có một
+ * hướng máy nào đó sprite tràn ra ngoài.
+ */
+export function arenaScales(width: number, height: number): { hero: number; enemy: number } {
+  const factor = Math.min(width / ARENA_REFERENCE.width, height / ARENA_REFERENCE.height)
+  const pick = (base: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, Math.round(base * factor)))
+
+  // Sàn 4 và 3: dưới mức đó thì con quái nhỏ hơn cái thanh máu của chính nó, và
+  // trẻ không còn nhận ra mình đang đánh con gì.
+  return { hero: pick(HERO_SCALE, 4, 12), enemy: pick(ENEMY_SCALE, 3, 9) }
+}
 
 /** Tên hệ viết tắt cho cái nhãn trên thanh máu quái - chỗ đó chỉ đủ vài chữ. */
 const ELEMENT_SHORT: Record<Subject, string> = {
@@ -182,6 +232,32 @@ export function PixelBattle({
     return () => window.clearTimeout(timer)
   }, [battle.enemy.id])
 
+  /*
+    Đo khung trận thật rồi suy ra bội số phóng của hai nhân vật.
+
+    Dùng `useMeasureOnLayout` chứ không đo một lần lúc dựng, vì khung trận co
+    theo chỗ trống còn lại: phông chữ pixel nạp xong, dải nhắc cài app hiện lên
+    rồi biến mất, người ta xoay máy - mỗi lần như thế chiều cao khung đổi, và một
+    con số đo hụt sẽ đứng nguyên đó suốt cả trận.
+  */
+  const arenaRef = useRef<HTMLDivElement>(null)
+  const [fit, setFit] = useState(() => ({ hero: HERO_SCALE, enemy: ENEMY_SCALE }))
+
+  useMeasureOnLayout(arenaRef, () => {
+    const el = arenaRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    if (width === 0 || height === 0) return
+
+    const next = arenaScales(width, height)
+    // So rồi mới đặt: `useMeasureOnLayout` nghe cả ResizeObserver, mà đặt state
+    // vô điều kiện ở đây thì mỗi lần đo lại là một lần vẽ lại, và lần vẽ lại ấy
+    // đánh thức chính cái observer vừa gọi mình.
+    setFit((current) =>
+      current.hero === next.hero && current.enemy === next.enemy ? current : next,
+    )
+  })
+
   /**
    * Nhãn "đúng / chưa đúng" hiện ngay trong khung trận.
    *
@@ -206,6 +282,7 @@ export function PixelBattle({
 
   return (
     <motion.div
+      ref={arenaRef}
       className="pixel-ui relative overflow-hidden"
       style={{
         border: '4px solid #1b2432',
@@ -257,7 +334,7 @@ export function PixelBattle({
         direction={-1}
         reduceMotion={reduceMotion}
         turnKey={turn.key}
-        scale={6}
+        scale={fit.enemy}
         // Quái lao vào từ mép phải, trẻ từ mép trái - hai bên gặp nhau giữa sân.
         enterFrom={220}
         idleDelay="0.4s"
@@ -273,7 +350,7 @@ export function PixelBattle({
         direction={1}
         reduceMotion={reduceMotion}
         turnKey={turn.key}
-        scale={8}
+        scale={fit.hero}
         enterFrom={-220}
         idleDelay="0s"
       />
@@ -299,7 +376,10 @@ export function PixelBattle({
         className="absolute"
         style={{
           left: '4%',
-          bottom: 'min(calc(12% + 132px), calc(100% - 62px))',
+          // Chiều cao nhân vật là `fit.hero × 16` điểm ảnh, cộng 4px cho khỏi
+          // dính đầu. Gõ cứng 132px như trước thì nhân vật co lại mà thanh máu
+          // vẫn treo ở chỗ cũ, lơ lửng giữa trời.
+          bottom: `min(calc(12% + ${fit.hero * 16 + 4}px), calc(100% - 62px))`,
           zIndex: 3,
         }}
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}

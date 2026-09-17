@@ -170,7 +170,7 @@ export function TeamStrip({ team, activeIndex }: { team: BattlePet[]; activeInde
   const alive = teamAlive(team)
 
   return (
-    <div className="pixel-panel flex items-center gap-2" style={{ padding: '6px 10px' }}>
+    <div className="pixel-panel team-strip flex items-center gap-2" style={{ padding: '6px 10px' }}>
       <span className="pixel-font shrink-0 text-xl" aria-label={`Còn ${alive} thú`}>
         {'❤️'.repeat(alive)}
         {'🖤'.repeat(team.length - alive)}

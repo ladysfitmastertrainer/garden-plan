@@ -346,14 +346,37 @@ body {
 }
 
 @media (orientation: landscape) and (max-height: 560px) {
-  .battle-layout {
+  /*
+    XOAY NGANG PHẢI ĐƯỢC NHIỀU HƠN, KHÔNG PHẢI ÍT HƠN.
+
+    Bản trước chia 44/56 và giữ nguyên lề 12px. Trên một máy 844×390 thì khung
+    trận còn 355px ngang - hẹp hơn cả khi dựng đứng (366px) - nên xoay máy ra
+    xong sân đấu lại bé đi. Chia đôi và bóp lề xuống còn 6px thì nó lên 404px,
+    đủ để hai nhân vật nhảy lên một bội số phóng (xem `arenaScales`).
+
+    Nhân đôi tên lớp để thắng `px-3 py-3` của Tailwind - cùng độ đặc hiệu thì cái
+    nào viết sau thắng, mà thứ tự ấy phụ thuộc vào cách gói CSS, không đáng tin.
+  */
+  .battle-layout.battle-layout {
     display: grid;
-    grid-template-columns: minmax(0, 44fr) minmax(0, 56fr);
+    grid-template-columns: minmax(0, 50fr) minmax(0, 50fr);
     align-items: stretch;
     max-width: none;
     height: 100dvh;
     min-height: 0;
     overflow: hidden;
+    padding: 6px 8px;
+    gap: 0.5rem;
+  }
+
+  /* Dải đội thú nén lại: mỗi điểm ảnh nó nhường ra là một điểm ảnh sân đấu cao
+     thêm, mà ở đây chiều cao đang là thứ chật nhất. */
+  .team-strip.team-strip {
+    padding: 2px 6px;
+  }
+
+  .team-strip .pixel-font {
+    font-size: 0.95rem;
   }
 
   /* Khung trận cao bằng cột - xem `--arena-height` trong PixelBattle.tsx. */
@@ -399,24 +422,13 @@ body {
 
 }
 
-/* Đi cảnh: D-pad đứng CẠNH khung game trên mọi màn hình đủ rộng - điện thoại
-   nằm ngang lẫn máy tính.
+/* Đi cảnh: khung game lấy TRỌN bề ngang trên màn hình rộng.
 
-   Xếp dưới thì nó ăn 195px chiều cao. Trên điện thoại nằm ngang nó rơi khỏi tầm
-   nhìn; trên máy tính nó ép khung game co xuống bội số 3, bé tí giữa màn hình
-   rộng. Đứng cạnh thì cả hai chỗ đều được thoải mái. */
+   Trước đây chỗ này bẻ `.overworld-layout` thành một hàng ngang để D-pad đứng
+   cạnh khung game. D-pad giờ nằm đè lên chính khung game (xem `TouchPad` trong
+   `Overworld.tsx`), nên không còn gì để đứng cạnh - và 200px vốn phải nhường cho
+   nó quay về cho khung game. */
 @media (min-width: 820px) {
-  .overworld-layout {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-  }
-
-  /* Khung ngoài rộng ra để khung game phóng được to hơn. Ở mức max-w-3xl (768px)
-     thì trừ đi 200px cho D-pad chỉ còn 568px - vừa đúng bội số 3, và bội số 4
-     không bao giờ với tới được dù màn hình rộng bao nhiêu. */
   .map-layout.map-layout {
     max-width: 1280px;
   }

@@ -7,8 +7,9 @@
  * là gần 400 phần tử, cuộn sẽ giật trên máy tính bảng cũ - đúng loại máy các
  * trường hay dùng.
  *
- * Điều khiển: phím mũi tên / WASD cho máy tính, và một D-pad chạm cho máy tính
- * bảng. Trẻ tiểu học hầu hết chơi trên tablet nên D-pad là đường vào chính.
+ * Điều khiển: phím mũi tên / WASD cho máy tính, và bốn mũi tên mờ nằm ĐÈ LÊN
+ * khung game cho máy chạm. Trẻ tiểu học hầu hết chơi trên điện thoại và máy tính
+ * bảng nên bốn mũi tên ấy mới là đường vào chính - xem `TouchPad`.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -29,21 +30,18 @@ const TILE = 16
  *
  * Máy nằm ngang dùng khung THẤP HƠN: màn hình điện thoại xoay ngang chỉ cao
  * chừng 390px, giữ nguyên 9 hàng là riêng khung game đã cao gần 300px và đẩy mọi
- * thứ khác khỏi tầm nhìn. Bề ngang giữ nguyên - chỗ tiết kiệm được dành cho
- * D-pad chuyển sang đứng cạnh.
+ * thứ khác khỏi tầm nhìn. Bề ngang giữ nguyên, và giờ nó lấy trọn màn hình - bốn
+ * mũi tên nằm đè lên khung chứ không ăn chỗ nào nữa.
  */
 const VIEW_COLS = 11
 const VIEW_ROWS = 9
 const VIEW_ROWS_WIDE = 7
 /**
- * Bề ngang D-pad chiếm khi nó đứng CẠNH khung game (màn hình ngang).
+ * Lề dưới của trang, chừa lại sau khung game.
  *
- * Phải trừ ra khi tính bội số phóng, nếu không khung game lấy trọn bề ngang cột
- * rồi đẩy D-pad tràn ra ngoài mép màn hình.
+ * Không còn phải trừ chỗ cho D-pad: từ bản này D-pad nằm ĐÈ LÊN khung game chứ
+ * không đứng dưới hay đứng cạnh nó nữa - xem `TouchPad`.
  */
-const DPAD_WIDTH = 200
-
-/** Khe giữa khung game với D-pad, cộng lề dưới của trang. */
 const VIEW_MARGIN = 28
 
 /**
@@ -55,20 +53,6 @@ const VIEW_MARGIN = 28
  * quyết định - máy nhỏ vẫn tự về 2 như cũ.
  */
 const MAX_SCALE = 6
-
-/**
- * Bề ngang tối thiểu để D-pad đứng CẠNH khung game thay vì nằm dưới.
- *
- * 820px bắt trọn cả điện thoại nằm ngang (844px) lẫn mọi màn hình máy tính.
- * Trước đây điều kiện là "lùn VÀ rộng", nên trên máy tính D-pad vẫn nằm dưới và
- * ăn mất 195px chiều cao - khung game phải co lại còn bội số 3, nhỏ tí xíu giữa
- * một màn hình 1440px. Cùng ngưỡng với `@media` trong `index.css`.
- */
-const SIDE_DPAD_MIN_WIDTH = 820
-
-function hasSideDpad(): boolean {
-  return window.innerWidth >= SIDE_DPAD_MIN_WIDTH
-}
 
 /** Màn hình lùn: bớt hàng đi cho vừa. Máy tính cao ráo thì giữ đủ chín hàng. */
 function isShortScreen(): boolean {
@@ -85,7 +69,7 @@ const STEP_MS = 170
  */
 const MIN_ROWS = 7
 
-/** Đáy cùng: thà khung game bé còn hơn D-pad rơi khỏi màn hình. */
+/** Đáy cùng: thà khung game bé còn hơn phần đầu trang bị đẩy khỏi màn hình. */
 const FLOOR_ROWS = 5
 
 type Direction = 'up' | 'down' | 'left' | 'right'
@@ -358,17 +342,16 @@ export function Overworld({
     const width = el?.clientWidth ?? 0
     if (!el || width === 0) return
 
-    const wide = hasSideDpad()
     const cols = VIEW_COLS
     const maxRows = isShortScreen() ? VIEW_ROWS_WIDE : VIEW_ROWS
-    const usable = wide ? width - DPAD_WIDTH : width
-    const maxScale = Math.max(2, Math.min(MAX_SCALE, Math.floor(usable / (cols * TILE))))
+    // Khung game lấy TRỌN bề ngang. D-pad nằm đè lên nó nên không ăn chỗ nào nữa
+    // - trước đây phải trừ 200px, và trên điện thoại nằm ngang chính 200px ấy là
+    // thứ ép khung game xuống nhỏ hơn cả lúc dựng đứng.
+    const maxScale = Math.max(2, Math.min(MAX_SCALE, Math.floor(width / (cols * TILE))))
 
-    // Chỗ trống còn lại theo chiều dọc: dưới phần đầu trang, trên D-pad. Máy
-    // nằm ngang thì D-pad đứng CẠNH khung game nên không trừ.
+    // Chỗ trống còn lại theo chiều dọc: tất cả những gì dưới phần đầu trang.
     const top = el.getBoundingClientRect().top + window.scrollY
-    const dpad = wide ? 0 : (el.lastElementChild?.getBoundingClientRect().height ?? 0)
-    const spare = window.innerHeight - top - dpad - VIEW_MARGIN
+    const spare = window.innerHeight - top - VIEW_MARGIN
 
     // Lấy bội số phóng LỚN NHẤT mà vẫn còn đủ hàng để nhìn. Phóng to quan
     // trọng hơn nhìn xa: trẻ cần thấy rõ con quái, còn bảy hàng là đủ để né.
@@ -659,13 +642,25 @@ export function Overworld({
         {/* Hộp thoại nằm ĐÈ LÊN đáy khung game, không nằm dưới bản đồ - nếu đặt
             dưới thì trên màn hình dọc nó rơi khỏi tầm nhìn và trẻ không thấy. */}
         {dialogue && (
-          <div className="absolute inset-x-2 bottom-2" style={{ zIndex: 2 }}>
+          <div className="absolute inset-x-2 bottom-2" style={{ zIndex: 3 }}>
             {dialogue}
           </div>
         )}
-      </div>
 
-      <DPad onMove={tryMove} disabled={stepping || paused || ambush !== null} />
+        {/*
+          Bốn mũi tên nằm ĐÈ LÊN khung game, mờ.
+
+          Giấu đi khi có hộp thoại: lúc ấy nhân vật không đi được nữa (`paused`),
+          nên bốn cái nút xám ngoét chồng lên lời thoại chỉ là bốn thứ vướng mắt.
+        */}
+        {!dialogue && (
+          <TouchPad
+            onMove={tryMove}
+            disabled={stepping || paused || ambush !== null}
+            viewHeight={viewHeight}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -840,7 +835,48 @@ function GateBadge({
 }
 
 /** Phím điều hướng cho màn hình cảm ứng. Ô chạm to để ngón tay trẻ không trượt. */
-function DPad({ onMove, disabled }: { onMove: (d: Direction) => void; disabled: boolean }) {
+/**
+ * Bốn mũi tên MỜ, nằm đè lên góc dưới - trái của khung game.
+ *
+ * Trước đây D-pad là một khối trắng đục 195px đứng NGOÀI khung game - dưới nó
+ * trên điện thoại dọc, cạnh nó trên màn hình rộng. Hai chỗ đều sai theo cùng một
+ * kiểu: nó ăn mất chỗ của chính cái nó dùng để điều khiển. Trên điện thoại nằm
+ * ngang, 200px bề ngang nhường cho D-pad ép khung game xuống nhỏ hơn cả lúc dựng
+ * đứng - xoay máy ra để nhìn rõ hơn mà lại nhìn được ít hơn.
+ *
+ * Giờ nó nằm ĐÈ LÊN game, mờ, đúng kiểu game đi cảnh trên điện thoại. Khung game
+ * lấy trọn màn hình, và ngón cái vẫn ở đúng chỗ nó vẫn hay đặt.
+ *
+ * GÓC DƯỚI - TRÁI, không phải giữa: đó là chỗ ngón cái trái rơi vào khi hai tay
+ * cầm ngang máy, và nó cũng là góc xa nhân vật nhất - nhân vật luôn đứng giữa
+ * khung (xem `camX`/`camY`), nên mũi tên không bao giờ che mất chính con mình.
+ *
+ * Nền để `pointer-events: none`, chỉ bốn cái nút nhận chạm. Không có nó thì cả
+ * khối trong suốt kia nuốt mọi cú chạm rơi vào góc ấy.
+ */
+function TouchPad({
+  onMove,
+  disabled,
+  viewHeight,
+}: {
+  onMove: (d: Direction) => void
+  disabled: boolean
+  /** Chiều cao khung game, để cụm mũi tên co theo chứ không đè kín nửa màn. */
+  viewHeight: number
+}) {
+  /*
+    Cỡ nút co theo khung game.
+
+    Cỡ cố định 52px nghe thì gọn, nhưng khung game nhỏ nhất (bội số phóng 2, bảy
+    hàng) chỉ cao 224px - cụm ba nút khi đó chiếm gần ba phần tư chiều cao, che
+    mất cả lối đi phía trước nhân vật.
+
+    Sàn 40px: dưới mức đó ngón tay trẻ bắt đầu bấm trượt. Trần 56px: to hơn nữa
+    thì trên máy tính nó thành một khối chình ình giữa khung game rộng, trong khi
+    ở đó gần như ai cũng dùng phím mũi tên.
+  */
+  const size = Math.max(40, Math.min(56, Math.round(viewHeight / 5.2)))
+
   const button = (direction: Direction, glyph: string, gridArea: string) => (
     <button
       type="button"
@@ -849,20 +885,32 @@ function DPad({ onMove, disabled }: { onMove: (d: Direction) => void; disabled: 
         event.preventDefault()
         onMove(direction)
       }}
+      // Không để trình duyệt hiểu cú vuốt trên nút thành cuộn trang hay phóng to.
+      style={{
+        gridArea,
+        pointerEvents: 'auto',
+        touchAction: 'none',
+        width: size,
+        height: size,
+        background: 'rgb(248 248 240 / 0.42)',
+        border: '3px solid rgb(27 36 50 / 0.45)',
+        borderRadius: 10,
+        color: 'rgb(27 36 50 / 0.75)',
+        // Mờ mà vẫn đọc được trên nền cỏ sáng lẫn nền cát: viền chữ tối một vòng.
+        textShadow: '0 1px 0 rgb(255 255 255 / 0.6)',
+        /*
+          CỐ Ý không tô mờ thêm khi `disabled`.
+
+          `disabled` bật lên suốt 170 mili giây của MỖI bước đi (`stepping`), nên
+          giữ ngón tay trên nút để đi liên tục là bốn mũi tên nhấp nháy theo từng
+          bước. Nút vẫn không ăn cú chạm trong lúc đó - chỉ là nó không nói ra,
+          và ở đây im lặng đúng hơn: trẻ đang đi, không phải đang bị chặn.
+        */
+      }}
       aria-label={
         { up: 'Đi lên', down: 'Đi xuống', left: 'Sang trái', right: 'Sang phải' }[direction]
       }
-      className="pixel-font flex items-center justify-center text-2xl"
-      style={{
-        gridArea,
-        width: 62,
-        height: 62,
-        background: '#f8f8f0',
-        border: '4px solid #1b2432',
-        borderRadius: 6,
-        boxShadow: '0 4px 0 0 #1b2432',
-        color: '#1b2432',
-      }}
+      className="pixel-font flex items-center justify-center text-xl"
     >
       {glyph}
     </button>
@@ -870,8 +918,12 @@ function DPad({ onMove, disabled }: { onMove: (d: Direction) => void; disabled: 
 
   return (
     <div
-      className="grid gap-1"
+      className="absolute grid gap-1"
       style={{
+        left: 8,
+        bottom: 8,
+        zIndex: 2,
+        pointerEvents: 'none',
         gridTemplateAreas: '". up ." "left . right" ". down ."',
         gridTemplateColumns: 'repeat(3, auto)',
       }}

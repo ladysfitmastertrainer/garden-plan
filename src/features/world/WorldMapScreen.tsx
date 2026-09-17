@@ -288,9 +288,11 @@ export function WorldMapScreen({
     // Phải đo CẢ CHIỀU CAO. Đo mỗi bề ngang thì trên điện thoại nằm ngang
     // (844×390) bản đồ lấy bội số 2 và cao 388px - dài hơn cả màn hình, nên
     // nửa lục địa nằm dưới tầm nhìn và trẻ phải vuốt mới thấy vùng của mình.
-    const head = el.firstElementChild?.getBoundingClientRect().height ?? 0
+    //
+    // Không còn trừ chiều cao hàng tiêu đề: tên vùng và hai mũi tên giờ nằm ĐÈ
+    // LÊN bản đồ chứ không đứng thành một hàng riêng phía trên nó.
     const top = el.getBoundingClientRect().top + window.scrollY
-    const spare = window.innerHeight - top - head - MAP_MARGIN
+    const spare = window.innerHeight - top - MAP_MARGIN
 
     // Chỉ dùng bội số nguyên: phóng to lẻ là điểm ảnh bị méo.
     const byWidth = Math.floor(width / CANVAS_WIDTH)
@@ -303,38 +305,7 @@ export function WorldMapScreen({
   const next = index >= 0 && index < open.length - 1 ? open[index + 1]! : null
 
   return (
-    <div ref={containerRef} className="pixel-ui world-layout grid gap-3">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => previous !== null && setView(previous)}
-          disabled={previous === null}
-          className="btn btn-ghost px-4"
-          style={{ opacity: previous === null ? 0.35 : 1 }}
-          aria-label={previous === null ? 'Không có lớp trước' : `Về quần đảo lớp ${previous}`}
-        >
-          ◀
-        </button>
-
-        <div className="flex-1 text-center">
-          <h2 className="pixel-font text-3xl leading-none">{layout.title}</h2>
-          <p className="pixel-font text-xl leading-none opacity-70">
-            Lớp {view} · {progress.done}/{progress.total} môn đã xong
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => next !== null && setView(next)}
-          disabled={next === null}
-          className="btn btn-ghost px-4"
-          style={{ opacity: next === null ? 0.35 : 1 }}
-          aria-label={next === null ? 'Chưa mở lớp sau' : `Sang quần đảo lớp ${next}`}
-        >
-          ▶
-        </button>
-      </div>
-
+    <div ref={containerRef} className="pixel-ui world-layout grid">
       <div
         className="relative mx-auto"
         style={{
@@ -425,20 +396,48 @@ export function WorldMapScreen({
             onSelect={() => setGateOpen(true)}
           />
         )}
-      </div>
 
-      {/* Chú giải: mỗi môn một vật mốc riêng. */}
-      <div className="flex flex-wrap justify-center gap-2">
-        {SUBJECTS.map((subject) => (
-          <span
-            key={subject}
-            className="pixel-panel flex items-center gap-1"
-            style={{ padding: '2px 8px' }}
-          >
-            <PixelSprite sprite={REGION_THEMES[subject].prop} scale={2} />
-            <span className="pixel-font text-lg">{SUBJECT_LABEL[subject]}</span>
+        {/*
+          ---- TÊN VÙNG VÀ HAI MŨI TÊN, NẰM ĐÈ LÊN CHÍNH TẤM BẢN ĐỒ ----
+
+          Trước đây cả ba thứ này là hai HÀNG RIÊNG kẹp trên dưới bản đồ, cộng
+          thêm một hàng chú giải bốn môn học nữa. Ba hàng ấy ăn gần 150px, và
+          trên điện thoại chúng đẩy chính tấm bản đồ - thứ duy nhất ở màn này
+          đáng nhìn - xuống còn một dải mỏng ở giữa.
+
+          Giờ chúng mờ và nằm đè lên bản đồ, đúng chỗ chúng nói về. Hàng chú giải
+          bốn môn thì bỏ hẳn: mỗi vùng đã có vật mốc riêng cắm ngay trên nó, và
+          chạm vào vùng nào cũng hiện tên vùng ấy - một bảng tra cứu đặt cạnh một
+          tấm bản đồ tự nó đã nói rõ là một bảng thừa.
+        */}
+        <div className="world-badge">
+          <span className="pixel-font world-badge-title">{layout.title}</span>
+          <span className="pixel-font world-badge-sub">
+            Lớp {view} · {progress.done}/{progress.total} môn xong
           </span>
-        ))}
+        </div>
+
+        {previous !== null && (
+          <button
+            type="button"
+            onClick={() => setView(previous)}
+            className="pixel-font world-step world-step-prev"
+            aria-label={`Về quần đảo lớp ${previous}`}
+          >
+            ◀
+          </button>
+        )}
+
+        {next !== null && (
+          <button
+            type="button"
+            onClick={() => setView(next)}
+            className="pixel-font world-step world-step-next"
+            aria-label={`Sang quần đảo lớp ${next}`}
+          >
+            ▶
+          </button>
+        )}
       </div>
 
       {selected && (

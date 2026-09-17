@@ -258,6 +258,21 @@ export function PixelBattle({
     )
   })
 
+  /*
+    Chiều cao THẬT của khung máu trẻ.
+
+    Cần đo chứ không đoán: khung này cao bao nhiêu là tuỳ phông chữ pixel đã nạp
+    xong chưa, tuỳ tên thú dài ngắn, và tuỳ cỡ chữ của máy. Một con số gõ tay sẽ
+    đúng trên máy của người viết ra nó và sai ở mọi máy khác.
+  */
+  const heroHpRef = useRef<HTMLDivElement>(null)
+  const [heroHpHeight, setHeroHpHeight] = useState(70)
+
+  useMeasureOnLayout(heroHpRef, () => {
+    const height = heroHpRef.current?.getBoundingClientRect().height ?? 0
+    if (height > 0) setHeroHpHeight((current) => (current === height ? current : height))
+  })
+
   /**
    * Nhãn "đúng / chưa đúng" hiện ngay trong khung trận.
    *
@@ -373,13 +388,23 @@ export function PixelBattle({
           mép trên. Chặn ở "cách đáy đúng bằng chiều cao khung trừ 62px" nên dù
           khung có thấp tới đâu, thanh máu vẫn nằm trong. */}
       <motion.div
+        ref={heroHpRef}
         className="absolute"
         style={{
           left: '4%',
-          // Chiều cao nhân vật là `fit.hero × 16` điểm ảnh, cộng 4px cho khỏi
-          // dính đầu. Gõ cứng 132px như trước thì nhân vật co lại mà thanh máu
-          // vẫn treo ở chỗ cũ, lơ lửng giữa trời.
-          bottom: `min(calc(12% + ${fit.hero * 16 + 4}px), calc(100% - 62px))`,
+          /*
+            Treo trên đầu nhân vật, nhưng KHÔNG BAO GIỜ trèo qua mép trên.
+
+            Chiều cao nhân vật là `fit.hero × 16` điểm ảnh, cộng 4px cho khỏi
+            dính đầu. Gõ cứng 132px như trước thì nhân vật co lại mà thanh máu
+            vẫn treo ở chỗ cũ, lơ lửng giữa trời.
+
+            Cái chặn phải trừ CHIỀU CAO THẬT của chính khung máu này. Bản trước
+            trừ một con số 62px gõ tay, mà khung máu cao hơn thế - nên ở khung
+            trận thấp, cái chặn đẩy khung máu lên tới mức nửa trên của nó thò hẳn
+            ra ngoài viền. Đo rồi trừ thì không còn chỗ nào để lệch.
+          */
+          bottom: `min(calc(12% + ${fit.hero * 16 + 4}px), calc(100% - ${heroHpHeight + 8}px))`,
           zIndex: 3,
         }}
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}

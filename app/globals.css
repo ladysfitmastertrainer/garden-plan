@@ -768,19 +768,9 @@ body {
     font-size: 1.05rem;
   }
 
-  /* Tên quần đảo: chữ vừa phải. Ở khổ text-3xl hàng tiêu đề cao 57px, bằng
-     gần một phần ba chỗ mà bản đồ được chia. */
-  .world-layout {
-    gap: 0.35rem;
-  }
-
-  .world-layout h2 {
-    font-size: 1.1rem;
-  }
-
-  .world-layout h2 + p {
-    font-size: 0.85rem;
-  }
+  /* Hàng tiêu đề của bản đồ thế giới ĐÃ KHÔNG CÒN - tên quần đảo và hai mũi tên
+     đổi lớp giờ là lớp phủ mờ nằm trên chính tấm bản đồ. Ba luật chỉnh cỡ chữ
+     cho hàng ấy đi theo nó. */
 
   .region-layout {
     gap: 0.4rem;
@@ -1101,16 +1091,6 @@ textarea.admin-input {
   cursor: pointer;
 }
 
-/* Hàng đầu của bản đồ thế giới chừa chỗ cho nút ☰.
-
-   Hàng đó kết thúc bằng nút "▶ sang quần đảo lớp sau", nằm sát mép phải - đúng
-   chỗ nút ☰ đậu xuống. Hai nút chồng lên nhau thì cú chạm rơi vào nút vẽ trên
-   cùng, và trẻ bấm "sang lớp sau" lại ra ngăn kéo. Trong vùng đất thì không cần
-   luật này: ở đó dải nút nổi đứng bên TRÁI. */
-.map-immersive > .world-layout > :first-child {
-  padding-right: 52px;
-}
-
 /* Ngăn kéo: phủ kín màn hình và CUỘN ĐƯỢC.
 
    Phủ kín chứ không trượt nửa vời: những thứ trong này - hồ sơ, kho đồ, bảng bạn
@@ -1160,4 +1140,94 @@ textarea.admin-input {
   border: 3px solid rgb(27 36 50 / 0.5);
   border-radius: 10px;
   cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   BẢN ĐỒ THẾ GIỚI: TÊN VÙNG VÀ HAI MŨI TÊN NẰM ĐÈ LÊN BẢN ĐỒ
+   ---------------------------------------------------------------------------
+
+   Trước đây chúng là hai hàng riêng kẹp trên dưới bản đồ, cộng thêm một hàng chú
+   giải bốn môn học. Ba hàng ấy ăn gần 150px chiều cao - và trên điện thoại, đó
+   là 150px lấy thẳng từ thứ duy nhất ở màn này đáng nhìn. */
+
+/* Nhãn tên vùng: góc trên - TRÁI. Góc phải để dành cho nút mở ngăn kéo.
+
+   `pointer-events: none` vì nó chỉ để đọc: không có nó thì cái nhãn nuốt mọi cú
+   chạm rơi vào góc ấy, mà góc ấy là mặt biển - chạm vào đáng lẽ không xảy ra gì,
+   và "không xảy ra gì" phải là không xảy ra gì thật. */
+.world-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 3;
+  display: grid;
+  padding: 3px 9px;
+  border: 3px solid rgb(27 36 50 / 0.55);
+  border-radius: 8px;
+  background: rgb(248 248 240 / 0.72);
+  color: rgb(27 36 50 / 0.9);
+  pointer-events: none;
+}
+
+.world-badge-title {
+  font-size: 1.15rem;
+  line-height: 1.1;
+}
+
+.world-badge-sub {
+  font-size: 0.95rem;
+  line-height: 1.1;
+  opacity: 0.75;
+}
+
+/* Hai mũi tên đổi quần đảo: dán vào hai mép TRÁI và PHẢI, giữa chiều cao.
+
+   Chỉ hiện khi thật sự có quần đảo để sang - một mũi tên mờ tịt bấm không ăn
+   thua còn khó hiểu hơn là không có mũi tên nào. */
+.world-step {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 40px;
+  height: 52px;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: rgb(27 36 50 / 0.8);
+  background: rgb(248 248 240 / 0.6);
+  border: 3px solid rgb(27 36 50 / 0.45);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.world-step-prev {
+  left: 4px;
+}
+
+.world-step-next {
+  right: 4px;
+}
+
+/* Chữ trong nút KHÔNG được xuống dòng.
+
+   Một cái nút cao gấp đôi vì nhãn bị bẻ làm hai không chỉ xấu: nó đẩy cả hàng
+   nút cao theo, và hàng nút ấy đứng ngay trên bản đồ.
+
+   Nằm NGOÀI @layer components có chủ ý - lớp không phân tầng luôn thắng lớp đã
+   phân tầng, nên luật này đè được lên .btn mà không cần !important. */
+.btn {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Bản đồ thế giới ở chế độ toàn màn hình: căn giữa theo cả hai chiều.
+
+   Lục địa là một hình NẰM NGANG (336×180 điểm ảnh gốc), nên trên máy dựng đứng
+   nó không bao giờ lấp đầy chiều cao. Dồn lên đỉnh thì phần trống dồn hết xuống
+   đáy và màn hình trông như bị hụt; căn giữa thì khoảng trống chia đều hai bên. */
+.map-immersive > .world-layout,
+.map-immersive > .region-layout {
+  height: 100%;
+  align-content: center;
+  justify-items: center;
 }

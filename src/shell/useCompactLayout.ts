@@ -18,12 +18,17 @@ import { useSyncExternalStore } from 'react'
 /**
  * Ngưỡng bề ngang.
  *
- * 820px: cùng con số mà `app/globals.css` dùng cho màn đi cảnh, và nó bắt trọn
- * cả điện thoại dựng đứng lẫn nằm ngang (844px là chiều dài một máy phổ thông).
- * Máy tính bảng dựng đứng (768px) cũng vào đây - và nên vào, vì ở đó cũng chính
- * cái bản đồ là thứ trẻ cần nhìn.
+ * HAI điều kiện, nối bằng dấu phẩy - trong media query dấu phẩy nghĩa là HOẶC:
+ *
+ *   (max-width: 820px)   máy HẸP: điện thoại dựng đứng, máy tính bảng dựng đứng.
+ *   (max-height: 560px)  máy LÙN: chính là điện thoại lúc xoay ngang.
+ *
+ * Vế thứ hai là vế bản đầu thiếu, và thiếu nó thì hỏng đúng cái việc người ta
+ * xoay máy để làm. Một máy 844×390 nằm ngang thì RỘNG 844px - nó trượt khỏi vế
+ * thứ nhất, rơi về bố cục máy tính, rồi dính tiếp một khối @media bẻ trang thành
+ * lưới hai cột. Xoay máy ra để nhìn cho rõ, và màn chơi bị bóp vào một cột hẹp.
  */
-const COMPACT_QUERY = '(max-width: 820px)'
+const COMPACT_QUERY = '(max-width: 820px), (max-height: 560px)'
 
 function subscribe(onChange: () => void): () => void {
   const mql = window.matchMedia(COMPACT_QUERY)

@@ -14,13 +14,16 @@ import { Overworld } from '../world/Overworld'
 import { DialogueBox } from '../../ui/DialogueBox'
 import { HERO_CREATURES, creatureFromAvatar } from '../pixel/creatures'
 import { PixelSprite } from '../pixel/sprite'
-import { buildTeam } from '../../content/pets'
+import { PETS, buildTeam } from '../../content/pets'
 import { petSpriteFor } from '../inventory/PetCollection'
 import { biomeFor, gradeLight } from '../world/biome'
 import { SkillTreeScreen } from '../world/SkillTreeScreen'
-import { SUBJECT_LABEL, type Grade, type Subject } from '../../content/types'
+import { SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from '../../content/types'
 import { WorldMapScreen } from '../world/WorldMapScreen'
-import type { MapNode } from '../../content/worldmap'
+import { totalNodes, type MapNode } from '../../content/worldmap'
+// Cùng tên với `regionKey` của store/ui nhưng khác chữ ký - cái này nhận (môn,
+// lớp), cái kia nhận một đối tượng vùng. Đổi tên để không ai gọi nhầm.
+import { regionKey as progressKey, type StudentProgress } from '../../data/types'
 import { levelFromTotalXp } from '../../engine/rewards'
 import { useAuth } from '../../store/auth'
 import { useGame } from '../../store/game'
@@ -132,6 +135,14 @@ export function MapScreen() {
         lúc này em đang đi cảnh. Giữ nguyên ô chạm 48px nên ngón tay vẫn bấm
         trúng, và tên vẫn còn cho trình đọc màn hình.
       */}
+      {/*
+        KHÔNG còn nút "Bố mẹ / Thầy cô" ở đây.
+
+        Khu vực người lớn đã có lối vào riêng của nó: đăng xuất khỏi hồ sơ trẻ
+        bằng nút ở thanh trên là về thẳng đó. Một nút thứ hai dẫn tới cùng chỗ,
+        đặt giữa màn chơi của trẻ, chỉ làm hai việc: chiếm chỗ, và mời một đứa
+        bé bảy tuổi bấm vào trang số liệu không dành cho nó.
+      */}
       <nav className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -142,17 +153,11 @@ export function MapScreen() {
         >
           {navCompact ? '🎒' : '🎒 Kho đồ'}
         </button>
-        <button
-          type="button"
-          onClick={() => go('dashboard')}
-          className={navCompact ? 'btn btn-ghost px-4 text-lg' : 'btn btn-ghost flex-1 text-base'}
-          aria-label="Bố mẹ / Thầy cô"
-          title="Bố mẹ / Thầy cô"
-        >
-          {navCompact ? '📊' : '📊 Bố mẹ / Thầy cô'}
-        </button>
         <MuteButton compact={navCompact} />
       </nav>
+
+      {/* Ngăn kéo là chỗ duy nhất trẻ dừng lại đọc, nên bảng tiến độ nằm ở đây. */}
+      {immersive && <ProgressPanel progress={progress} grade={student.grade} region={region} />}
 
       <InstallPrompt />
 
@@ -244,6 +249,89 @@ export function MapScreen() {
       {chrome}
       {mapArea}
     </div>
+  )
+}
+
+/**
+ * "Con đang ở đâu, và con đã đi được tới đâu."
+ *
+ * Chỉ có mặt trong ngăn kéo trên điện thoại, và đó là chủ ý: ngăn kéo là chỗ
+ * DUY NHẤT trẻ dừng lại để đọc. Mọi chỗ khác trên màn chơi, em ấy đang đi, đang
+ * đánh, hoặc đang chọn - dán một bảng số liệu vào đó thì nó vừa bị lướt qua vừa
+ * lấy mất chỗ của bản đồ.
+ *
+ * Số liệu ở đây là số của CHÍNH TRẺ, viết cho trẻ đọc: bao nhiêu chặng đã qua,
+ * bao nhiêu con thú đã có, thắng bao nhiêu trận. Không có tỉ lệ phần trăm, không
+ * có biểu đồ, không có mức thạo - những thứ ấy là ngôn ngữ của người lớn và đã
+ * có chỗ riêng của chúng ở khu vực phụ huynh.
+ */
+function ProgressPanel({
+  progress,
+  grade,
+  region,
+}: {
+  progress: StudentProgress
+  grade: Grade
+  region: { subject: Subject; grade: Grade } | null
+}) {
+  const here = region ? biomeFor(region.subject, region.grade) : null
+  const pets = progress.pets?.length ?? 0
+
+  return (
+    <section className="pixel-panel grid gap-2">
+      <p className="pixel-font text-xl">📍 Con đang ở</p>
+      <p className="text-base leading-snug">
+        {here ? (
+          <>
+            <strong>{here.land}</strong> — {SUBJECT_LABEL[region!.subject]} lớp {region!.grade}
+          </>
+        ) : (
+          <>
+            <strong>Bản đồ thế giới</strong> — quần đảo lớp {grade}
+          </>
+        )}
+      </p>
+
+      <p className="pixel-font mt-1 text-xl">📈 Con đã đi tới đâu</p>
+      <div className="grid gap-1">
+        {SUBJECTS.map((subject) => {
+          const total = totalNodes(subject, grade)
+          const cleared = Math.min(total, progress.clearedNodes[progressKey(subject, grade)] ?? 0)
+          return (
+            <div key={subject} className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-base">{SUBJECT_LABEL[subject]}</span>
+              <span
+                className="h-3 overflow-hidden"
+                style={{
+                  width: 96,
+                  background: '#5a6472',
+                  border: '2px solid #1b2432',
+                  borderRadius: 3,
+                }}
+                role="img"
+                aria-label={`${cleared} trên ${total} chặng`}
+              >
+                <span
+                  className="block h-full"
+                  style={{
+                    width: `${(cleared / total) * 100}%`,
+                    background: SUBJECT_STYLE[subject].color,
+                  }}
+                />
+              </span>
+              <span className="pixel-font text-base tabular-nums opacity-70">
+                {cleared}/{total}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="mt-1 text-base leading-snug">
+        🐾 Thú đã thu phục: <strong>{pets}</strong>/{PETS.length} · 🏆 Thắng{' '}
+        <strong>{progress.battlesWon}</strong>/{progress.battlesPlayed} trận
+      </p>
+    </section>
   )
 }
 

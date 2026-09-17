@@ -11,6 +11,7 @@ import { SpellPicker, TeamStrip } from './SpellPicker'
 import { PixelBattle } from './PixelBattle'
 import { DialogueBox } from '../../ui/DialogueBox'
 import { QuestionView } from '../question/QuestionView'
+import { questionLimitMs } from '../../engine/battle'
 
 const SUBJECT_COLOR: Record<Subject, string> = {
   math: 'var(--color-math)',
@@ -23,6 +24,7 @@ export function BattleScreen() {
   const battle = useGame((s) => s.battle)
   const subject = useGame((s) => s.battleSubject)
   const answer = useGame((s) => s.answer)
+  const attack = useGame((s) => s.attack)
   const timeUp = useGame((s) => s.timeUp)
   const useHint = useGame((s) => s.useHint)
   const next = useGame((s) => s.next)
@@ -48,6 +50,18 @@ export function BattleScreen() {
   const inFeedback = battle.phase === 'feedback'
   // Pha chọn phép: câu hỏi khoá lại, trẻ đang quyết định tung phép nào.
   const inSpell = battle.phase === 'spell'
+  /*
+    Pha chờ: SÂN ĐẤU MỘT MÌNH TRÊN MÀN HÌNH.
+
+    Đây là khoảnh khắc cả màn trận được thiết kế lại để có: giữa hai lượt, khung
+    hỏi biến hẳn đi và chỉ còn con quái, đội thú, hai thanh máu, cùng một nút
+    "Tấn công". Trẻ nhìn thấy mình đang ở đâu trong trận trước khi bước vào câu
+    tiếp theo - thứ mà một chuỗi câu hỏi nối đuôi nhau không bao giờ cho.
+  */
+  const inReady = battle.phase === 'ready'
+  /** Lượt của quái: câu hỏi này để ĐỠ ĐÒN, và luôn có đồng hồ. */
+  const defending = battle.stance === 'defend'
+  const limitMs = questionLimitMs(battle)
 
   const handleAnswer = (input: AnswerInput) => {
     if (battle.phase !== 'question') return
@@ -89,6 +103,36 @@ export function BattleScreen() {
           // Cấp của quái lấy theo chặng trên bản đồ: đi càng xa gặp quái càng mạnh.
           enemyLevel={(battleNode?.index ?? 0) + (student?.grade ?? 1)}
         />
+
+        {/*
+          Nút "Tấn công", nằm ĐÈ LÊN sân đấu chứ không nằm trong khung hỏi.
+
+          Trong khung hỏi thì nó kéo cả khung ấy hiện lên giữa hai lượt, mà khung
+          hỏi lúc nằm ngang là một khung nổi che gần kín màn hình - đúng cái vừa
+          được dọn đi. Ở đây nó là một nút nổi trên chính sân đấu, và sân đấu ở
+          lại trọn vẹn cho tới lúc trẻ quyết định ra đòn.
+        */}
+        <AnimatePresence>
+          {inReady && (
+            <motion.div
+              className="absolute inset-x-0 bottom-0 flex justify-center p-3"
+              style={{ zIndex: 7 }}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 20, opacity: 0 }}
+            >
+              <button
+                type="button"
+                onClick={attack}
+                autoFocus
+                className="btn btn-primary px-8 text-2xl"
+                style={{ background: accent, minHeight: 56 }}
+              >
+                ⚔️ Tấn công!
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {inSpell && (
@@ -144,7 +188,9 @@ export function BattleScreen() {
                 aria-live="polite"
               >
                 <p className="text-xl font-extrabold leading-tight">
-                  {feedbackHeadline(judgement.correct, isEthics, judgement.quality)}
+                  {battle.blocked
+                    ? '🛡️ Đỡ được rồi!'
+                    : feedbackHeadline(judgement.correct, isEthics, judgement.quality)}
                 </p>
                 <p className="mt-1 text-lg leading-snug">{judgement.message}</p>
 
@@ -184,22 +230,45 @@ export function BattleScreen() {
         và `.battle-ask-hidden` không có tác dụng gì - luật ấy nằm trong
         @media của hướng ngang.
       */}
+      {/*
+        Pha chờ thì khung hỏi KHÔNG ĐƯỢC DỰNG RA, ở cả hai hướng máy.
+
+        Giấu bằng CSS thì ở màn hình dọc nó vẫn giữ nguyên chỗ, và sân đấu vẫn
+        bị ép vào đúng khoảng cũ - trong khi cả điểm của pha chờ là để sân đấu
+        nở ra. Không dựng thì khối co giãn tự trả chỗ ấy về cho sân đấu.
+      */}
+      {!inReady && (
       <div className={`pixel-panel battle-ask${inFeedback || inSpell ? ' battle-ask-hidden' : ''}`}>
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="pixel-font text-lg uppercase" style={{ color: accent }}>
-            {SUBJECT_LABEL[subject]}
+            {defending ? `🛡️ ${battle.enemy.name} tấn công!` : SUBJECT_LABEL[subject]}
           </p>
           <TurnPips current={battle.questionsAsked} total={battle.maxQuestions} color={accent} />
         </div>
 
-        {battle.timeLimitMs !== null && (
+        {/*
+          Lượt của quái nói thẳng ra luật chơi, mỗi lần.
+
+          Không phải vì trẻ quên, mà vì hậu quả của câu này khác hẳn câu trước
+          đó: trả lời đúng ở đây KHÔNG gây sát thương, nó chỉ giữ cho mình không
+          bị đánh. Một đứa bé bảy tuổi không suy ra được điều ấy từ một cái viền
+          đổi màu.
+        */}
+        {defending && (
+          <p className="battle-defend-note mb-2">
+            Trả lời kịp giờ thì con đỡ được đòn này. Không kịp là ăn đòn đấy!
+          </p>
+        )}
+
+        {limitMs !== null && (
           <BattleTimer
-            limitMs={battle.timeLimitMs}
+            limitMs={limitMs}
             startedAt={battle.questionShownAt}
             // Đồng hồ chỉ chạy lúc trẻ đang được trả lời. Ở pha chọn phép và pha
             // phản hồi thì nó đứng im - trẻ đang xem con thú tung phép, không
             // được tính vào thời gian suy nghĩ.
             running={battle.phase === 'question'}
+            defending={defending}
             onExpire={timeUp}
           />
         )}
@@ -234,6 +303,7 @@ export function BattleScreen() {
           </div>
         )}
       </div>
+      )}
 
     </div>
   )
@@ -253,8 +323,11 @@ function BattleTimer({
   limitMs,
   startedAt,
   running,
+  defending = false,
   onExpire,
 }: {
+  /** Đồng hồ này đang đếm một cú đánh đang bay tới, không phải một bài kiểm tra. */
+  defending?: boolean
   limitMs: number
   startedAt: number
   running: boolean
@@ -297,7 +370,12 @@ function BattleTimer({
         <span className="pixel-font text-lg" style={{ color }}>
           ⏱ {Math.ceil(leftMs / 1000)}s
         </span>
-        <span className="pixel-font text-base opacity-70">Trận này có đếm giờ!</span>
+        {/* Ở lượt đỡ đòn, cái đồng hồ KHÔNG nói về trận đấu mà nói về cú đánh
+            đang bay tới - "trận này có đếm giờ" ở đó vừa sai vừa vô nghĩa, vì
+            trận thường vốn không đếm giờ ở lượt nào khác. */}
+        <span className="pixel-font text-base opacity-70">
+          {defending ? 'Đỡ nhanh lên!' : 'Trận này có đếm giờ!'}
+        </span>
       </div>
       <div
         className="h-3 overflow-hidden"

@@ -104,12 +104,20 @@ function answerWrongly(question: Question): void {
   }
 }
 
-/** Chơi tới khi trận kết thúc. `mode` quyết định trả lời đúng hay sai. */
+/**
+ * Chơi tới khi trận kết thúc. `mode` quyết định trả lời đúng hay sai.
+ *
+ * Trần vòng lặp gấp đôi so với trước, vì một vòng giờ có hai lượt: con ra đòn,
+ * rồi quái ra đòn. Mười lượt ra đòn kéo theo tới bốn mươi bước máy trạng thái.
+ */
 async function playBattle(mode: 'win' | 'lose'): Promise<void> {
-  for (let guard = 0; guard < 60; guard++) {
+  for (let guard = 0; guard < 200; guard++) {
     const state = useGame.getState()
     if (!state.battle) break
-    if (state.battle.phase === 'question' && state.battle.question) {
+    if (state.battle.phase === 'ready') {
+      // Pha chờ: sân đấu một mình trên màn hình, trẻ bấm "Tấn công" mới đi tiếp.
+      state.attack()
+    } else if (state.battle.phase === 'question' && state.battle.question) {
       if (mode === 'win') answerCorrectly(state.battle.question)
       else answerWrongly(state.battle.question)
     } else if (state.battle.phase === 'spell') {
@@ -255,6 +263,8 @@ describe('vòng lặp trận đấu', () => {
     const map = useGame.getState().worldMap('math')
     useGame.getState().startBattle('math', map.nodes[0]!)
 
+    // Trận mở màn ở pha chờ - phải bấm "Tấn công" thì câu hỏi mới mở ra.
+    useGame.getState().attack()
     const question = useGame.getState().battle!.question!
     answerCorrectly(question)
 
@@ -396,6 +406,7 @@ describe('quy tắc riêng môn Đạo đức', () => {
     await newStudent(2)
     const map = useGame.getState().worldMap('ethics')
     useGame.getState().startBattle('ethics', map.nodes[0]!)
+    useGame.getState().attack()
     answerCorrectly(useGame.getState().battle!.question!)
 
     const virtues = useGame.getState().progress.virtues

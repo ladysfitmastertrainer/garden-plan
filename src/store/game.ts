@@ -20,7 +20,10 @@ import { TOWER_QUESTIONS, createTowerBoss, towerGrades } from '../content/tower'
 import type { Grade, Question, Subject } from '../content/types'
 import {
   advance as advanceBattle,
+  beginAttack,
   createBattle,
+  defendLimitFor,
+  questionLimitMs,
   submitAnswer,
   timeLimitFor,
   timeUp as timeUpAction,
@@ -166,6 +169,8 @@ interface GameState {
    * cửa riêng ở giữa lục địa.
    */
   startTowerBattle: (subject: Subject, grade?: Grade) => void
+  /** Trẻ bấm "Tấn công" ở pha chờ: câu hỏi hiện ra và đồng hồ bắt đầu chạy. */
+  attack: () => void
   answer: (input: AnswerInput) => void
   /** Hết giờ một câu ở trận trùm / trận đầu đàn. Tính như trả lời sai. */
   timeUp: () => void
@@ -379,6 +384,8 @@ export const useGame = create<GameState>((set, get) => ({
           team: buildTeam(progress.pets ?? [], subject, 3, progress.petXp ?? {}),
           maxQuestions: queue.length,
           timeLimitMs: node.kind === 'boss' ? timeLimitFor('boss', target) : null,
+          // Lượt ĐỠ ĐÒN luôn có đồng hồ, kể cả trận thường - xem defendLimitFor.
+          defendLimitMs: defendLimitFor(node.kind === 'boss' ? 'boss' : 'normal', target),
         },
         queue[0]!,
         Date.now(),
@@ -462,6 +469,7 @@ export const useGame = create<GameState>((set, get) => ({
           team: buildTeam(progress.pets ?? [], subject, 3, progress.petXp ?? {}),
           maxQuestions: queue.length,
           timeLimitMs: kind === 'mini' ? timeLimitFor('mini', target) : null,
+          defendLimitMs: defendLimitFor(kind === 'mini' ? 'mini' : 'normal', target),
         },
         queue[0]!,
         Date.now(),
@@ -549,6 +557,7 @@ export const useGame = create<GameState>((set, get) => ({
           team: buildTeam(progress.pets ?? [], subject, 4, progress.petXp ?? {}),
           maxQuestions: queue.length,
           timeLimitMs: timeLimitFor('tower', target),
+          defendLimitMs: defendLimitFor('tower', target),
         },
         queue[0]!,
         Date.now(),
@@ -564,6 +573,12 @@ export const useGame = create<GameState>((set, get) => ({
     })
   },
 
+  attack() {
+    const { battle } = get()
+    if (!battle) return
+    set({ battle: beginAttack(battle, Date.now()) })
+  },
+
   answer(input) {
     const { battle, student } = get()
     if (!battle || !battle.question || !student) return
@@ -575,7 +590,9 @@ export const useGame = create<GameState>((set, get) => ({
   timeUp() {
     const { battle, student } = get()
     if (!battle || !battle.question || !student) return
-    if (battle.phase !== 'question' || battle.timeLimitMs === null) return
+    // `questionLimitMs` chứ không phải `timeLimitMs`: lượt đỡ đòn có đồng hồ
+    // riêng, và ở trận thường thì đó là đồng hồ DUY NHẤT trong trận.
+    if (battle.phase !== 'question' || questionLimitMs(battle) === null) return
 
     const now = Date.now()
     commitBattleStep(timeUpAction(battle, now), battle.question, now, set, get)

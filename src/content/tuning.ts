@@ -31,6 +31,22 @@ export interface Tuning {
    * rồi mới chọn phép. Cơn giận còn rút tiếp một phần tư số này.
    */
   towerSeconds: number
+  /**
+   * Giờ để ĐỠ ĐÒN ở trận thường, tính bằng giây.
+   *
+   * Đây là ngoại lệ có chủ ý với "trận thường không đếm giờ": luật ấy nói về
+   * câu hỏi để HỌC. Câu này không phải để học, nó là con quái đang lao tới -
+   * cái đồng hồ chính là cú đánh đang bay đến.
+   */
+  defendSeconds: number
+  /**
+   * Giờ để ĐỠ ĐÒN ở trận trùm, đầu đàn và tháp.
+   *
+   * NGẮN HƠN giờ ra đòn của chính trận đó, và mã nguồn ép điều ấy: nếu thầy cô
+   * đặt số này lớn hơn giờ ra đòn thì giờ ra đòn được dùng thay. Ở trận trùm
+   * mọi thứ đều gấp hơn, mà cú đánh của trùm thì phải là thứ gấp nhất.
+   */
+  defendBossSeconds: number
   /** Nhân thêm giờ cho lớp 1-2, vì các em còn đánh vần cả đề bài. */
   youngReaderFactor: number
 
@@ -56,6 +72,8 @@ export const DEFAULT_TUNING: Tuning = {
   bossSeconds: 16,
   miniBossSeconds: 26,
   towerSeconds: 13,
+  defendSeconds: 20,
+  defendBossSeconds: 9,
   youngReaderFactor: 1.4,
   enemyHpScale: 1,
   enemyAttackScale: 1,
@@ -77,6 +95,8 @@ export const TUNING_RANGE: Record<keyof Tuning, { min: number; max: number; step
   bossSeconds: { min: 5, max: 120, step: 1 },
   miniBossSeconds: { min: 5, max: 120, step: 1 },
   towerSeconds: { min: 5, max: 120, step: 1 },
+  defendSeconds: { min: 4, max: 60, step: 1 },
+  defendBossSeconds: { min: 3, max: 60, step: 1 },
   youngReaderFactor: { min: 1, max: 3, step: 0.1 },
   enemyHpScale: { min: 0.3, max: 3, step: 0.1 },
   enemyAttackScale: { min: 0.2, max: 3, step: 0.1 },

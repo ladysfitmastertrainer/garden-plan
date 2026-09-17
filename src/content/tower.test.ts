@@ -21,6 +21,7 @@ import { SUBJECTS, type Grade, type Subject } from './types'
 import { createRng } from '../engine/rng'
 import {
   advance,
+  beginAttack,
   castSpell,
   createBattle,
   enemyAttackOf,
@@ -54,9 +55,16 @@ const spell = (element: Subject): Spell => ({
   flavour: 'tung một đòn',
 })
 
-/** Trận trong tháp, dựng từ đúng con trùm thật. */
+/**
+ * Trận trong tháp, dựng từ đúng con trùm thật, và đã bấm "Tấn công".
+ *
+ * Từ bản có hai lượt, trận mở màn ở pha chờ - màn hình chỉ có sân đấu và một
+ * nút. Mọi test trong tệp này nói về đòn đánh và về luật riêng của trùm tháp,
+ * không nói về pha chờ, nên chúng bắt đầu ở đúng chỗ chúng cần.
+ */
 function towerBattle(subject: Subject = 'math', grade: Grade = 3, overrides: Partial<BattleConfig> = {}) {
-  return createBattle(
+  return beginAttack(
+    createBattle(
     {
       enemy: createTowerBoss(subject, grade),
       player: { maxHp: 60, power: 1 },
@@ -65,7 +73,9 @@ function towerBattle(subject: Subject = 'math', grade: Grade = 3, overrides: Par
       timeLimitMs: 13_000,
       ...overrides,
     },
-    numericQuestion,
+      numericQuestion,
+      NOW,
+    ),
     NOW,
   )
 }
@@ -75,6 +85,16 @@ const answerRight = (s: BattleState, ms = 6_000) =>
 const answerWrong = (s: BattleState, ms = 6_000) =>
   submitAnswer(s, { kind: 'numeric', value: 99 }, s.questionShownAt + ms)
 const hit = (s: BattleState, element: Subject) => castSpell(answerRight(s), spell(element), NOW)
+
+/**
+ * TRỌN MỘT VÒNG: con ra đòn, đỡ được đòn của quái, rồi lại tới lượt con.
+ *
+ * Từ bản có hai lượt, một vòng đi qua hai lần `advance` chứ không phải một -
+ * và quái chỉ đổi hệ ở đầu lượt của con. Gọi `advance` một lần rồi đọc
+ * `enemyElement` là đọc đúng vào giữa lượt của quái, lúc hệ chưa kịp đổi.
+ */
+const round = (s: BattleState, element: Subject): BattleState =>
+  beginAttack(advance(answerRight(advance(hit(s, element), numericQuestion, NOW)), numericQuestion, NOW), NOW)
 
 describe('bản khai của tháp', () => {
   it('đủ bốn tầng, mỗi môn một tầng, không tầng nào trùng số', () => {
@@ -180,7 +200,7 @@ describe('đổi hệ: cả trận không còn một nước đi đúng duy nh�
     const seen: string[] = [s.enemyElement]
 
     for (let i = 0; i < 6; i++) {
-      s = advance(hit(s, 'ethics'), numericQuestion, NOW)
+      s = round(s, 'ethics')
       seen.push(s.enemyElement)
     }
 
@@ -190,7 +210,7 @@ describe('đổi hệ: cả trận không còn một nước đi đúng duy nh�
 
   it('tính khắc chế theo hệ HIỆN TẠI, không theo hệ lúc vào trận', () => {
     let s = towerBattle('math', 3)
-    for (let i = 0; i < 3; i++) s = advance(hit(s, 'ethics'), numericQuestion, NOW)
+    for (let i = 0; i < 3; i++) s = round(s, 'ethics')
     expect(s.enemyElement).toBe('vietnamese')
 
     // Số Học khắc Ngôn Từ. Đọc nhầm sang `enemy.element` thì đòn này bị tính là

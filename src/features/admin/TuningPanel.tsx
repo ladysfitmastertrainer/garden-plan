@@ -28,7 +28,10 @@ interface Field {
 const GROUPS: Array<{ title: string; note: string; fields: Field[] }> = [
   {
     title: 'Trận đấu',
-    note: 'Đồng hồ chỉ chạy ở trận trùm và trận đầu đàn. Trận thường không đếm giờ.',
+    note:
+      'Mỗi vòng có hai lượt: con ra đòn, rồi quái ra đòn. Đồng hồ khi CON RA ĐÒN ' +
+      'chỉ chạy ở trận trùm và đầu đàn - trận thường không đếm giờ. Đồng hồ khi ' +
+      'QUÁI RA ĐÒN thì luôn chạy: đó chính là cú đánh đang bay tới.',
     fields: [
       {
         key: 'questionsPerBattle',
@@ -53,6 +56,18 @@ const GROUPS: Array<{ title: string; note: string; fields: Field[] }> = [
         label: 'Giờ mỗi câu khi đánh trùm trong tháp',
         hint: 'Gấp hơn trùm vùng đất - ở đó còn phải đọc lại hệ của quái trước khi chọn phép.',
         format: (v) => `${v} giây`,
+      },
+      {
+        key: 'defendSeconds',
+        label: 'Giờ đỡ đòn ở trận thường',
+        hint: 'Trả lời kịp thì quái mất lượt đánh; không kịp thì ăn đòn.',
+        format: (v) => String(v) + " giây",
+      },
+      {
+        key: 'defendBossSeconds',
+        label: 'Giờ đỡ đòn ở trận trùm và đầu đàn',
+        hint: 'Luôn ngắn hơn giờ ra đòn của chính trận đó - đặt dài hơn thì máy tự cắt xuống.',
+        format: (v) => String(v) + " giây",
       },
       {
         key: 'youngReaderFactor',

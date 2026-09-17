@@ -132,7 +132,28 @@ export interface PlayerStats {
   power: number
 }
 
-export type BattlePhase = 'question' | 'spell' | 'feedback' | 'victory' | 'retreat'
+/**
+ * Các pha của một trận.
+ *
+ * 'ready' là pha MỚI, và nó là lý do cả cái máy trạng thái này đổi hình: trước
+ * đây trận đấu chỉ là một chuỗi câu hỏi nối nhau, câu hỏi luôn chiếm màn hình,
+ * và sân đấu chỉ là cái nền phía sau. Giờ mỗi vòng có hai lượt rõ rệt - con
+ * đánh, rồi quái đánh - và giữa hai lượt có một khoảnh khắc trận đấu đứng yên
+ * cho trẻ nhìn: đó là 'ready', lúc màn hình chỉ có sân đấu và một nút "Tấn công".
+ */
+export type BattlePhase = 'ready' | 'question' | 'spell' | 'feedback' | 'victory' | 'retreat'
+
+/**
+ * Câu hỏi đang hỏi để LÀM GÌ.
+ *
+ * 'attack' - lượt của con: trả lời đúng thì được tung phép, sai thì đánh trượt.
+ * 'defend' - lượt của quái: quái đã lao tới, và câu trả lời đúng ĐỠ ĐƯỢC đòn
+ *            đó; sai hoặc hết giờ thì ăn đòn.
+ *
+ * Cùng một câu hỏi, cùng một cách chấm, chỉ khác hậu quả - nên nó là một trường
+ * trạng thái chứ không phải hai loại câu hỏi khác nhau.
+ */
+export type BattleStance = 'attack' | 'defend'
 
 export interface AnswerRecord {
   questionId: string
@@ -155,6 +176,13 @@ export interface SpellHit {
 
 export interface BattleState {
   phase: BattlePhase
+  /** Câu hỏi đang hỏi để đánh hay để đỡ. Xem `BattleStance`. */
+  stance: BattleStance
+  /**
+   * Con vừa đỡ được đòn của quái hay không. Chỉ có nghĩa ở pha 'feedback'
+   * ngay sau một lượt 'defend' - dùng để giao diện nói đúng chuyện vừa xảy ra.
+   */
+  blocked: boolean
   enemy: Enemy
   enemyHp: number
   /**
@@ -206,6 +234,19 @@ export interface BattleState {
    * thường tuyệt đối không đếm giờ - trẻ đang học, không đang thi.
    */
   timeLimitMs: number | null
+  /**
+   * Giờ cho câu ĐỠ ĐÒN, mili giây. LUÔN có, kể cả trận thường.
+   *
+   * Đây là ngoại lệ có chủ ý với luật "trận thường tuyệt đối không đếm giờ" ở
+   * ngay trên. Luật ấy nói về câu hỏi để HỌC: trẻ đang học thì không được vừa
+   * nghĩ vừa nhìn đồng hồ. Còn câu này không phải để học, nó là con quái đang
+   * lao tới - cái đồng hồ CHÍNH LÀ cú đánh đang bay đến, và bỏ nó đi thì lượt
+   * của quái không còn là một lượt nữa, chỉ là một câu hỏi nữa.
+   *
+   * Rộng hơn giờ của trận trùm nhiều: ở đây trẻ chỉ cần đọc và chọn, không cần
+   * cân nhắc chọn phép nào.
+   */
+  defendLimitMs: number
   /** Lời tường thuật hiển thị trong khung diễn biến trận đấu. */
   log: string[]
 }
@@ -219,6 +260,8 @@ export interface BattleConfig {
   maxQuestions?: number
   /** Giới hạn thời gian mỗi câu. Bỏ trống là không đếm giờ. */
   timeLimitMs?: number | null
+  /** Giờ cho câu đỡ đòn. Bỏ trống thì dùng mức mặc định. */
+  defendLimitMs?: number | null
 }
 
 // --- Hằng số cân bằng --------------------------------------------------------
@@ -232,6 +275,17 @@ const HINT_DAMAGE_PENALTY = 0.6
 const QUALITY_MULTIPLIER: Record<ChoiceQuality, number> = { good: 1, ok: 0.6, poor: 0 }
 
 const DEFAULT_MAX_QUESTIONS = 10
+
+/**
+ * Giờ mặc định cho một câu ĐỠ ĐÒN.
+ *
+ * 20 giây, rộng hơn hẳn giờ của trận trùm (mặc định quanh 15-20 giây cho CẢ
+ * việc đọc đề, chọn đáp án rồi chọn phép). Ở đây trẻ chỉ làm một việc: đọc và
+ * chọn. Rộng như vậy vì mục đích của cái đồng hồ này không phải để tạo áp lực
+ * mà để lượt của quái có thật - hết giờ là quái đánh trúng, chứ không phải trẻ
+ * thi trượt.
+ */
+const DEFAULT_DEFEND_MS = 20_000
 
 /** Tên hệ tiếng Việt, dùng trong khung diễn biến trận đấu. */
 const ELEMENT_NAME: Record<Element, string> = {
@@ -262,6 +316,27 @@ export function timeLimitFor(kind: 'boss' | 'mini' | 'tower', grade: Grade): num
   const tuning = getTuning()
   const seconds =
     kind === 'tower' ? tuning.towerSeconds : kind === 'boss' ? tuning.bossSeconds : tuning.miniBossSeconds
+  return Math.round(seconds * (grade <= 2 ? tuning.youngReaderFactor : 1) * 1000)
+}
+
+/**
+ * Giờ để ĐỠ ĐÒN, mili giây. Luôn có một con số - kể cả trận thường.
+ *
+ * Ở trận trùm, đầu đàn và tháp thì nó NGẮN HƠN giờ ra đòn của chính trận đó, và
+ * hàm này ép điều ấy bằng `Math.min`: thầy cô đặt số đỡ đòn lớn hơn số ra đòn
+ * thì số ra đòn được dùng thay. Không phải để chặn một con số vô lý - con số ấy
+ * hợp lệ - mà để giữ đúng cái ý: cú đánh của trùm phải là thứ gấp nhất trong
+ * trận, không thể thong thả hơn lượt ra đòn của chính trẻ.
+ *
+ * Lớp 1-2 được nhân thêm giờ y như mọi đồng hồ khác: các em còn đánh vần đề bài,
+ * và điều đó đúng ở cả lượt đỡ đòn.
+ */
+export function defendLimitFor(kind: 'normal' | 'boss' | 'mini' | 'tower', grade: Grade): number {
+  const tuning = getTuning()
+  const seconds =
+    kind === 'normal'
+      ? tuning.defendSeconds
+      : Math.min(tuning.defendBossSeconds, timeLimitFor(kind, grade) / 1000)
   return Math.round(seconds * (grade <= 2 ? tuning.youngReaderFactor : 1) * 1000)
 }
 
@@ -326,7 +401,16 @@ export function createBattle(
 ): BattleState {
   const team = config.team.map(toBattlePet)
   return {
-    phase: 'question',
+    /*
+      Mở màn ở 'ready', KHÔNG phải ở câu hỏi đầu tiên.
+
+      Trận đấu bắt đầu bằng việc con quái hiện ra và trẻ nhìn thấy nó - câu hỏi
+      chỉ xuất hiện khi trẻ bấm "Tấn công". Bản trước nhảy thẳng vào câu hỏi, và
+      vì câu hỏi che kín màn hình nên con quái vừa xuất hiện đã bị che mất.
+    */
+    phase: 'ready',
+    stance: 'attack',
+    blocked: false,
     enemy: config.enemy,
     enemyHp: config.enemy.maxHp,
     enemyElement: config.enemy.element,
@@ -351,8 +435,32 @@ export function createBattle(
     questionsAsked: 1,
     maxQuestions: config.maxQuestions ?? DEFAULT_MAX_QUESTIONS,
     timeLimitMs: config.timeLimitMs ?? null,
+    defendLimitMs: config.defendLimitMs ?? DEFAULT_DEFEND_MS,
     log: [`${config.enemy.emoji} ${config.enemy.name} xuất hiện!`],
   }
+}
+
+/**
+ * Giờ của câu ĐANG hỏi, mili giây. `null` là không đếm giờ.
+ *
+ * Một chỗ duy nhất trả lời câu "câu này có đồng hồ không", vì câu trả lời phụ
+ * thuộc vào THẾ TRẬN chứ không phải vào loại trận: lượt đỡ đòn luôn có đồng hồ,
+ * lượt ra đòn thì chỉ trùm và đầu đàn mới có.
+ */
+export function questionLimitMs(state: BattleState): number | null {
+  return state.stance === 'defend' ? state.defendLimitMs : state.timeLimitMs
+}
+
+/**
+ * Trẻ bấm "Tấn công": câu hỏi hiện ra.
+ *
+ * Đồng hồ của lượt này bắt đầu chạy TỪ ĐÂY chứ không từ lúc câu hỏi được nạp
+ * vào trạng thái - giữa hai mốc ấy là khoảng trẻ đang ngắm sân đấu, và tính cả
+ * khoảng đó vào thời gian suy nghĩ thì thưởng tốc độ hoá ra phạt người bình tĩnh.
+ */
+export function beginAttack(state: BattleState, now: number): BattleState {
+  if (state.phase !== 'ready' || !state.question) return state
+  return { ...state, phase: 'question', stance: 'attack', questionShownAt: now, hintUsed: false }
 }
 
 /**
@@ -367,7 +475,8 @@ export function createBattle(
  * đồng hồ ở vùng Đạo đức chỉ là hình vẽ.
  */
 export function timeUp(state: BattleState, now: number): BattleState {
-  if (state.phase !== 'question' || !state.question || state.timeLimitMs === null) return state
+  const limit = questionLimitMs(state)
+  if (state.phase !== 'question' || !state.question || limit === null) return state
 
   const question = state.question
   const record: AnswerRecord = {
@@ -376,22 +485,44 @@ export function timeUp(state: BattleState, now: number): BattleState {
     subject: question.subject,
     difficulty: question.difficulty,
     correct: false,
-    durationMs: state.timeLimitMs,
+    durationMs: limit,
     usedHint: state.hintUsed,
     answeredAt: now,
   }
 
-  const attacked = applyEnemyAttack(state, enemyAttackOf(state))
-  return {
+  const base = {
     ...state,
     answers: [...state.answers, record],
-    lastJudgement: { correct: false, message: 'Hết giờ mất rồi! Câu sau nhanh hơn nhé.' },
-    ...attacked,
-    ...regenAfterMiss(state, attacked.log),
-    phase: 'feedback',
+    blocked: false,
+    phase: 'feedback' as const,
     combo: 0,
     lastSpell: null,
     pendingDamage: null,
+  }
+
+  // Lượt của quái: hết giờ nghĩa là cú đánh chạm vào người thật.
+  if (state.stance === 'defend') {
+    const attacked = applyEnemyAttack(state, enemyAttackOf(state))
+    return {
+      ...base,
+      lastJudgement: { correct: false, message: 'Không kịp đỡ rồi! Lần sau nhanh hơn nhé.' },
+      ...attacked,
+      ...regenAfterMiss(state, attacked.log),
+    }
+  }
+
+  /*
+    Lượt của CON: hết giờ chỉ là đánh trượt, quái KHÔNG đánh trả ở đây.
+
+    Bản trước cho quái đánh trả ngay tại chỗ này, và hồi ấy đúng - quái không có
+    lượt nào khác. Giờ nó có lượt riêng ngay sau đây, nên để nó đánh cả ở đây là
+    đánh hai lần cho cùng một lỗi.
+  */
+  return {
+    ...base,
+    lastJudgement: { correct: false, message: 'Hết giờ mất rồi! Câu sau nhanh hơn nhé.' },
+    lastDamage: { toEnemy: 0, toPlayer: 0 },
+    ...regenAfterMiss(state, [...state.log, '⌛ Hết giờ - con chưa kịp ra đòn.']),
   }
 }
 
@@ -445,6 +576,55 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
     virtues,
   }
 
+  /*
+    ---- LƯỢT CỦA QUÁI: câu này để ĐỠ ĐÒN, không để gây sát thương ----
+
+    Đúng thì quái mất lượt đánh; sai thì ăn đòn. Không có sát thương nào đi ra
+    từ đây cả, kể cả khi trả lời đúng: đỡ được một đòn đã là phần thưởng, và
+    gộp thêm sát thương vào thì lượt của quái hoá ra lại là cơ hội của trẻ.
+  */
+  if (state.stance === 'defend') {
+    if (judgement.correct) {
+      return {
+        ...base,
+        phase: 'feedback',
+        blocked: true,
+        lastDamage: { toEnemy: 0, toPlayer: 0 },
+        lastSpell: null,
+        pendingDamage: null,
+        log: [...state.log, `🛡️ Con đỡ được đòn của ${state.enemy.name}!`],
+      }
+    }
+
+    // Đạo đức: chọn chưa hay thì KHÔNG bao giờ trừ máu - xem ghi chú ở nhánh
+    // dưới. Lượt của quái không phải cái cớ để phá luật ấy.
+    if (isEthics) {
+      return {
+        ...base,
+        phase: 'feedback',
+        blocked: false,
+        combo: 0,
+        lastDamage: { toEnemy: 0, toPlayer: 0 },
+        lastSpell: null,
+        pendingDamage: null,
+        log: [...state.log, '💭 Lựa chọn này chưa ổn, nhưng con không việc gì cả.'],
+      }
+    }
+
+    const hit = applyEnemyAttack(state, enemyAttackOf(state))
+    return {
+      ...base,
+      ...hit,
+      ...regenAfterMiss(state, hit.log),
+      phase: 'feedback',
+      blocked: false,
+      combo: 0,
+      lastSpell: null,
+      pendingDamage: null,
+    }
+  }
+
+  // ---- LƯỢT CỦA CON: câu này để RA ĐÒN ----
   if (judgement.correct) {
     const qualityFactor = judgement.quality ? QUALITY_MULTIPLIER[judgement.quality] : 1
     const pendingDamage = Math.round(
@@ -460,6 +640,7 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
     return {
       ...base,
       phase: 'spell',
+      blocked: false,
       combo,
       bestCombo: Math.max(state.bestCombo, combo),
       pendingDamage,
@@ -472,12 +653,24 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
     }
   }
 
-  // --- Trả lời chưa đúng -----------------------------------------------------
+  /*
+    --- Trả lời chưa đúng ở lượt của CON: ĐÁNH TRƯỢT, không bị đánh trả ---
+
+    Đây là thay đổi lớn nhất của cả tệp này. Trước kia một câu sai vừa mất lượt
+    vừa ăn ngay một đòn, vì quái không có lượt nào khác để đánh. Giờ nó có -
+    ngay sau lượt này - nên trừng phạt ở cả hai chỗ là trừng phạt hai lần cho
+    cùng một lỗi, và tệ hơn: nó xoá mất ý nghĩa của lượt đỡ đòn, vì trẻ đã ăn
+    đòn rồi thì đỡ hay không cũng thế.
+
+    Quái vẫn hút máu ở đây nếu nó biết hút (`regenOnMiss`, luật của trùm): thứ
+    ấy ăn theo CÂU TRẢ LỜI SAI chứ không ăn theo cú đánh.
+  */
   if (isEthics) {
     // Lựa chọn chưa tốt: chỉ mất lượt, tuyệt đối không trừ máu.
     return {
       ...base,
       phase: 'feedback',
+      blocked: false,
       combo: 0,
       lastDamage: { toEnemy: 0, toPlayer: 0 },
       lastSpell: null,
@@ -486,13 +679,13 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
     }
   }
 
-  const attacked = applyEnemyAttack(state, enemyAttackOf(state))
   return {
     ...base,
-    ...attacked,
-    ...regenAfterMiss(state, attacked.log),
+    ...regenAfterMiss(state, [...state.log, `❌ Con đánh trượt ${state.enemy.name}.`]),
     phase: 'feedback',
+    blocked: false,
     combo: 0,
+    lastDamage: { toEnemy: 0, toPlayer: 0 },
     lastSpell: null,
     pendingDamage: null,
   }
@@ -583,6 +776,7 @@ export function castSpell(
   return {
     ...state,
     phase: 'feedback',
+    blocked: false,
     activeIndex: active,
     enemyHp,
     enraged,
@@ -592,6 +786,10 @@ export function castSpell(
       justEnraged && state.timeLimitMs !== null
         ? Math.round(state.timeLimitMs * 0.75)
         : state.timeLimitMs,
+    // Và rút cả đồng hồ ĐỠ ĐÒN. Thiếu dòng này thì lời báo "thời gian rút ngắn"
+    // chỉ đúng một nửa: quái nổi giận mà cú đánh của nó vẫn cho trẻ đúng ngần
+    // ấy giây để đỡ, tức là nửa đáng sợ nhất của cơn giận không xảy ra.
+    defendLimitMs: justEnraged ? Math.round(state.defendLimitMs * 0.75) : state.defendLimitMs,
     lastDamage: { toEnemy: damage, toPlayer: 0 },
     lastSpell: { spell, damage, matchup },
     pendingDamage: null,
@@ -637,6 +835,48 @@ export function advance(
   }
 
   const outOfQuestions = !nextQuestion || state.questionsAsked >= state.maxQuestions
+
+  /*
+    ---- VỪA XONG LƯỢT CỦA CON → TỚI LƯỢT QUÁI ----
+
+    Quái lao tới ngay, không có quãng nghỉ nào ở giữa: câu hỏi đỡ đòn hiện ra
+    luôn, đồng hồ chạy luôn. Quãng nghỉ ('ready') chỉ có ở đầu vòng, khi lượt
+    tiếp theo là lượt của trẻ và trẻ được quyền chọn lúc nào ra đòn.
+
+    HẾT CÂU THÌ KẾT THÚC TRẬN, KHÔNG quay về pha chờ.
+
+    Bản đầu của nhánh này trả về 'ready' để "bỏ qua lượt của quái cho tử tế", và
+    nó TREO trận đấu: `questionsAsked` chỉ tăng ở nhánh dưới, nên một ngân hàng
+    câu hỏi cạn đưa trận vào vòng chờ → hỏi → phản hồi → chờ mãi mãi, không bao
+    giờ chạm tới điều kiện hết lượt. Test vòng lặp trận đấu bắt được đúng cái
+    đó: đánh mãi mà không bao giờ có màn tổng kết.
+
+    Rơi xuống nhánh dưới thì `outOfQuestions` nhận ra ngay và cho trẻ về làng
+    với toàn bộ phần thưởng - y như bản trước khi có hai lượt.
+  */
+  if (state.stance === 'attack' && nextQuestion) {
+    return {
+      ...state,
+      phase: 'question',
+      stance: 'defend',
+      blocked: false,
+      question: nextQuestion,
+      questionShownAt: now,
+      hintUsed: false,
+      lastJudgement: null,
+      lastDamage: null,
+      lastSpell: null,
+      log: [...state.log, `⚔️ ${state.enemy.name} lao tới! Trả lời kịp thì đỡ được.`],
+    }
+  }
+
+  /*
+    ---- VỪA XONG LƯỢT QUÁI → VỀ ĐẦU VÒNG, TỚI LƯỢT CON ----
+
+    `questionsAsked` chỉ đếm LƯỢT RA ĐÒN CỦA CON, không đếm lượt đỡ. Nhờ vậy
+    `maxQuestions` vẫn giữ đúng nghĩa cũ - số lần con được ra đòn trong một trận
+    - và mọi con số cân bằng (máu quái, sát thương) không phải tính lại.
+  */
   if (outOfQuestions) {
     return {
       ...state,
@@ -655,7 +895,9 @@ export function advance(
 
   return {
     ...state,
-    phase: 'question',
+    phase: 'ready',
+    stance: 'attack',
+    blocked: false,
     question: nextQuestion,
     questionShownAt: now,
     hintUsed: false,

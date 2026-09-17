@@ -1165,6 +1165,79 @@ textarea.admin-input {
   overflow-y: auto;
 }
 
+/* MÁY CẦM DỌC: khung hỏi cao NHIỀU NHẤT 80% màn hình, không bàn cãi.
+
+   Đây là một cái TRẦN, không phải một phép đo mong là vừa. Mọi phép tính "nội
+   dung cao bao nhiêu" đều phụ thuộc vào cỡ chữ hệ thống, vào phông tải xong hay
+   chưa, vào bản dịch dài ngắn - trượt một chút là khung lại chạm mép máy. Một
+   cái trần thì không trượt được: còn 20% màn hình luôn là nền mờ, nên nhìn vào
+   là biết ngay đây là một khung nổi có thể đóng lại, chứ không phải một trang
+   mới vừa thay chỗ trò chơi.
+
+   CHỈ khi cầm dọc. Xoay ngang màn hình chỉ cao 390px, 80% của nó là 312px -
+   chưa đủ cho hai cái nút với một đoạn chữ, nên ở đó khung lấy hết chỗ nó có. */
+@media (orientation: portrait) {
+  .pixel-modal-panel {
+    max-height: min(80dvh, 100%);
+  }
+}
+
+/* ---- VÀ CHỮ CO LẠI CHO VỪA CÁI TRẦN ẤY ----
+
+   Trần ở trên chỉ hứa khung không tràn; muốn không phải KÉO thì nội dung phải
+   tự vừa. Dưới 760px chiều cao - điện thoại nhỏ cầm dọc, và mọi điện thoại lúc
+   xoay ngang - mọi cỡ chữ trong khung hạ xuống một bậc.
+
+   Viết ở đây chứ không sửa từng chỗ gọi: đây là luật của KHUNG HỎI, không phải
+   của riêng khung Tháp. Bốn khung thách đấu trong PvpLobby và khung xác nhận
+   dùng chung PixelModal cũng vừa theo, mà không ai phải nhớ ra chúng.
+
+   Nằm NGOÀI @layer nên đè được lên các lớp tiện ích của Tailwind mà không cần
+   !important - cùng lý do với .btn ở trên. */
+@media (max-height: 760px) {
+  .pixel-modal-panel {
+    padding: 9px 11px;
+  }
+
+  .pixel-modal-panel h3 {
+    font-size: 1.3rem;
+  }
+
+  .pixel-modal-panel p {
+    font-size: 0.85rem;
+    line-height: 1.3;
+  }
+
+  /* Dòng phụ bằng phông pixel (cỡ chặng, số tầng đã hạ) vốn đã nhỏ hơn. */
+  .pixel-modal-panel .pixel-font {
+    font-size: 1rem;
+  }
+
+  .pixel-modal-panel .card {
+    padding: 4px;
+  }
+
+  .pixel-modal-panel .card span {
+    font-size: 0.8rem;
+  }
+
+  /* Khe giữa bốn tầng tháp. Bốn cái thẻ thì có ba cái khe, và ba lần 3px lấy
+     lại được đúng một dòng chữ - trên màn hình 640px thì một dòng ấy là phần
+     chênh giữa "vừa" và "phải kéo". */
+  .tower-floors {
+    gap: 5px;
+  }
+
+  .pixel-modal-panel .btn {
+    min-height: 44px;
+    font-size: 0.95rem;
+  }
+
+  .tower-traits li {
+    font-size: 0.7rem;
+  }
+}
+
 /* Máy lùn - điện thoại nhỏ cầm dọc, và mọi điện thoại lúc xoay ngang - thì lề
    co lại: ở đó từng điểm ảnh chiều cao đều đang phải tranh nhau, và 8px lề là
    đủ để khung hỏi không dính vào mép máy. */
@@ -1194,13 +1267,15 @@ textarea.admin-input {
    một điện thoại 360×640 chúng cộng lại đẩy chính bốn cái nút xuống dưới mép
    màn hình - tức là thứ duy nhất bấm được trong khung phải kéo mới thấy.
 
-   Nên chúng không bị xoá, chỉ nhường chỗ: máy cao từ 800px trở lên - máy tính,
-   máy tính bảng, điện thoại đời mới cầm dọc - vẫn đọc được đủ. */
+   Nên chúng không bị xoá, chỉ nhường chỗ: máy cao từ 950px trở lên - máy tính
+   và máy tính bảng - vẫn đọc được đủ. Ngưỡng ấy không phải chọn cho đẹp: khung
+   này phải nằm trong 80% chiều cao máy (xem `.pixel-modal-panel`), và bốn câu
+   giới thiệu ăn khoảng 157px - đúng phần vượt trần trên một điện thoại. */
 .tower-floor-tagline {
   display: none;
 }
 
-@media (min-height: 800px) {
+@media (min-height: 950px) {
   .tower-floor-tagline {
     display: block;
   }

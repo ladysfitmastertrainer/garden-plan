@@ -27,6 +27,7 @@ import { regionKey as progressKey, type StudentProgress } from '../../data/types
 import { levelFromTotalXp } from '../../engine/rewards'
 import { useAuth } from '../../store/auth'
 import { useGame } from '../../store/game'
+import { InstallCard } from '../../ui/InstallPrompt'
 import { PvpLobby } from '../pvp/PvpLobby'
 import { usePvpSync } from '../pvp/usePvpSync'
 
@@ -202,7 +203,7 @@ export function MapScreen() {
         />
       )}
 
-      <InstallPrompt />
+      <InstallCard />
 
       {/*
         Bảng bạn cùng lớp, và cửa vào một trận PVP.
@@ -427,50 +428,6 @@ function MuteButton({ compact = false }: { compact?: boolean }) {
     >
       {compact ? (muted ? '🔇' : '🔊') : muted ? '🔇 Đang tắt tiếng' : '🔊 Có tiếng'}
     </button>
-  )
-}
-
-/**
- * Nhắc cài app lên màn hình chính. Chỉ hiện khi trình duyệt thật sự cho cài, và
- * chỉ nhắc một lần cho tới khi mở lại app - không làm phiền.
- */
-function InstallPrompt() {
-  const [event, setEvent] = useState<Event | null>(null)
-  const [dismissed, setDismissed] = useState(false)
-
-  useEffect(() => {
-    const onPrompt = (e: Event) => {
-      e.preventDefault()
-      setEvent(e)
-    }
-    window.addEventListener('beforeinstallprompt', onPrompt)
-    return () => window.removeEventListener('beforeinstallprompt', onPrompt)
-  }, [])
-
-  if (!event || dismissed) return null
-
-  return (
-    <div
-      className="flex flex-wrap items-center gap-3 rounded-2xl p-4"
-      style={{ background: 'var(--color-brand-soft)' }}
-    >
-      <span className="flex-1 text-base font-bold">
-        📲 Cài Học Viện Trí Tuệ lên màn hình chính để chơi được cả khi mất mạng.
-      </span>
-      <button
-        type="button"
-        onClick={() => {
-          void (event as Event & { prompt: () => Promise<void> }).prompt()
-          setDismissed(true)
-        }}
-        className="btn btn-primary px-5 text-base"
-      >
-        Cài đặt
-      </button>
-      <button type="button" onClick={() => setDismissed(true)} className="btn btn-ghost px-4 text-base">
-        Để sau
-      </button>
-    </div>
   )
 }
 

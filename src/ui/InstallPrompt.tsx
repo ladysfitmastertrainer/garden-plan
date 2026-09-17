@@ -18,6 +18,10 @@
  * Đây là LỜI MỜI, không phải cái chặn - cùng lẽ với `RotateHint`. App chạy đầy
  * đủ trong tab trình duyệt, nên dựng một tấm chắn bắt cài trước mới cho chơi là
  * cướp quyền của trẻ vì một thứ chỉ dễ chịu hơn.
+ *
+ * Dải này là lời mời TỰ HIỆN RA, nên nó nhớ lời từ chối và không hỏi lại. Lối
+ * vào chủ động - mục "Cài app về máy" trong ngăn kéo - thì không nhớ gì cả:
+ * xem `InstallCard`.
  */
 
 import { useEffect, useState } from 'react'
@@ -27,57 +31,32 @@ import { useUi } from '../store/ui'
 import {
   dismissInstall,
   dismissedInstall,
-  isInstalled,
   isIos,
   registerServiceWorker,
+  runInstall,
+  useInstallState,
 } from '../shell/install'
 
-/** Sự kiện riêng của Chrome, chưa có trong thư viện kiểu chuẩn. */
-interface InstallEvent extends Event {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
-
 export function InstallPrompt() {
-  const [event, setEvent] = useState<InstallEvent | null>(null)
-  const [showIos, setShowIos] = useState(false)
+  const { canInstall, installed } = useInstallState()
   const [gone, setGone] = useState(false)
+  const [refused, setRefused] = useState(true)
   const setInviteOpen = useUi((s) => s.setInstallInviteOpen)
 
+  /*
+    Đọc lời từ chối ở LƯỢT VẼ SAU, không phải lúc dựng state.
+
+    `localStorage` không có ở máy chủ, mà Next dựng sẵn trang này ở đó. Bắt đầu
+    bằng "đã từ chối" rồi sửa lại ngay khi tới trình duyệt: hai lượt vẽ đầu tiên
+    giống hệt nhau ở cả hai nơi, và không có dải nào loé lên rồi biến mất.
+  */
   useEffect(() => {
     registerServiceWorker()
-
-    // Đã cài rồi, hoặc đã bảo "không", thì thôi.
-    if (isInstalled() || dismissedInstall()) return
-
-    const onPrompt = (raw: Event) => {
-      /*
-        Chặn hộp thoại mặc định của Chrome để tự mời bằng lời của mình.
-
-        Không chặn thì Chrome tự hiện một dải nhỏ ở đáy màn hình bằng tiếng máy,
-        vào đúng lúc nó muốn - thường là lúc trẻ đang bấm dở một thứ khác. Giữ
-        lấy sự kiện thì mời được đúng chỗ, đúng lúc, bằng tiếng Việt.
-      */
-      raw.preventDefault()
-      setEvent(raw as InstallEvent)
-    }
-
-    window.addEventListener('beforeinstallprompt', onPrompt)
-
-    // iOS không bao giờ bắn sự kiện trên, nên hỏi thẳng xem có phải iPhone không.
-    if (isIos()) setShowIos(true)
-
-    // Cài xong thì dẹp lời mời ngay, không đợi tải lại trang.
-    const onInstalled = () => setGone(true)
-    window.addEventListener('appinstalled', onInstalled)
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt)
-      window.removeEventListener('appinstalled', onInstalled)
-    }
+    setRefused(dismissedInstall())
   }, [])
 
-  const open = !gone && (event !== null || showIos)
+  const onIos = typeof navigator !== 'undefined' && !refused && !installed && isIos()
+  const open = !gone && !refused && !installed && (canInstall || onIos)
 
   /*
     Báo cho lời nhắc xoay máy biết mà nhường chỗ.
@@ -99,12 +78,9 @@ export function InstallPrompt() {
   }
 
   const install = async () => {
-    if (!event) return
-    await event.prompt()
-    const { outcome } = await event.userChoice
     // Bấm "để sau" trong hộp thoại của Chrome cũng là một câu trả lời. Hỏi lại
-    // ngay sau đó là phiền.
-    if (outcome === 'dismissed') dismissInstall()
+    // ngay sau đó là phiền - nhưng ngăn kéo thì vẫn còn đó nếu đổi ý.
+    if ((await runInstall()) === 'tu-choi') dismissInstall()
     setGone(true)
   }
 
@@ -119,7 +95,7 @@ export function InstallPrompt() {
       </span>
 
       <p className="min-w-0 flex-1 text-sm font-bold leading-snug">
-        {event ? (
+        {canInstall ? (
           <>Cài app về máy để chơi toàn màn hình và tự nằm ngang.</>
         ) : (
           <>
@@ -131,14 +107,14 @@ export function InstallPrompt() {
 
       {/* iOS thì không có nút nào để bấm - Safari không cho mở hộp thoại cài
           bằng mã. Hiện một nút không làm gì còn tệ hơn không có nút. */}
-      {event && (
+      {canInstall && (
         <button
           type="button"
           onClick={() => void install()}
           className="btn btn-primary shrink-0 px-4 text-sm"
           style={{ minHeight: 44 }}
         >
-          Cài app
+          Cài đặt
         </button>
       )}
 
@@ -154,5 +130,65 @@ export function InstallPrompt() {
         ✕
       </button>
     </div>
+  )
+}
+
+/**
+ * "Cài app về máy", nằm trong ngăn kéo sau nút ☰.
+ *
+ * Đây là LỐI VÀO CHỦ ĐỘNG, và vì thế nó khác dải mời ở trên đúng một điều quan
+ * trọng: nó KHÔNG nhớ lời từ chối nào cả. Bấm ✕ trên dải mời là nói "đừng hỏi
+ * nữa", không phải "không bao giờ cho tôi cài" - mà bản trước hiểu thành vế
+ * thứ hai, và một máy đã bấm ✕ thì mất hẳn đường cài app.
+ *
+ * Bốn tình huống, bốn câu trả lời khác nhau, và không câu nào là một cái nút
+ * chết: đã cài rồi thì nói thế; Chrome đã sẵn sàng thì có nút bấm; iPhone thì
+ * chỉ đường qua nút Chia sẻ; còn lại - thường là Chrome chưa đủ điều kiện mời -
+ * thì chỉ đường qua trình đơn ⋮ của chính trình duyệt.
+ */
+export function InstallCard() {
+  const { canInstall, installed } = useInstallState()
+  const [done, setDone] = useState(false)
+
+  useEffect(() => registerServiceWorker(), [])
+
+  if (installed || done) {
+    return (
+      <section className="pixel-panel grid gap-1">
+        <p className="pixel-font text-xl">📲 Cài app về máy</p>
+        <p className="text-base leading-snug">✓ Đã cài trên máy này rồi.</p>
+      </section>
+    )
+  }
+
+  const ios = typeof navigator !== 'undefined' && isIos()
+
+  return (
+    <section className="pixel-panel grid gap-2">
+      <p className="pixel-font text-xl">📲 Cài app về máy</p>
+      <p className="text-base leading-snug">
+        Cài rồi thì app chiếm trọn màn hình, tự nằm ngang, và mở nhanh hơn.
+      </p>
+
+      {canInstall ? (
+        <button
+          type="button"
+          onClick={() => void runInstall().then((r) => r === 'da-cai' && setDone(true))}
+          className="btn btn-primary w-full text-lg"
+        >
+          Cài đặt
+        </button>
+      ) : ios ? (
+        <p className="text-base leading-snug">
+          Trên iPhone: bấm <strong>Chia sẻ</strong> ở thanh dưới, rồi chọn{' '}
+          <strong>Thêm vào MH chính</strong>.
+        </p>
+      ) : (
+        <p className="text-base leading-snug">
+          Trên Android: mở trình đơn <strong>⋮</strong> của trình duyệt, rồi chọn{' '}
+          <strong>Cài ứng dụng</strong> (hoặc <strong>Thêm vào màn hình chính</strong>).
+        </p>
+      )}
+    </section>
   )
 }

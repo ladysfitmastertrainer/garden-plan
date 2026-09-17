@@ -700,7 +700,7 @@ function TowerModal({
           </ul>
         </div>
 
-        <div className="grid gap-2">
+        <div className="tower-floors grid gap-2">
           {TOWER_FLOORS.map((floor) => {
             const beaten = done.has(`${floor.subject}.g${grade}`)
             return (

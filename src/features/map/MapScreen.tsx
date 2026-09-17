@@ -177,6 +177,7 @@ export function MapScreen() {
           {navCompact ? '🎒' : '🎒 Kho đồ'}
         </button>
         <MuteButton compact={navCompact} />
+        <MusicButton compact={navCompact} />
       </nav>
 
       {/* Ngăn kéo là chỗ duy nhất trẻ dừng lại đọc, nên bảng tiến độ nằm ở đây. */}
@@ -405,6 +406,42 @@ function ExitButton({ onLeave }: { onLeave: () => void }) {
       style={{ background: 'var(--color-paper-sunk)' }}
     >
       {isChild ? 'Thoát' : mode === 'adult' ? 'Đăng xuất' : 'Đổi\nngười chơi'}
+    </button>
+  )
+}
+
+/**
+ * Bật/tắt RIÊNG nhạc nền, không đụng tới tiếng game.
+ *
+ * Hai công tắc chứ không một, vì hai thứ bị tắt vì hai lý do khác nhau: tắt
+ * tiếng là "chỗ này không được phát ra tiếng gì", còn tắt nhạc là "tiếng game
+ * thì vẫn cần, nhưng ba mươi cái máy cùng phát một bản nhạc thì thành ồn". Gộp
+ * hai việc vào một cái nút thì lớp học chỉ còn hai lựa chọn, mà không lựa chọn
+ * nào là thứ thầy cô đang muốn.
+ */
+function MusicButton({ compact = false }: { compact?: boolean }) {
+  const musicOn = useUi((s) => s.musicOn)
+  const setMusicOn = useUi((s) => s.setMusicOn)
+
+  return (
+    <button
+      type="button"
+      onClick={() => setMusicOn(!musicOn)}
+      aria-pressed={!musicOn}
+      aria-label={musicOn ? 'Nhạc nền đang bật' : 'Nhạc nền đang tắt'}
+      title={musicOn ? 'Nhạc nền đang bật' : 'Nhạc nền đang tắt'}
+      className={compact ? 'btn btn-ghost px-4 text-lg' : 'btn btn-ghost px-5 text-base'}
+    >
+      {/*
+        Cùng một nốt nhạc ở cả hai trạng thái, chỉ khác gạch ngang và độ mờ.
+
+        Không dùng một emoji thứ hai cho trạng thái tắt: 🔇 đã là của nút tắt
+        tiếng ngay bên cạnh, và hai nút cạnh nhau cùng hiện 🔇 thì không ai đoán
+        được cái nào vừa tắt cái gì.
+      */}
+      <span style={{ opacity: musicOn ? 1 : 0.5, textDecoration: musicOn ? 'none' : 'line-through' }}>
+        {compact ? '🎵' : musicOn ? '🎵 Có nhạc' : '🎵 Tắt nhạc'}
+      </span>
     </button>
   )
 }

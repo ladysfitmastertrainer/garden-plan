@@ -34,6 +34,17 @@ interface UiState {
   adultUnlocked: boolean
   muted: boolean
   /**
+   * Nhạc nền đang bật hay tắt - CÔNG TẮC RIÊNG, không chung với `muted`.
+   *
+   * Hai thứ này bị tắt vì hai lý do khác nhau. `muted` tắt cả tiếng game, gần
+   * như luôn là vì đang ở chỗ không được phát ra tiếng. Nhạc nền thì bị tắt
+   * ngay cả khi tiếng game vẫn cần: một lớp học bật tiếng trả lời đúng cho cả
+   * lớp nghe, nhưng ba mươi cái máy cùng phát một bản nhạc thì thành ồn.
+   *
+   * Không nhớ qua lần mở app sau, giống `muted`: mỗi buổi học một hoàn cảnh.
+   */
+  musicOn: boolean
+  /**
    * Trẻ đã tắt lời nhắc xoay ngang máy chưa.
    *
    * Reset mỗi lần mở lại app, giống `adultUnlocked`: nhắc một lần mỗi phiên là
@@ -76,6 +87,7 @@ interface UiState {
   setInstallInviteOpen: (open: boolean) => void
   unlockAdult: () => void
   setMuted: (muted: boolean) => void
+  setMusicOn: (on: boolean) => void
   dismissRotateHint: () => void
   enterRegion: (region: Region | null) => void
   rememberPos: (key: string, pos: { x: number; y: number }) => void
@@ -85,6 +97,7 @@ export const useUi = create<UiState>((set) => ({
   screen: 'game',
   adultUnlocked: false,
   muted: false,
+  musicOn: true,
   rotateHintDismissed: false,
   installInviteOpen: false,
   region: null,
@@ -95,6 +108,7 @@ export const useUi = create<UiState>((set) => ({
   setInstallInviteOpen: (installInviteOpen) => set({ installInviteOpen }),
   unlockAdult: () => set({ adultUnlocked: true }),
   setMuted: (muted) => set({ muted }),
+  setMusicOn: (musicOn) => set({ musicOn }),
   dismissRotateHint: () => set({ rotateHintDismissed: true }),
   enterRegion: (region) => set(region ? { region, lastRegion: region } : { region }),
   rememberPos: (key, pos) =>

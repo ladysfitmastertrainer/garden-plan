@@ -28,6 +28,7 @@ import { PvpScreen } from '../features/pvp/PvpScreen'
 import { useUi } from '../store/ui'
 import { InstallPrompt } from '../ui/InstallPrompt'
 import { RotateHint } from '../ui/RotateHint'
+import { setMusicOn, watchVisibility } from '../audio/music'
 import { useAppChrome } from './useAppChrome'
 import type { PvpStatus } from '../data/pvp-types'
 
@@ -54,6 +55,26 @@ export function GameShell() {
   }, [initAuth])
 
   useAppChrome()
+
+  /*
+    Nhạc nền, nối vào đúng MỘT chỗ cho cả app.
+
+    Ở đây chứ không ở màn bản đồ: nhạc phải chạy liền mạch qua bản đồ, trận đấu
+    và màn tổng kết. Gắn vào một màn nào đó thì mỗi lần trẻ vào trận là nhạc tắt
+    rồi bật lại từ đầu - nghe như app vừa khởi động lại.
+
+    Hai công tắc cùng quyết định: tắt tiếng chung (`muted`) tắt tất cả, còn
+    `musicOn` chỉ tắt nhạc. Module nhạc tự bỏ qua lời gọi trùng, nên gọi lại ở
+    mỗi lần vẽ là chuyện bình thường.
+  */
+  const muted = useUi((s) => s.muted)
+  const musicOn = useUi((s) => s.musicOn)
+
+  useEffect(() => {
+    setMusicOn(musicOn && !muted)
+  }, [musicOn, muted])
+
+  useEffect(() => watchVisibility(), [])
 
   /*
     Quản trị viên thì `/` không phải chỗ của họ - đưa thẳng sang trang quản trị.

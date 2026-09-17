@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth, type RosterEntry, type SignUpRole } from '../../store/auth'
+import { PasswordInput } from '../../ui/PasswordInput'
 
 type Tab = 'child' | 'adult'
 
@@ -318,13 +319,11 @@ function AdultLogin() {
       {doing !== 'forgot' && (
         <label className="grid gap-2">
           <span className="font-bold">Mật khẩu</span>
-          <input
-            type="password"
+          <PasswordInput
+            label="Mật khẩu"
             autoComplete={registering ? 'new-password' : 'current-password'}
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
-            style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
+            onChange={setPassword}
           />
         </label>
       )}

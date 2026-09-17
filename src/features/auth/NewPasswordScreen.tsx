@@ -20,6 +20,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../store/auth'
+import { PasswordInput } from '../../ui/PasswordInput'
 
 /** Ngắn hơn thì máy chủ cũng từ chối; chặn sớm để đỡ một vòng gọi mạng. */
 const MIN_LENGTH = 6
@@ -111,14 +112,13 @@ export function NewPasswordScreen() {
 
           <label className="grid gap-2">
             <span className="font-bold">Mật khẩu mới</span>
-            <input
-              type="password"
+            <PasswordInput
+              label="Mật khẩu mới"
               autoComplete="new-password"
               autoFocus
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
-              style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
+              onChange={setPassword}
+              invalid={tooShort}
             />
             {tooShort && (
               <span className="text-base" style={{ color: 'var(--color-warn)' }}>
@@ -129,17 +129,12 @@ export function NewPasswordScreen() {
 
           <label className="grid gap-2">
             <span className="font-bold">Gõ lại mật khẩu</span>
-            <input
-              type="password"
+            <PasswordInput
+              label="Ô gõ lại mật khẩu"
               autoComplete="new-password"
               value={again}
-              onChange={(event) => setAgain(event.target.value)}
-              className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
-              style={{
-                borderColor: mismatch
-                  ? 'var(--color-warn)'
-                  : 'color-mix(in srgb, var(--color-ink) 15%, transparent)',
-              }}
+              onChange={setAgain}
+              invalid={mismatch}
             />
             {mismatch && (
               <span className="text-base" style={{ color: 'var(--color-warn)' }}>

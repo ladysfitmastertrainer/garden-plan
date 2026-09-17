@@ -14,6 +14,7 @@
 import { useState } from 'react'
 
 import { useAuth } from '../store/auth'
+import { PasswordInput } from './PasswordInput'
 
 /** Máy chủ từ chối mật khẩu ngắn hơn chừng này - xem `app/api/auth/password/route.ts`. */
 const MIN_LENGTH = 6
@@ -84,25 +85,22 @@ export function ChangePassword() {
           >
             <label className="grid gap-1">
               <span className="text-base font-bold">Mật khẩu hiện tại</span>
-              <input
-                type="password"
+              <PasswordInput
+                label="Mật khẩu hiện tại"
                 value={current}
-                onChange={(event) => setCurrent(event.target.value)}
+                onChange={setCurrent}
                 autoComplete="current-password"
-                className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
-                style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
               />
             </label>
 
             <label className="grid gap-1">
               <span className="text-base font-bold">Mật khẩu mới</span>
-              <input
-                type="password"
+              <PasswordInput
+                label="Mật khẩu mới"
                 value={next}
-                onChange={(event) => setNext(event.target.value)}
+                onChange={setNext}
                 autoComplete="new-password"
-                className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
-                style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
+                invalid={tooShort}
               />
               {tooShort && (
                 <span className="text-base" style={{ color: 'var(--color-warn)' }}>
@@ -118,13 +116,12 @@ export function ChangePassword() {
             */}
             <label className="grid gap-1">
               <span className="text-base font-bold">Nhắc lại mật khẩu mới</span>
-              <input
-                type="password"
+              <PasswordInput
+                label="Ô nhắc lại mật khẩu mới"
                 value={confirm}
-                onChange={(event) => setConfirm(event.target.value)}
+                onChange={setConfirm}
                 autoComplete="new-password"
-                className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
-                style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
+                invalid={mismatch}
               />
               {mismatch && (
                 <span className="text-base" style={{ color: 'var(--color-warn)' }}>

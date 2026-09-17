@@ -167,6 +167,16 @@ interface Props {
   /** Hộp thoại, vẽ đè lên đáy khung game đúng chỗ game thời đó đặt nó. */
   dialogue?: React.ReactNode
   /**
+   * Nút nổi ở hai góc TRÊN của khung game: quay lại, và mở bảng điều khiển.
+   *
+   * Chúng nằm TRONG khung chứ không nổi trên trang, và đó là cả lý do có tham
+   * số này. Khung game được căn giữa màn hình, nên trên điện thoại luôn còn hai
+   * dải trống trên và dưới nó; nút dán vào mép MÀN HÌNH thì trôi ra giữa dải
+   * trống ấy, rời hẳn khỏi thứ nó điều khiển. Dán vào mép KHUNG thì nó nằm ngay
+   * trên tấm bản đồ, đúng một chỗ ở mọi cỡ máy và mọi hướng xoay.
+   */
+  hud?: React.ReactNode
+  /**
    * Gọi khi trẻ bước vào ô cỏ cao và gặp quái hoang.
    *
    * Cỏ cao vốn đã là quy ước "chỗ này có quái" của dòng game này, và bản đồ đã
@@ -205,6 +215,7 @@ export function Overworld({
   onEnterGate,
   paused = false,
   dialogue,
+  hud,
   onWildEncounter,
   onMonsterBump,
   follower,
@@ -721,6 +732,10 @@ export function Overworld({
             viewHeight={viewHeight}
           />
         )}
+
+        {/* Hai góc TRÊN của khung. Bốn mũi tên ở góc dưới - trái, hộp thoại dán
+            vào đáy khung: ba lớp phủ, ba chỗ, không lớp nào che lớp nào. */}
+        {hud}
       </div>
     </div>
   )

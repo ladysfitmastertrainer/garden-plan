@@ -183,6 +183,16 @@ interface Props {
   onEnterRegion: (subject: Subject, grade: Grade) => void
   /** Bước vào một tầng Tháp Trí Tuệ ở giữa lục địa. */
   onEnterTower: (subject: Subject, grade: Grade) => void
+  /**
+   * Nút nổi trong khung bản đồ - ở đây là nút ☰ mở bảng điều khiển.
+   *
+   * Nó vào TRONG khung, cùng chỗ với nhãn tên vùng và hai mũi tên đổi quần đảo,
+   * chứ không dán vào mép màn hình. Tấm lục địa là hình nằm ngang cố định, nên
+   * trên điện thoại dựng đứng nó được căn giữa và chừa hai dải trống trên dưới;
+   * một nút dán vào mép màn hình sẽ nổi giữa dải trống ấy, trông như rơi ra
+   * ngoài bản đồ. Xem tham số hud của Overworld - cùng một lý do.
+   */
+  hud?: React.ReactNode
 }
 
 interface RegionView {
@@ -202,6 +212,7 @@ export function WorldMapScreen({
   towerCleared,
   onEnterRegion,
   onEnterTower,
+  hud,
 }: Props) {
   const creature = creatureFromAvatar(avatar)
   const open = useMemo(() => unlockedGrades(clearedByRegion, grade), [clearedByRegion, grade])
@@ -484,6 +495,10 @@ export function WorldMapScreen({
             ▶
           </button>
         )}
+
+        {/* Góc trên - PHẢI của khung. Nhãn tên vùng giữ góc trái, hai mũi tên
+            dán vào hai mép ở giữa chiều cao: không ai đứng vào chỗ của ai. */}
+        {hud}
       </div>
 
       {selected && (

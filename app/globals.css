@@ -305,6 +305,23 @@ body {
   min-width: 0;
 }
 
+/* Và ngược lại: hai khối này cũng KHÔNG được phép co lại vừa khít nội dung.
+
+   Cả hai đều là phần tử mà mã nguồn ĐO để quyết định khung game to bao nhiêu
+   (`Overworld.tsx` và `WorldMapScreen.tsx`). Hễ có một ô lưới cha nào đó đặt
+   `justify-items: center` lên chúng - và đã có một lần như thế thật - chúng
+   thôi kéo giãn và co lại đúng bằng nội dung. Lúc ấy phép đo hoá ra là đo chính
+   nó: khung game rộng bao nhiêu thì đo được bấy nhiêu, và nó đứng chết ở cỡ
+   đang có, không bao giờ lớn lên nữa.
+
+   `width: 100%` chặn hẳn chuyện đó, bất kể cha đặt gì. Một dòng để một lớp lỗi
+   không bao giờ quay lại - và là lớp lỗi không typecheck nào bắt được, vì về mặt
+   mã nguồn thì mọi thứ vẫn đúng. */
+.overworld-layout,
+.world-layout {
+  width: 100%;
+}
+
 /*
   Cả màn trận phải vừa ĐÚNG MỘT KHUNG HÌNH, ở mọi hướng máy.
 
@@ -1071,14 +1088,24 @@ textarea.admin-input {
   margin-bottom: 0;
 }
 
-/* Nút mở ngăn kéo: nổi ở góc trên - PHẢI, mờ như bốn mũi tên đi cảnh.
+/* Nút nổi TRONG khung game: ← quay lại ở góc trên - trái, ☰ ở góc trên - phải.
 
-   Góc phải vì góc trái đã có nút quay lại của vùng đất, và hai nút cạnh nhau ở
-   cùng một góc thì ngón tay cái sẽ bấm nhầm. */
-.map-immersive-menu {
+   NEO THEO KHUNG, KHÔNG THEO MÀN HÌNH. Bản trước dán chúng vào mép màn hình,
+   và trên điện thoại dựng đứng điều đó sai theo một kiểu rất dễ thấy: khung
+   game là một hình chữ nhật có viền, căn giữa, và không bao giờ cao bằng máy -
+   nên hai nút nổi lên giữa dải trống phía trên cái khung, rời hẳn khỏi thứ
+   chúng điều khiển. Neo vào khung thì chúng đi theo khung ở mọi cỡ máy và mọi
+   hướng xoay, mà cũng không cần biết tới phần khuyết của máy tai thỏ nữa: cái
+   khung đã nằm gọn trong vùng an toàn rồi.
+
+   Mờ đúng bằng bốn mũi tên đi cảnh: chúng là lớp phủ trên một tấm bản đồ, và
+   tấm bản đồ mới là thứ trẻ đang nhìn.
+
+   44px chứ không nhỏ hơn: đây là ô chạm nhỏ nhất mà ngón tay trẻ bấm không
+   trượt, và một trong hai nút là lối ra DUY NHẤT khỏi vùng đất. */
+.hud-btn {
   position: absolute;
-  top: calc(8px + env(safe-area-inset-top, 0px));
-  right: 8px;
+  top: 6px;
   z-index: 4;
   width: 44px;
   height: 44px;
@@ -1089,6 +1116,27 @@ textarea.admin-input {
   border: 3px solid rgb(27 36 50 / 0.5);
   border-radius: 10px;
   cursor: pointer;
+}
+
+.hud-btn-back {
+  left: 6px;
+}
+
+.hud-btn-menu {
+  right: 6px;
+}
+
+/* Nút đóng ngăn kéo: NEO THEO MÀN HÌNH, không theo ngăn kéo.
+
+   Ngăn kéo cuộn được, và giờ nó chứa cả cây kỹ năng - một bảng dài. Neo theo
+   ngăn kéo thì nút đóng cuộn mất tăm lên phía trên, và trẻ đang ở cuối cây kỹ
+   năng phải cuộn ngược lên đầu mới ra được. Ở đây "fixed" là đúng nghĩa đen:
+   nó đứng yên một chỗ trên màn hình, đúng chỗ ngón tay vừa chạm để mở. */
+.hud-btn-close {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  right: 8px;
+  z-index: 6;
 }
 
 /* Ngăn kéo: phủ kín màn hình và CUỘN ĐƯỢC.
@@ -1109,37 +1157,18 @@ textarea.admin-input {
     calc(12px + env(safe-area-inset-bottom, 0px));
 }
 
-/* Trong vùng đất: tên vùng và hai thẻ đã chuyển thành dải nút nổi, nên hai khối
-   gốc phải biến đi - không thì chúng vẫn ăn chỗ y như cũ. */
-.region-immersive > .region-head,
-.region-immersive > .region-tabs {
+/* Trong vùng đất: hàng tiêu đề biến đi hẳn - tên vùng đã có trong ngăn kéo
+   ("Con đang ở"), còn nút quay lại đã vào trong khung game.
+
+   Hai thẻ "Đi cảnh / Cây kỹ năng" thì không cần luật nào ở đây nữa: trên điện
+   thoại chúng KHÔNG CÒN ĐƯỢC VẼ RA (xem `SubjectMap`). Giấu bằng CSS một khối
+   vẫn đang dựng và vẫn đang đo thì chỉ là giấu, không phải bỏ. */
+.region-immersive > .region-head {
   display: none;
 }
 
 .region-immersive {
   gap: 0;
-}
-
-/* Dải nút nổi trong vùng đất: góc trên - TRÁI, cùng tông với nút ☰ bên phải. */
-.region-immersive-bar {
-  position: absolute;
-  top: calc(8px + env(safe-area-inset-top, 0px));
-  left: 8px;
-  z-index: 4;
-  display: flex;
-  gap: 6px;
-}
-
-.region-immersive-bar button {
-  width: 44px;
-  height: 44px;
-  font-size: 1.1rem;
-  line-height: 1;
-  color: rgb(27 36 50 / 0.8);
-  background: rgb(248 248 240 / 0.7);
-  border: 3px solid rgb(27 36 50 / 0.5);
-  border-radius: 10px;
-  cursor: pointer;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1234,6 +1263,29 @@ textarea.admin-input {
 .map-immersive > .world-layout,
 .map-immersive > .region-layout {
   height: 100%;
+}
+
+/* CĂN GIỮA Ở BÊN TRONG PHẦN TỬ ĐƯỢC ĐO, KHÔNG PHẢI BẰNG CÁCH ĐẨY CHÍNH NÓ.
+
+   Bản trước đặt `align-content: center` và `justify-items: center` lên
+   `.region-layout` - và mỗi thuộc tính hỏng một kiểu, cả hai đều vô hình với
+   typecheck lẫn test:
+
+   `justify-items: center` biến `.overworld-layout` từ một ô lưới KÉO GIÃN thành
+   một ô lưới vừa-khít-nội-dung. Mà `.overworld-layout` chính là phần tử mà
+   `Overworld.tsx` đo để quyết định khung game rộng bao nhiêu. Nó đo chính nó:
+   khung game rộng bao nhiêu thì đo ra bấy nhiêu, nên nó không bao giờ lớn lên
+   được nữa. Đây đúng là lý do khung game "vẫn y như cũ" sau lần sửa trước.
+
+   `align-content: center` thì đẩy phần tử được đo XUỐNG giữa khung, làm mép trên
+   của nó tụt xuống - mà chỗ trống theo chiều dọc lại tính bằng "chiều cao màn
+   hình trừ đi mép trên ấy". Khung to lên thì mép trên tụt xuống thì chỗ trống
+   hụt đi thì khung bé lại: một vòng luẩn quẩn.
+
+   Cách đúng: phần tử được đo luôn chiếm TRỌN khung (đầy bề ngang, mép trên ở số
+   0), còn việc căn giữa xảy ra bên trong nó. Lúc ấy phép đo không còn phụ thuộc
+   vào chính kết quả của nó. */
+.map-immersive > .world-layout,
+.map-immersive .overworld-layout {
   align-content: center;
-  justify-items: center;
 }

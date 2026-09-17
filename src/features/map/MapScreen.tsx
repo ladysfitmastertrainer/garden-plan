@@ -83,6 +83,28 @@ export function MapScreen() {
   // màn hình đã là một nơi khác, mà ngăn kéo thì vẫn che mất nó.
   useEffect(() => setMenuOpen(false), [region?.subject, region?.grade])
 
+  /*
+    Nút ☰, dựng MỘT LẦN và đi vào TRONG khung của màn đang mở.
+
+    Cả hai màn - bản đồ thế giới và bản đồ vùng - đều vẽ một cái khung có viền,
+    căn giữa màn hình, và đó mới là "màn hình game" theo mắt trẻ. Bản trước dán
+    nút này vào mép MÀN HÌNH: trên điện thoại dựng đứng, nơi khung game không
+    bao giờ cao bằng máy, nó nổi lên giữa dải trống phía trên khung, trông như
+    một nút rơi ra ngoài trò chơi. Giờ nó là lớp phủ của chính cái khung, nên
+    hai màn đều gọn trong đúng một khung duy nhất.
+  */
+  const menuButton = (
+    <button
+      type="button"
+      onClick={() => setMenuOpen(true)}
+      className="pixel-font hud-btn hud-btn-menu"
+      aria-label="Mở bảng điều khiển"
+      aria-expanded={menuOpen}
+    >
+      ☰
+    </button>
+  )
+
   if (!student) return null
 
   const { level, xpIntoLevel, xpForNext } = levelFromTotalXp(student.totalXp)
@@ -159,6 +181,27 @@ export function MapScreen() {
       {/* Ngăn kéo là chỗ duy nhất trẻ dừng lại đọc, nên bảng tiến độ nằm ở đây. */}
       {immersive && <ProgressPanel progress={progress} grade={student.grade} region={region} />}
 
+      {/*
+        CÂY KỸ NĂNG NẰM TRONG NGĂN KÉO, không còn là một thẻ trên bản đồ.
+
+        Nó vốn là một trong hai thẻ "Đi cảnh / Cây kỹ năng" ở đầu vùng đất, và
+        cặp thẻ ấy ăn một dải ngang ngay trên bản đồ chỉ để nói rằng có một màn
+        thứ hai tồn tại. Mà cây kỹ năng là thứ để ĐỌC - một bảng chi chít chữ,
+        cuộn dài, trẻ mở ra xem mình giỏi cái gì rồi đóng lại - nên chỗ của nó
+        đúng là ngăn kéo, cùng với hồ sơ và bảng tiến độ. Bản đồ thì trả lại
+        trọn vẹn cho việc đi cảnh.
+
+        Bấm một kỹ năng ở đây là vào trận luôn: lúc ấy màn này bị gỡ khỏi cây
+        nên ngăn kéo tự biến mất, không cần đóng lại bằng tay.
+      */}
+      {immersive && region && regionMap && (
+        <SkillTreeScreen
+          map={regionMap}
+          mastery={progress.mastery}
+          onPlay={(node) => startBattle(region.subject, node, region.grade)}
+        />
+      )}
+
       <InstallPrompt />
 
       {/*
@@ -181,6 +224,7 @@ export function MapScreen() {
         towerCleared={progress.towerCleared ?? []}
         onEnterRegion={(subject, grade) => setRegion({ subject, grade })}
         onEnterTower={(subject, grade) => startTowerBattle(subject, grade)}
+        hud={immersive ? menuButton : undefined}
       />
     ) : (
       regionMap && (
@@ -190,6 +234,7 @@ export function MapScreen() {
           grade={region.grade}
           map={regionMap}
           immersive={immersive}
+          menu={menuButton}
           onBack={() => setRegion(null)}
           onPlay={(node) => startBattle(region.subject, node, region.grade)}
           onWild={(kind, variant) => startWildBattle(region.subject, region.grade, kind, variant)}
@@ -216,28 +261,29 @@ export function MapScreen() {
       <div className="pixel-ui map-layout map-immersive">
         {mapArea}
 
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          className="pixel-font map-immersive-menu"
-          aria-label="Mở bảng điều khiển"
-          aria-expanded={menuOpen}
-        >
-          ☰
-        </button>
+        {/*
+          Ngăn kéo đóng lại bằng một dấu ✕ ĐÚNG CHỖ nút ☰ vừa đứng.
 
+          Chỗ cũ của nó là một nút "← Quay lại bản đồ" chạy hết bề ngang dưới
+          đáy ngăn kéo, và cái nhãn ấy nói dối: trong một vùng đất, "quay lại
+          bản đồ" là đúng việc mà mũi tên ← trên khung game làm - về bản đồ thế
+          giới. Hai nút cạnh nhau, cùng một lời hứa, hai kết quả khác hẳn.
+
+          Dấu ✕ thì không hứa gì ngoài "đóng cái này lại", và nó nằm đúng nơi
+          ngón tay vừa chạm để mở - mở và đóng cùng một chỗ. Nó neo theo màn hình
+          (position: fixed) nên cuộn xuống cuối cây kỹ năng nó vẫn còn đó.
+        */}
         {menuOpen && (
           <div className="map-immersive-sheet" role="dialog" aria-label="Bảng điều khiển">
-            <div className="map-immersive-sheet-inner flex flex-col gap-3">
-              {chrome}
-              <button
-                type="button"
-                onClick={() => setMenuOpen(false)}
-                className="btn btn-primary w-full text-lg"
-              >
-                ← Quay lại bản đồ
-              </button>
-            </div>
+            <div className="map-immersive-sheet-inner flex flex-col gap-3">{chrome}</div>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              className="pixel-font hud-btn hud-btn-close"
+              aria-label="Đóng bảng điều khiển"
+            >
+              ✕
+            </button>
           </div>
         )}
       </div>
@@ -427,6 +473,7 @@ function SubjectMap({
   grade,
   map,
   immersive = false,
+  menu,
   onBack,
   onPlay,
   onWild,
@@ -434,8 +481,14 @@ function SubjectMap({
   subject: Subject
   grade: Grade
   map: ReturnType<ReturnType<typeof useGame.getState>['worldMap']>
-  /** Điện thoại: tên vùng và hai thẻ thu lại thành một dải nút nhỏ nổi trên game. */
+  /**
+   * Điện thoại: hàng tiêu đề và hai thẻ biến đi, bản đồ chiếm trọn màn hình, và
+   * hai nút duy nhất còn lại (← quay lại, ☰ bảng điều khiển) dọn vào TRONG khung
+   * game. Cây kỹ năng chuyển sang nằm trong ngăn kéo của màn cha.
+   */
   immersive?: boolean
+  /** Nút ☰ của màn cha, để đặt vào góc trên - phải của khung game. */
+  menu?: React.ReactNode
   onBack: () => void
   onPlay: (node: MapNode) => void
   onWild: (kind: 'wild' | 'mini', variant?: number) => void
@@ -486,39 +539,6 @@ function SubjectMap({
 
   return (
     <div className={`pixel-ui region-layout grid gap-3${immersive ? ' region-immersive' : ''}`}>
-      {/*
-        Dải nút nổi, CHỈ trên điện thoại.
-
-        Tên vùng, thanh tiến độ và hai thẻ "Đi cảnh / Cây kỹ năng" cộng lại ăn
-        gần 150px - trên một máy 844px cao thì đó là một phần sáu màn hình, đứng
-        ngay trên chính cái bản đồ đang chơi. Thu lại thành ba nút biểu tượng nổi
-        ở góc: cùng ba việc ấy, mỗi việc vẫn đúng MỘT cú chạm, mà không lấy đi
-        dòng nào của bản đồ.
-
-        Nút quay lại đứng riêng bên trái và không bao giờ giấu đi: thiếu nó thì
-        trẻ kẹt trong vùng đất, và đó là ngõ cụt tệ nhất có thể có.
-      */}
-      {immersive && (
-        <div className="region-immersive-bar">
-          <button type="button" onClick={onBack} className="pixel-font" aria-label="Về bản đồ thế giới">
-            ←
-          </button>
-          {(['world', 'tree'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setTab(value)}
-              aria-pressed={tab === value}
-              aria-label={value === 'world' ? 'Đi cảnh' : 'Cây kỹ năng'}
-              className="pixel-font"
-              style={tab === value ? { background: style.color, color: '#fff' } : undefined}
-            >
-              {value === 'world' ? '🗺️' : '🌳'}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="region-head flex items-center gap-3">
         <button type="button" onClick={onBack} className="btn btn-ghost px-4">
           ←
@@ -532,27 +552,36 @@ function SubjectMap({
         </div>
       </div>
 
-      {/* Hai cách nhìn cùng một vùng đất: đi tới đâu rồi, và giỏi cái gì rồi. */}
-      <div className="region-tabs flex gap-2">
-        {(['world', 'tree'] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setTab(value)}
-            aria-pressed={tab === value}
-            className="btn flex-1 text-base"
-            style={{
-              background: tab === value ? style.color : 'var(--color-paper-sunk)',
-              color: tab === value ? '#fff' : 'var(--color-ink)',
-              minHeight: 48,
-            }}
-          >
-            {value === 'world' ? '🗺️ Đi cảnh' : '🌳 Cây kỹ năng'}
-          </button>
-        ))}
-      </div>
+      {/*
+        Hai cách nhìn cùng một vùng đất, CHỈ CÒN TRÊN MÁY TÍNH.
 
-      {tab === 'tree' ? (
+        Trên điện thoại cây kỹ năng đã dọn vào ngăn kéo sau nút ☰ (xem
+        `MapScreen`), nên cặp thẻ này không còn gì để chuyển qua lại - và một
+        dải thẻ ngang nằm đè lên bản đồ để chỉ tới một màn không còn ở đó nữa
+        thì tệ hơn là không có.
+      */}
+      {!immersive && (
+        <div className="region-tabs flex gap-2">
+          {(['world', 'tree'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTab(value)}
+              aria-pressed={tab === value}
+              className="btn flex-1 text-base"
+              style={{
+                background: tab === value ? style.color : 'var(--color-paper-sunk)',
+                color: tab === value ? '#fff' : 'var(--color-ink)',
+                minHeight: 48,
+              }}
+            >
+              {value === 'world' ? '🗺️ Đi cảnh' : '🌳 Cây kỹ năng'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'tree' && !immersive ? (
         <SkillTreeScreen map={map} mastery={mastery} onPlay={onPlay} />
       ) : (
       <Overworld
@@ -568,6 +597,30 @@ function SubjectMap({
         onPosition={onPosition}
         onEnterGate={(node) => (node.kind === 'battle' ? onPlay(node) : setPreview(node))}
         paused={preview !== null}
+        /*
+          Mũi tên ← và nút ☰ đi VÀO TRONG khung game, hai góc trên.
+
+          Trước đây chúng là một dải nút dán vào mép màn hình, và trên điện
+          thoại dựng đứng khung game không cao bằng máy - nên dải nút ấy nổi
+          giữa vùng trống phía trên khung, tách khỏi thứ nó điều khiển. Trong
+          khung thì chúng đi theo khung ở mọi cỡ máy, và cả hai màn chỉ còn
+          đúng một hình chữ nhật duy nhất chiếm trọn màn hình.
+        */
+        hud={
+          immersive ? (
+            <>
+              <button
+                type="button"
+                onClick={onBack}
+                className="pixel-font hud-btn hud-btn-back"
+                aria-label="Về bản đồ thế giới"
+              >
+                ←
+              </button>
+              {menu}
+            </>
+          ) : undefined
+        }
         dialogue={
           <AnimatePresence>
             {preview && (

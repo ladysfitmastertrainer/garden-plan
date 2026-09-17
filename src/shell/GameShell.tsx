@@ -28,6 +28,7 @@ import { PvpScreen } from '../features/pvp/PvpScreen'
 import { useUi } from '../store/ui'
 import { InstallPrompt } from '../ui/InstallPrompt'
 import { RotateHint } from '../ui/RotateHint'
+import { startBattleTheme, stopBattleTheme } from '../audio/battle-theme'
 import { setMusicOn, watchVisibility } from '../audio/music'
 import { useAppChrome } from './useAppChrome'
 import type { PvpStatus } from '../data/pvp-types'
@@ -69,10 +70,31 @@ export function GameShell() {
   */
   const muted = useUi((s) => s.muted)
   const musicOn = useUi((s) => s.musicOn)
+  /*
+    Đang đánh nhau hay không - đọc ở ĐÂY chứ không ở màn trận.
+
+    Màn trận bị gỡ khỏi cây ngay khi trận kết thúc, nên một hiệu ứng dọn dẹp đặt
+    trong đó sẽ chạy đúng lúc nó không còn quyền gì nữa. Ở đây thì cả hai bản
+    nhạc do cùng một chỗ điều khiển, và việc "đổi nhạc" là một câu lệnh chứ
+    không phải hai màn hình tự thoả thuận với nhau.
+  */
+  const inBattle = useGame((s) => s.battle !== null)
 
   useEffect(() => {
-    setMusicOn(musicOn && !muted)
-  }, [musicOn, muted])
+    const wantSound = musicOn && !muted
+
+    /*
+      HAI BẢN NHẠC KHÔNG BAO GIỜ KÊU CÙNG LÚC.
+
+      Nhạc nền là một tệp dài, êm, để đi bản đồ. Nhạc trận thì ngắn, gấp, giọng
+      thứ. Chồng lên nhau thì không còn là nhạc nữa; mà quan trọng hơn, cái đổi
+      nhạc chính là thứ nói cho trẻ biết vừa bước vào một chỗ khác.
+    */
+    setMusicOn(wantSound && !inBattle)
+
+    if (wantSound && inBattle) startBattleTheme()
+    else stopBattleTheme()
+  }, [musicOn, muted, inBattle])
 
   useEffect(() => watchVisibility(), [])
 

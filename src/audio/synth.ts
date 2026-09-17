@@ -72,14 +72,21 @@ const ENVELOPE: Record<Timbre, Envelope> = {
   pluck: { attack: 0.005, decay: 0.15, sustain: 0.1, release: 0.2 },
 }
 
-/** Phát một nốt đơn tại thời điểm `startAt` (giây, theo đồng hồ của AudioContext). */
-function scheduleNote(
+/**
+ * Phát một nốt đơn tại thời điểm `startAt` (giây, theo đồng hồ của AudioContext).
+ *
+ * `destination` cho phép nối nốt vào một nút khác thay vì thẳng ra loa. Nhạc
+ * trận đấu cần điều đó: cả bản nhạc đi qua MỘT nút âm lượng chung, nên tắt nhạc
+ * là vặn nhỏ đúng một chỗ, thay vì phải đuổi theo từng nốt đã hẹn giờ trước.
+ */
+export function scheduleNote(
   ctx: AudioContext,
   frequency: number,
   startAt: number,
   durationSec: number,
   gainValue: number,
   timbre: Timbre,
+  destination: AudioNode = ctx.destination,
 ): void {
   const oscillator = ctx.createOscillator()
   const gain = ctx.createGain()
@@ -99,7 +106,7 @@ function scheduleNote(
   gain.gain.exponentialRampToValueAtTime(0.0001, startAt + durationSec + env.release)
 
   oscillator.connect(gain)
-  gain.connect(ctx.destination)
+  gain.connect(destination)
   oscillator.start(startAt)
   oscillator.stop(startAt + durationSec + env.release + 0.05)
 }

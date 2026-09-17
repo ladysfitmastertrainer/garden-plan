@@ -1126,6 +1126,108 @@ textarea.admin-input {
   right: 6px;
 }
 
+/* ---------------------------------------------------------------------------
+   KHUNG HỎI NỔI: ĐO THEO PHẦN MÀN HÌNH THẬT SỰ NHÌN THẤY
+   ---------------------------------------------------------------------------
+
+   Bản trước để `inset: 0` cho lớp phủ và `max-height: 90vh` cho khung, và cả
+   hai đều đo vào một chiều cao KHÔNG PHẢI chiều cao đang nhìn thấy: trên điện
+   thoại, `vh` và khung nhìn bố cục đều tính theo lúc thanh địa chỉ ĐÃ THU LẠI.
+   Thanh địa chỉ đang hiện ra thì phần nhìn thấy thấp hơn thế khoảng 60-100px,
+   nên đáy khung hỏi - chỗ đặt hai cái nút - tụt xuống dưới mép màn hình. Trẻ
+   thấy một khung hỏi cụt đuôi và phải kéo mới tới được nút.
+
+   `dvh` là đơn vị đo đúng thứ đó: nó co lại theo thanh địa chỉ. Cộng thêm phần
+   khuyết của máy tai thỏ ở hai đầu, và khung hỏi không bao giờ cao hơn chỗ nó
+   có để nằm.
+
+   Lề 12px thay cho 16px, và trên màn hình lùn còn 8px: ở đó mỗi điểm ảnh chiều
+   cao đều đang phải tranh nhau. */
+.pixel-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100dvh;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 12px
+    calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.pixel-modal-panel {
+  width: 100%;
+  /* 28rem ở cỡ chữ nền 18px là 504px - rộng hơn mọi điện thoại, nên trên máy
+     cầm tay chính `width: 100%` mới là thứ quyết định. */
+  max-width: 28rem;
+  /* Phần trăm đo vào ô nội dung của lớp phủ, tức đã trừ cả lề lẫn phần khuyết. */
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+/* Máy lùn - điện thoại nhỏ cầm dọc, và mọi điện thoại lúc xoay ngang - thì lề
+   co lại: ở đó từng điểm ảnh chiều cao đều đang phải tranh nhau, và 8px lề là
+   đủ để khung hỏi không dính vào mép máy. */
+@media (max-height: 700px) {
+  .pixel-modal {
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 8px
+      calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Hình trang trí ở đầu khung hỏi: NHƯỜNG CHỖ trên máy lùn.
+
+   Hòn đảo, toà tháp, cánh cổng - trẻ vừa chạm vào đúng hình ấy trên bản đồ để
+   mở khung này ra, nên vẽ lại nó to gấp đôi ngay bên trên là nói một điều trẻ
+   vừa tự làm. Trên màn hình rộng rãi đó là một lời chào đẹp; trên điện thoại
+   xoay ngang, cao 390px, nó là 96px lấy thẳng từ chỗ của hai cái nút. */
+@media (max-height: 560px) {
+  .modal-hero {
+    display: none;
+  }
+}
+
+/* Câu giới thiệu từng tầng: CHỈ HIỆN RA KHI MÀN HÌNH CÒN CHỖ.
+
+   Khung Tháp Trí Tuệ là một cái BẢNG CHỌN: trẻ mở ra để bấm vào một trong bốn
+   tầng. Bốn câu giới thiệu ấy là không khí, mỗi câu một tới hai dòng, và trên
+   một điện thoại 360×640 chúng cộng lại đẩy chính bốn cái nút xuống dưới mép
+   màn hình - tức là thứ duy nhất bấm được trong khung phải kéo mới thấy.
+
+   Nên chúng không bị xoá, chỉ nhường chỗ: máy cao từ 800px trở lên - máy tính,
+   máy tính bảng, điện thoại đời mới cầm dọc - vẫn đọc được đủ. */
+.tower-floor-tagline {
+  display: none;
+}
+
+@media (min-height: 800px) {
+  .tower-floor-tagline {
+    display: block;
+  }
+}
+
+/* Bốn thói quen của trùm tháp: hai hàng, hai cột, liếc một cái là hết.
+
+   Thay cho một đoạn văn bốn dòng nói đúng bốn ý ấy - xem `TowerModal`. */
+.tower-traits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 100%;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tower-traits li {
+  padding: 3px 6px;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  text-align: left;
+  background: var(--color-paper-sunk);
+  border-radius: 6px;
+}
+
 /* Lối ra của ngăn kéo DÍNH LÊN ĐỈNH, không cuộn đi mất.
 
    Ngăn kéo giờ chứa cả cây kỹ năng - một bảng cuộn dài - và một lối ra chỉ thấy

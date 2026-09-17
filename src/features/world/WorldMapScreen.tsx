@@ -616,7 +616,9 @@ function RegionModal({
   return (
     <PixelModal title={title} onClose={onClose}>
       <div className="grid justify-items-center gap-2 text-center">
-        <PixelSprite sprite={islandSprite(region)} scale={2} />
+        <span className="modal-hero">
+          <PixelSprite sprite={islandSprite(region)} scale={2} />
+        </span>
 
         <h3 className="pixel-font text-3xl leading-none">{land}</h3>
         <p className="pixel-font text-2xl leading-none" style={{ color: '#4c4a7a' }}>
@@ -667,17 +669,35 @@ function TowerModal({
   return (
     <PixelModal title={`Tháp Trí Tuệ — lớp ${grade}`} onClose={onClose}>
       <div className="grid gap-2">
+        {/*
+          KHÔNG còn hình toà tháp ở đây, và lời cảnh báo co thành bốn ô nhỏ.
+
+          Khung này cao 799px trên một máy 844px - trẻ mở ra là phải kéo mới thấy
+          bốn tầng tháp, tức là phải kéo mới thấy thứ DUY NHẤT bấm được trong
+          khung. Hai thứ vừa cắt đi chiếm gần 140px trong số đó:
+
+          Hình toà tháp thì vừa được chạm vào để mở khung này - vẽ lại nó to gấp
+          đôi ngay bên dưới là nói một điều trẻ vừa tự làm.
+
+          Đoạn văn bốn dòng thì không mất chữ nào: bốn cái gạch đầu dòng của nó
+          vốn đã là bốn ý rời - đổi hệ, giáp, hút máu, nổi giận - nên xếp thành
+          bốn ô hai hàng chỉ tốn 1/3 chiều cao mà lại đọc lướt được. Với một đứa
+          bé sắp vào trận, bốn ô liếc qua là nhớ còn hơn một đoạn văn bỏ qua.
+        */}
         <div className="grid justify-items-center gap-1 text-center">
-          <PixelSprite sprite={PROP_CASTLE} scale={2} />
           <h3 className="pixel-font text-3xl leading-none">THÁP TRÍ TUỆ</h3>
           <p className="pixel-font text-xl leading-none" style={{ color: '#4c4a7a' }}>
             {cleared}/{TOWER_FLOORS.length} tầng đã hạ
           </p>
           <p className="text-base leading-snug opacity-80">
-            Bốn vị trùm mạnh nhất thế giới ngồi đây. Chúng <strong>đổi hệ</strong> giữa trận, có{' '}
-            <strong>giáp</strong> chặn đòn sai hệ, <strong>hút máu</strong> mỗi lần con trả lời sai,
-            và <strong>nổi giận</strong> khi sắp gục. Đề hỏi cả bài của những lớp trước.
+            Bốn vị trùm mạnh nhất thế giới ngồi đây. Đề hỏi cả bài lớp trước.
           </p>
+          <ul className="tower-traits">
+            <li>🔄 Đổi hệ giữa trận</li>
+            <li>🛡️ Giáp chặn sai hệ</li>
+            <li>🩸 Hút máu khi con sai</li>
+            <li>😡 Nổi giận khi sắp gục</li>
+          </ul>
         </div>
 
         <div className="grid gap-2">
@@ -689,7 +709,7 @@ function TowerModal({
                 type="button"
                 onClick={() => onEnter(floor.subject)}
                 className="card flex items-center gap-3 text-left"
-                style={{ padding: 10, cursor: 'pointer' }}
+                style={{ padding: 8, cursor: 'pointer' }}
               >
                 <PixelSprite sprite={towerSpriteFor(floor.subject)} scale={2} />
                 <span className="min-w-0 flex-1">
@@ -700,7 +720,11 @@ function TowerModal({
                     {beaten && '✓ '}
                     {floor.name}
                   </span>
-                  <span className="block text-sm leading-tight opacity-70">{floor.tagline}</span>
+                  {/* Câu giới thiệu chỉ hiện ra khi màn hình còn chỗ - xem
+                      `.tower-floor-tagline` trong globals.css. */}
+                  <span className="tower-floor-tagline text-sm leading-tight opacity-70">
+                    {floor.tagline}
+                  </span>
                 </span>
               </button>
             )
@@ -733,7 +757,9 @@ function GateModal({
   return (
     <PixelModal title={`Cổng sang quần đảo lớp ${nextGrade}`} onClose={onClose}>
       <div className="grid justify-items-center gap-2 text-center">
-        <PixelSprite sprite={gateSprite(unlocked)} scale={2} />
+        <span className="modal-hero">
+          <PixelSprite sprite={gateSprite(unlocked)} scale={2} />
+        </span>
 
         <h3 className="pixel-font text-3xl leading-none">
           {unlocked ? '' : '🔒 '}

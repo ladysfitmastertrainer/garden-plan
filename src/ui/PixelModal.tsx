@@ -74,7 +74,7 @@ export function PixelModal({
 
   return (
     <div
-      className="pixel-ui fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="pixel-ui pixel-modal"
       style={{ background: 'rgb(12 16 24 / 0.66)' }}
       onClick={onClose}
     >
@@ -83,8 +83,7 @@ export function PixelModal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="pixel-panel w-full max-w-md"
-        style={{ maxHeight: '90vh', overflowY: 'auto' }}
+        className="pixel-panel pixel-modal-panel"
         // Chạm bên trong khung không được tính là chạm ra ngoài để đóng.
         onClick={(event) => event.stopPropagation()}
       >

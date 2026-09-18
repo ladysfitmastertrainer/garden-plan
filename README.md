@@ -20,7 +20,7 @@ cp .env.example .env.local   # rồi điền ba biến bên trong
 npm run dev        # http://localhost:3000
 npm run build      # build production
 npm start          # chạy bản đã build
-npm test           # 1068 test (gồm 67 test RLS chạy trên Postgres thật)
+npm test           # 1077 test (gồm 67 test RLS chạy trên Postgres thật)
 npm run typecheck  # kiểm kiểu toàn dự án
 npm run validate   # kiểm tra toàn vẹn nội dung
 npm run icons      # sinh lại icon PWA
@@ -103,8 +103,18 @@ hai em bước vào cùng một vùng đất thì thấy nhau đi lại trong đ
 xuất phát, tên treo trên đầu.
 
 Chỗ đứng đi kèm nhịp tim của đấu trường (`class_presence` giữ thêm toạ độ Ô, xem
-migration 0009). Nhịp giãn 6 giây khi cả lớp tản ra, rút còn 2,5 giây khi có bạn
+migration 0009). Nhịp giãn 6 giây khi cả lớp tản ra, rút còn 1,5 giây khi có bạn
 đứng cùng vùng đất - chỉ trả thêm băng thông ở đúng lúc có người để nhìn.
+
+**MỘT VÙNG ĐẤT, MỘT TẤM BẢN ĐỒ.** Địa hình được dựng từ một số ô cổng CỐ ĐỊNH
+theo (môn, lớp), không phải từ số chặng mà từng em đang có - chặng Ôn tập chỉ
+hiện ra khi chính em ấy có kỹ năng đến hạn, và nếu để nó quyết định địa hình thì
+hai em cùng lớp đứng trên hai tấm bản đồ lệch nhau bốn hàng. Bản đồ sinh từ dưới
+lên nên nhìn vẫn y hệt nhau; chỉ có toạ độ là sai, và không có gì báo lỗi cả.
+
+Mỗi em một **ô đặt chân** riêng quanh điểm xuất phát, bốc theo id hồ sơ
+(`features/world/spawn.ts`) - mọi máy cùng tính ra một kết quả, nên chỗ bạn mình
+đứng trên màn hình của mình đúng là chỗ bạn ấy thấy mình đứng.
 
 ## Bàn hướng dẫn
 

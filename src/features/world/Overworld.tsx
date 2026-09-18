@@ -24,6 +24,7 @@ import type { Biome } from './biome'
 import { getTuning } from '../../content/tuning'
 import { createRng } from '../../engine/rng'
 import { buildRouteMap, gateAt, isWalkable, wanderStep, type RouteMap } from './routemap'
+import { spawnSpot } from './spawn'
 
 const TILE = 16
 /**
@@ -291,6 +292,31 @@ interface Props {
   /** Trẻ giẫm trúng một ô có quái ẩn. Cùng lẽ với trên: truyền toạ độ. */
   onSecret?: (at: { x: number; y: number }) => void
   /**
+   * SỐ Ô CỔNG mà địa hình được dựng cho - KHÔNG phải số chặng đang có.
+   *
+   * Đây là chỗ đã làm hai đứa trẻ cùng lớp nhìn thấy hai tấm bản đồ khác nhau.
+   * Địa hình vốn dựng từ `nodes.length`, mà `nodes` có một chặng ÔN TẬP chỉ
+   * hiện ra khi CHÍNH em ấy có kỹ năng đến hạn (xem `buildWorldMap`). Nên một
+   * em có bài ôn và một em không sẽ dựng bản đồ với 15 và 14 ô cổng - đo thật ở
+   * Tiếng Việt lớp 2 thì ra 13×64 và 13×60, tức LỆCH NHAU BỐN HÀNG.
+   *
+   * Bản đồ sinh từ dưới lên nên nhìn thì vẫn y hệt nhau, chỉ có toạ độ là lệch:
+   * ô (5, 58) của em này là ô (5, 62) của em kia. Bạn cùng lớp vì thế hiện ra
+   * sai chỗ, và không có gì báo lỗi cả.
+   *
+   * Truyền một con số CỐ ĐỊNH theo (môn, lớp) vào đây thì địa hình giống nhau
+   * với mọi đứa trẻ, và một toạ độ nói cùng một chỗ ở mọi máy. Ô cổng nào không
+   * có chặng nào ngồi vào thì tự ẩn đi - xem `roamingGates`.
+   */
+  slots?: number
+  /**
+   * Hạt giống chọn ô ĐẶT CHÂN khi mới vào vùng, thường là id hồ sơ trẻ.
+   *
+   * Thiếu nó thì mọi đứa trẻ đứng chồng khít lên nhau ở đúng điểm xuất phát -
+   * xem `features/world/spawn.ts`.
+   */
+  spawnSeed?: string
+  /**
    * Bạn cùng lớp đang đi trong CÙNG vùng đất này, đã kèm hình và chỗ đứng.
    *
    * Nhận hình đã tô màu sẵn chứ không nhận emoji: thành phần này vẽ lại ở mọi
@@ -339,6 +365,8 @@ export function Overworld({
   onMonsterBump,
   onEnterHouse,
   onSecret,
+  slots,
+  spawnSeed,
   beaten,
   friends,
   follower,
@@ -349,7 +377,7 @@ export function Overworld({
   const bossIndex = nodes.findIndex((node) => node.kind === 'boss')
   const map = useMemo(
     () =>
-      buildRouteMap(nodes.length, seed, {
+      buildRouteMap(slots ?? nodes.length, seed, {
         shape: biome.shape,
         width: biome.width,
         ground: biome.ground,
@@ -358,7 +386,7 @@ export function Overworld({
         scatter: biome.scatter,
         bossIndex,
       }),
-    [nodes.length, seed, biome, bossIndex],
+    [slots, nodes.length, seed, biome, bossIndex],
   )
 
   const bossNode = bossIndex >= 0 ? nodes[bossIndex] : undefined
@@ -448,8 +476,15 @@ export function Overworld({
     const hidden = new Set<string>()
     for (const gate of map.gates) {
       const node = nodes[gate.nodeIndex]
-      // Cùng điều kiện với chỗ sinh quái bên trên.
-      if (node?.kind === 'battle') hidden.add(`${gate.x},${gate.y}`)
+      /*
+        Ô cổng KHÔNG CÓ CHẶNG NÀO ngồi vào cũng bị ẩn, không chỉ ô có quái.
+
+        Địa hình được dựng với một số ô cổng CỐ ĐỊNH để mọi đứa trẻ có chung
+        một tấm bản đồ (xem `slots`), nên ô cuối - chỗ dành cho chặng Ôn tập -
+        thường bỏ trống: chỉ em nào có kỹ năng đến hạn mới có chặng ấy. Một
+        cánh cổng vẽ ra mà bước vào không có gì xảy ra thì tệ hơn là không vẽ.
+      */
+      if (!node || node.kind === 'battle') hidden.add(`${gate.x},${gate.y}`)
     }
     return hidden
   }, [map, nodes])
@@ -522,6 +557,13 @@ export function Overworld({
   // thuộc của effect bên dưới thì mỗi bước đi lại kéo nhân vật về chỗ cũ.
   const startAtRef = useRef(startAt)
   startAtRef.current = startAt
+  // Hai thứ dưới đây cũng đọc qua ref, cùng lẽ: chúng chỉ được hỏi tới ở đúng
+  // lúc ĐỔI BẢN ĐỒ, nên để vào mảng phụ thuộc là kéo nhân vật về chỗ cũ ở mỗi
+  // lần vẽ lại.
+  const spawnSeedRef = useRef(spawnSeed)
+  spawnSeedRef.current = spawnSeed
+  const onPositionRef = useRef(onPosition)
+  onPositionRef.current = onPosition
   const [facing, setFacing] = useState<Direction>('up')
   const [stepping, setStepping] = useState(false)
   const [scale, setScale] = useState(3)
@@ -535,11 +577,29 @@ export function Overworld({
   // Bản đồ đổi (đổi môn) thì đặt nhân vật vào chỗ đã nhớ của vùng đó, hoặc điểm
   // xuất phát nếu đây là lần đầu tới.
   useEffect(() => {
-    const at = startAtRef.current ?? map.start
+    /*
+      Chưa từng tới vùng này thì mỗi em một ô, không ai đứng chồng lên ai.
+
+      `map.start` chỉ có MỘT, nên trước đây hai em vào cùng một vùng là hai
+      nhân vật khít nhau ở đúng một ô - nhìn ra chỉ thấy một người, và không ai
+      biết bạn mình đã vào hay chưa. `spawnSpot` bốc một ô quanh đó theo hạt
+      giống, nên mọi máy cùng tính ra một kết quả.
+    */
+    const at = startAtRef.current ?? spawnSpot(map, spawnSeedRef.current ?? seed)
     setPos(at)
     setTrail(at)
     setFacing('up')
-  }, [map])
+
+    /*
+      BÁO CHỖ ĐỨNG NGAY, đừng đợi bước chân đầu tiên.
+
+      Nhịp tim gửi lên toạ độ mà màn cha đang nhớ, và chỗ nhớ ấy chỉ được ghi ở
+      `onPosition` - tức là sau khi trẻ ĐI. Em nào vừa vào vùng mà đứng yên thì
+      toạ độ gửi lên là rỗng, và bạn bè lọc em ấy ra khỏi bản đồ: đứng im thì
+      tàng hình, đi một bước mới hiện ra.
+    */
+    onPositionRef.current?.(at)
+  }, [map, seed])
 
   // Khung nhìn co theo màn hình, nhưng luôn là bội số nguyên của ô để điểm ảnh
   // không bị méo - đây là điều kiện sống còn của pixel art.
@@ -898,11 +958,14 @@ export function Overworld({
             của chính em ấy nằm trên - một tấm bản đồ mà con không tìm thấy mình
             ở đâu thì mọi thứ khác trên đó đều vô nghĩa.
 
-            Chỗ đứng tới nơi theo NHỊP TIM, hai giây rưỡi một lần (xem
+            Chỗ đứng tới nơi theo NHỊP TIM, một giây rưỡi một lần (xem
             `usePvpSync`), chứ không theo từng bước chân. Nên bạn mình không đi
-            từng ô như nhân vật của trẻ mà trượt một quãng dài. `transition` kéo
-            quãng ấy ra cho mượt: một cú trượt chậm đọc ra là "bạn ấy vừa đi qua
-            đằng kia", còn một cú nhảy tức thì đọc ra là màn hình bị lỗi.
+            từng ô như nhân vật của trẻ mà trượt một quãng dài.
+
+            `transition` kéo quãng ấy ra cho vừa ĐÚNG một nhịp, và `linear` chứ
+            không `ease-out`: chậm dần rồi đứng im nửa giây trước khi giật tiếp
+            đọc ra là màn hình bị lỗi, còn trượt đều thì đọc ra là một người
+            đang đi. Đi hết nhịp này thì nhịp sau đã tới, nên đường đi liền mạch.
           */}
           {crowd.map((friend) => (
             <div
@@ -913,7 +976,7 @@ export function Overworld({
                 top: friend.y * TILE * scale,
                 width: TILE * scale,
                 height: TILE * scale,
-                transition: 'left 600ms ease-out, top 600ms ease-out',
+                transition: 'left 1400ms linear, top 1400ms linear',
                 zIndex: 1,
               }}
             >

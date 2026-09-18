@@ -28,11 +28,21 @@ const LOBBY_MS = 6_000
  * chỗ này sang chỗ kia, cách nhau cả chục ô - nhìn như lỗi chứ không như một
  * người đang đi.
  *
- * Hai giây rưỡi là chỗ dừng có tính toán: đủ dày để một bước đi đọc ra được,
- * mà vẫn chỉ tốn thêm nhịp ở ĐÚNG lúc có người để nhìn. Cả lớp tản ra bốn hòn
- * đảo khác nhau thì mọi máy quay về sáu giây như cũ.
+ * Một giây rưỡi là chỗ dừng có tính toán, và nó được chọn từ hai đầu:
+ *
+ *   ĐỦ NHANH để hai đứa trẻ thấy nhau ĐANG ĐI chứ không phải đang nhảy cóc.
+ *   Nhân vật của bạn trượt từ chỗ cũ sang chỗ mới trong khoảng đúng bằng một
+ *   nhịp (xem `transition` chỗ vẽ bạn cùng lớp trong `Overworld`), nên ở nhịp
+ *   này bạn mình đi thành một đường liền chứ không giật từng quãng.
+ *
+ *   ĐỦ CHẬM để một lớp ba mươi máy không đè chết máy chủ: hai mươi lượt gọi
+ *   mỗi giây, và chỉ ở ĐÚNG lúc có người để nhìn. Cả lớp tản ra bốn hòn đảo
+ *   khác nhau thì mọi máy quay về sáu giây như cũ.
+ *
+ * Nhanh hơn nữa thì phải đổi cách làm chứ không phải đổi con số: một đường
+ * truyền mở sẵn thay cho việc hỏi đi hỏi lại. Đó là một việc khác, lớn hơn.
  */
-const TOGETHER_MS = 2_500
+const TOGETHER_MS = 1_500
 const MATCH_MS = 700
 
 /**

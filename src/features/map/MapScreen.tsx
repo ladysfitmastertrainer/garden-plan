@@ -750,6 +750,21 @@ function SubjectMap({
       ) : (
       <Overworld
         nodes={map.nodes}
+        /*
+          ĐỊA HÌNH DỰNG THEO MỘT CON SỐ CỐ ĐỊNH, không theo số chặng đang có.
+
+          `map.nodes` có thêm một chặng Ôn tập khi CHÍNH em này có kỹ năng đến
+          hạn, nên nó dài ngắn khác nhau tuỳ từng đứa trẻ - và địa hình dựng từ
+          nó thì lệch theo. Hai em cùng lớp vào cùng một vùng sẽ đứng trên hai
+          tấm bản đồ cao thấp khác nhau, và mọi toạ độ chia cho nhau đều sai.
+
+          `totalNodes` là số chặng của chương trình (kỹ năng + trùm), giống nhau
+          với mọi đứa trẻ. Cộng một ô nữa để dành sẵn chỗ cho chặng Ôn tập, và
+          ô ấy tự ẩn đi ở những em chưa có bài nào đến hạn.
+        */
+        slots={totalNodes(subject, grade) + 1}
+        // Mỗi em một ô đặt chân, thay vì cả lớp chồng lên nhau ở điểm xuất phát.
+        spawnSeed={student?.id}
         seed={`${subject}-g${grade}`}
         biome={biome}
         subject={subject}

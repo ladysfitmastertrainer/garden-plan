@@ -19,6 +19,13 @@ import { contentSource } from '../content/registry'
 import { getTuning } from '../content/tuning'
 import { buildWorldMap, type MapNode, type WorldMap } from '../content/worldmap'
 import { TOWER_QUESTIONS, createTowerBoss, towerGrades } from '../content/tower'
+import {
+  TUTORIAL_GRADE,
+  TUTORIAL_MAX_QUESTIONS,
+  TUTORIAL_QUESTIONS,
+  TUTORIAL_SUBJECT,
+  tutorialEnemy,
+} from '../content/tutorial'
 import type { Grade, Question, Subject } from '../content/types'
 import {
   advance as advanceBattle,
@@ -121,7 +128,16 @@ function enemyFor(kind: 'wild' | 'mini' | 'secret', enemy: Enemy): Enemy {
   }
 }
 
-export type BattleKind = 'node' | 'wild' | 'mini' | 'secret' | 'tower'
+/**
+ * Loại trận đang đánh.
+ *
+ * 'tutorial' là loại DUY NHẤT không ghi gì xuống hồ sơ: không mức thạo, không
+ * vàng, không kinh nghiệm, không đếm vào số trận đã chơi. Nó là một trận tập
+ * với một con slime tập sự, và một buổi tập không được để lại dấu vết trong học
+ * bạ. Hai chỗ phải biết điều đó - `commitBattleStep` và `closeBattle` - đều
+ * kiểm tra đúng cái tên này.
+ */
+export type BattleKind = 'node' | 'wild' | 'mini' | 'secret' | 'tower' | 'tutorial'
 
 /** Số câu tối đa trong một trận. Đủ dài để có tiến triển, đủ ngắn để không chán. */
 
@@ -150,6 +166,16 @@ export interface BattleSummary {
   missedSkills: string[]
   /** Có dựng lại được đúng trận này không - để hiện nút "Đánh lại ngay". */
   canRetry: boolean
+  /**
+   * Đây là trận TẬP của bàn hướng dẫn.
+   *
+   * Màn tổng kết vẫn liệt kê đủ vàng, kinh nghiệm và chuỗi đúng - đó là cả lý
+   * do cho trẻ nhìn thấy nó: bảng này sẽ hiện ra sau mọi trận từ giờ trở đi,
+   * nên phải học đọc nó một lần. Nhưng những con số ấy KHÔNG được cộng thật, và
+   * nói dối một đứa trẻ về phần thưởng thì lần sau nó không tin bảng này nữa.
+   * Cờ này để màn tổng kết nói thẳng ra điều đó.
+   */
+  tutorial?: boolean
 }
 
 interface GameState {
@@ -212,6 +238,15 @@ interface GameState {
    * cửa riêng ở giữa lục địa.
    */
   startTowerBattle: (subject: Subject, grade?: Grade) => void
+  /**
+   * Trận TẬP của bàn hướng dẫn: một con slime tập sự và sáu câu cộng trừ trong
+   * phạm vi 5, không ghi gì xuống hồ sơ.
+   *
+   * Không nhận môn cũng không nhận lớp: bàn hướng dẫn luôn là Toán lớp 1 với
+   * mọi đứa trẻ, vì lúc này em đang học cách bấm nút chứ không học Toán. Xem
+   * `content/tutorial.ts`.
+   */
+  startTutorialBattle: () => void
   /** Trẻ bấm "Tấn công" ở pha chờ: câu hỏi hiện ra và đồng hồ bắt đầu chạy. */
   attack: () => void
   /** Hết nhịp cảnh báo: câu hỏi đỡ đòn hiện ra và đồng hồ bắt đầu chạy. */
@@ -248,11 +283,29 @@ function commitBattleStep(
   set: (partial: Partial<GameState>) => void,
   get: () => GameState,
 ): void {
-  const { battle, student, progress } = get()
+  const { battle, student, progress, battleKind } = get()
   if (!battle || !student) return
 
   const record = next.answers[next.answers.length - 1]
   if (!record) return
+
+  /*
+    TRẬN TẬP KHÔNG VÀO SỔ.
+
+    Câu "1 + 1" trong bàn hướng dẫn không nói gì về việc trẻ có thạo phép cộng
+    hay không - nó nói về việc trẻ đã tìm ra cái nút chưa. Ghi nó vào mức thạo
+    thì lịch giãn cách tưởng em này vừa ôn xong phép cộng trong phạm vi 10 và
+    đẩy bài ấy lùi lại hàng tuần; ghi vào sổ trả lời thì bảng của bố mẹ có một
+    buổi học không có thật.
+
+    Dừng ở đây nhưng VẪN đẩy trạng thái trận đi tiếp và vẫn phát tiếng: trận tập
+    phải chạy y hệt trận thật, chỉ là không để lại gì.
+  */
+  if (battleKind === 'tutorial') {
+    set({ battle: next })
+    playEffect(record.correct ? 'correct' : 'wrong')
+    return
+  }
 
   // Cập nhật mức thạo và LƯU NGAY - trẻ tắt máy giữa chừng vẫn giữ tiến độ.
   const mastery: MasteryMap = {
@@ -610,6 +663,58 @@ export const useGame = create<GameState>((set, get) => ({
     })
   },
 
+  startTutorialBattle() {
+    const { student, progress } = get()
+    if (!student) return
+
+    const queue = TUTORIAL_QUESTIONS
+
+    set({
+      battle: createBattle(
+        {
+          enemy: tutorialEnemy(),
+          /*
+            Sức mạnh và máu THẬT của trẻ, không phải một bộ số riêng cho bàn tập.
+
+            Cả điểm của bàn này là trận sau đó diễn ra y hệt. Cho trẻ một bộ chỉ
+            số mạnh hơn ở đây thì con số sát thương em vừa học đọc sẽ nhỏ đi
+            ngay ở trận thật đầu tiên, và bài học hoá ra dạy sai. Con slime
+            được chọn máu theo đúng chỉ số cấp 1 này - xem `content/tutorial.ts`.
+
+            KHÔNG cộng trang bị: một em quay lại xem hướng dẫn khi đã có đồ sẽ
+            hạ con slime trong một đòn và mất luôn lượt đỡ đòn.
+          */
+          player: statsForLevel(1),
+          team: buildTeam(progress.pets ?? [], TUTORIAL_SUBJECT, 3, progress.petXp ?? {}),
+          maxQuestions: TUTORIAL_MAX_QUESTIONS,
+          // Lượt ra đòn KHÔNG đếm giờ, y như mọi trận thường: trẻ đang học, và
+          // ở bàn này em còn đang vừa học vừa đọc lời người dẫn.
+          timeLimitMs: null,
+          // Lượt đỡ đòn thì có, vì trận thật cũng vậy - và giờ của lớp 1 là giờ
+          // rộng nhất trong game.
+          defendLimitMs: defendLimitFor('normal', TUTORIAL_GRADE),
+        },
+        queue[0]!,
+        Date.now(),
+      ),
+      battleSubject: TUTORIAL_SUBJECT,
+      battleNode: null,
+      /*
+        KHÔNG có "đánh lại ngay" cho trận tập.
+
+        `lastFight` phải bị xoá chứ không chỉ bỏ trống: nó còn giữ trận THẬT
+        trẻ đánh trước khi mở hướng dẫn, và để nguyên thì nút "Đánh lại ngay"
+        trên màn tổng kết của bàn tập sẽ ném em ấy thẳng vào con trùm cũ.
+      */
+      lastFight: null,
+      battleKind: 'tutorial',
+      battleGrade: TUTORIAL_GRADE,
+      queue,
+      queueIndex: 0,
+      summary: null,
+    })
+  },
+
   markFound(key) {
     const { student, progress } = get()
     if (!student) return
@@ -740,6 +845,52 @@ export const useGame = create<GameState>((set, get) => ({
     }
 
     const victory = battle.phase === 'victory'
+
+    /*
+      ---- TRẬN TẬP KHÉP LẠI Ở ĐÂY, TRƯỚC MỌI THỨ CÒN LẠI ----
+
+      Cả phần dưới của hàm này là việc CHỐT SỔ: cộng vàng, cộng kinh nghiệm,
+      quay đồ rơi, bốc thú, mở chặng tiếp theo, rồi lưu hồ sơ lên máy chủ. Không
+      việc nào trong số đó được xảy ra sau một trận với con slime tập sự.
+
+      Nhưng màn tổng kết thì VẪN hiện, và vẫn liệt kê đủ vàng với kinh nghiệm
+      trẻ vừa kiếm trong trận. Đó là cả lý do bàn hướng dẫn có một trận thật:
+      bảng này sẽ hiện ra sau mọi trận từ giờ trở đi, nên phải học đọc nó một
+      lần. Cờ `tutorial` để chính cái bảng ấy nói thẳng rằng lần này không cộng
+      thật - xem `BattleSummaryScreen`.
+    */
+    if (battleKind === 'tutorial') {
+      set({
+        battle: null,
+        battleNode: null,
+        battleSubject: null,
+        battleGrade: null,
+        queue: [],
+        queueIndex: 0,
+        summary: {
+          victory,
+          goldEarned: battle.goldEarned,
+          xpEarned: battle.xpEarned,
+          loot: null,
+          leveledUp: false,
+          newLevel: levelFromTotalXp(student.totalXp).level,
+          bonuses: [],
+          accuracy:
+            battle.answers.length === 0
+              ? 0
+              : battle.answers.filter((a) => a.correct).length / battle.answers.length,
+          bestCombo: battle.bestCombo,
+          petCaught: null,
+          petXpGained: 0,
+          petsEvolved: [],
+          // Đề ở đây không gắn với kỹ năng nào có thật để mà "còn vướng".
+          missedSkills: [],
+          canRetry: false,
+          tutorial: true,
+        },
+      })
+      return
+    }
 
     /*
       Thắng thì con quái vừa đụng biến khỏi bản đồ.

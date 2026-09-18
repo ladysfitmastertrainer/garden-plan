@@ -26,6 +26,10 @@ import { useGame } from '../store/game'
 import { usePvp } from '../store/pvp'
 import { PvpScreen } from '../features/pvp/PvpScreen'
 import { useUi } from '../store/ui'
+import { useTutorial } from '../store/tutorial'
+import { TutorialCoach } from '../features/tutorial/TutorialCoach'
+import { TutorialInvite } from '../features/tutorial/TutorialInvite'
+import { TutorialScreen } from '../features/tutorial/TutorialScreen'
 import { InstallPrompt } from '../ui/InstallPrompt'
 import { RotateHint } from '../ui/RotateHint'
 import { startBattleTheme, stopBattleTheme } from '../audio/battle-theme'
@@ -137,7 +141,19 @@ export function GameShell() {
     <div className="app-shell">
       <InstallPrompt />
       <RotateHint />
+      {/*
+        Dải thứ ba, cùng lẽ với hai dải trên: người dẫn của bàn hướng dẫn phải
+        nói được cả trong lúc màn trận thật đang chiếm màn hình, nên nó không
+        thể nằm bên trong `Screen`. Im lặng hoàn toàn khi không có ai đang học.
+      */}
+      <TutorialCoach />
       <Screen />
+      {/*
+        Lời mời là một KHUNG NỔI, nên nó nằm ngoài cột co giãn - dựng nó thành
+        một ô của cột thì cái cột ấy có thêm một ô cao 0px, mà `Screen` bên trên
+        vẫn phải chia chỗ với nó.
+      */}
+      <TutorialInvite />
     </div>
   )
 }
@@ -153,6 +169,7 @@ function Screen() {
   const summary = useGame((s) => s.summary)
   const screen = useUi((s) => s.screen)
   const pvpMatch = usePvp((s) => s.match)
+  const inTutorial = useTutorial((s) => s.active)
 
   if (!authReady) return <Loading />
   if (mode === 'signed-out') return <AuthScreen />
@@ -211,6 +228,21 @@ function Screen() {
   // Trận đấu và màn tổng kết luôn được ưu tiên: không để trẻ bị kéo ra giữa chừng.
   if (battle) return <BattleScreen />
   if (summary) return <BattleSummaryScreen onDone={() => useGame.setState({ summary: null })} />
+
+  /*
+    Bàn hướng dẫn đứng SAU trận đấu và màn tổng kết, và đó chính là cách nó dùng
+    được chúng.
+
+    Trận tập của bàn này là một trận THẬT trong `store/game.ts`, nên hai nhánh ở
+    trên nhận nó trước và cho nó chiếm trọn màn hình y như mọi trận khác. Đánh
+    xong, tổng kết xong, hai nhánh ấy im tiếng và màn hướng dẫn quay lại đúng
+    chỗ nó dừng - xem hiệu ứng chuyển chặng trong `TutorialScreen`.
+
+    Và nó đứng TRƯỚC trận PVP: một lời thách đấu tới nơi giữa buổi học đầu tiên
+    mà kéo trẻ ra khỏi bàn hướng dẫn thì em ấy vừa mất bài học vừa bị ném vào
+    một trận đấu với luật mình chưa biết. Lời thách vẫn nằm đó chờ.
+  */
+  if (inTutorial) return <TutorialScreen />
 
   /*
     Trận PVP chiếm cả màn hình, nhưng đứng SAU trận đánh quái.

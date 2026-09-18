@@ -1227,8 +1227,20 @@ textarea.admin-input {
 
   Nó khai `h-dvh`, mà `h-dvh` không biết có dải nhắc cài app ở trên hay không -
   có dải thì trang cao hơn màn hình đúng bằng dải ấy, và phần rơi xuống dưới mép
-  máy là đáy khung hỏi. Cùng một lẽ với màn chơi bản đồ ở dưới. */
-.app-shell > .battle-layout {
+  máy là đáy khung hỏi. Cùng một lẽ với màn chơi bản đồ ở dưới.
+
+  MÀN TỔNG KẾT CŨNG VẬY, và nó từng bị bỏ sót.
+
+  Cùng một lỗi, cùng một chữ `h-dvh`, chỉ khác chỗ rơi: ở đây phần tụt xuống
+  dưới mép máy là nút "Về bản đồ" - lối ra DUY NHẤT của màn ấy. Trẻ vuốt xuống
+  thì cũng tới, nhưng `overflow: hidden` của chính `.summary-layout` chặn luôn
+  cả việc vuốt, nên nút ấy không tới được bằng cách nào cả.
+
+  Lâu nay hiếm khi lộ ra vì phải có một dải nhắc đang mở đúng lúc trẻ vừa đánh
+  xong một trận. Dải người dẫn của bàn hướng dẫn thì LUÔN mở trong suốt trận
+  tập, nên ở đó nó xảy ra mỗi lần. */
+.app-shell > .battle-layout,
+.app-shell > .summary-layout {
   height: auto;
   flex: 1 1 auto;
   min-height: 0;

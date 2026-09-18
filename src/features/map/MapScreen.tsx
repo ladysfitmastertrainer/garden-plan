@@ -27,6 +27,7 @@ import { regionKey as progressKey, type StudentProgress } from '../../data/types
 import { levelFromTotalXp } from '../../engine/rewards'
 import { useAuth } from '../../store/auth'
 import { useGame } from '../../store/game'
+import { useTutorial } from '../../store/tutorial'
 import { InstallCard } from '../../ui/InstallPrompt'
 import { PvpLobby } from '../pvp/PvpLobby'
 import { usePvpSync } from '../pvp/usePvpSync'
@@ -205,6 +206,17 @@ export function MapScreen() {
         />
       )}
 
+      {/*
+        LỐI VÀO CHỦ ĐỘNG của bàn hướng dẫn, và nó KHÔNG quan tâm tới lời từ chối
+        nào cả.
+
+        Lời mời lúc mới vào app chỉ hỏi một lần rồi im - đúng như nó nên thế.
+        Nhưng bấm "không" nghĩa là "đừng hỏi nữa", không phải "đừng bao giờ cho
+        con xem", mà không có mục này thì một cú chạm nhầm là mất hẳn đường xem
+        hướng dẫn. Cùng một lẽ với `InstallCard` ngay bên dưới.
+      */}
+      <TutorialCard />
+
       <InstallCard />
 
       {/*
@@ -306,6 +318,31 @@ export function MapScreen() {
       {chrome}
       {mapArea}
     </div>
+  )
+}
+
+/**
+ * "Xem hướng dẫn", nằm trong ngăn kéo sau nút ☰.
+ *
+ * Mở lại bàn hướng dẫn từ đầu, bất kể trước đó trẻ đã trả lời lời mời thế nào.
+ * Bàn ấy không ghi gì xuống hồ sơ (xem `content/tutorial.ts`), nên xem lại bao
+ * nhiêu lần cũng không mất gì - và một đứa trẻ quay lại app sau hai tuần nghỉ
+ * hè thì việc muốn xem lại là chuyện bình thường.
+ */
+function TutorialCard() {
+  const start = useTutorial((s) => s.start)
+
+  return (
+    <section className="pixel-panel grid gap-2">
+      <p className="pixel-font text-xl">🎓 Xem hướng dẫn</p>
+      <p className="text-base leading-snug">
+        Một bãi tập nhỏ: đi thử một vòng, đánh thử một trận, rồi đọc sổ tay.
+        Chừng ba phút.
+      </p>
+      <button type="button" onClick={start} className="btn btn-primary w-full text-lg">
+        Vào bãi tập
+      </button>
+    </section>
   )
 }
 

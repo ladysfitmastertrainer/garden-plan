@@ -557,7 +557,22 @@ export function BattleSummaryScreen({ onDone }: { onDone: () => void }) {
       <DialogueBox
         className="summary-say"
         text={
-          victory
+          /*
+            Trận tập nói KHÁC, và nó phải nói khác ngay ở đây chứ không phải
+            bằng một dòng thêm phía dưới.
+
+            Bảng phần thưởng là một ô co giãn - nó nở ra lấp hết chỗ trống, nên
+            mọi thứ đặt sau nó đều bị đẩy khỏi mép máy. Mà quan trọng hơn: câu
+            "phần thưởng đã vào túi của con" là câu SAI ở bàn hướng dẫn, và dán
+            một lời đính chính bên dưới một câu sai thì câu sai vẫn được đọc
+            trước. Một đứa trẻ phát hiện ra vàng không vào túi thật thì lần sau
+            nó không tin bảng này nữa.
+          */
+          summary.tutorial
+            ? victory
+              ? 'Hạ được rồi! Bảng dưới đây là phần thưởng - trận nào xong con cũng sẽ thấy nó.\nĐây là trận tập nên vàng và kinh nghiệm không cộng vào hồ sơ đâu. Trận thật thì có!'
+              : 'Không sao cả, đây mới là tập thôi.\nTrong game này hết máu chỉ là về làng nghỉ - con không mất gì hết.'
+            : victory
             ? 'Tuyệt vời! Phần thưởng đã vào túi của con.'
             : summary.missedSkills.length > 0
               ? `Không sao cả. Vàng và kinh nghiệm con kiếm được vẫn giữ nguyên.
@@ -581,7 +596,11 @@ Lần này con còn vướng ở: ${summary.missedSkills.join(', ')}.`
         {summary.petCaught && (
           <Row label="🐾 Thu phục được" value={`${summary.petCaught.name} đã gia nhập đội!`} />
         )}
-        <Row label="🐾 Thú nhận được" value={`+${summary.petXpGained} kinh nghiệm mỗi con`} />
+        {/* Trận tập không chia kinh nghiệm cho thú, nên dòng "+0 mỗi con" ở đó
+            chỉ là một số 0 để trẻ phải giải thích với chính mình. */}
+        {!summary.tutorial && (
+          <Row label="🐾 Thú nhận được" value={`+${summary.petXpGained} kinh nghiệm mỗi con`} />
+        )}
         {summary.petsEvolved.map((evo) => (
           <Row
             key={evo.to}

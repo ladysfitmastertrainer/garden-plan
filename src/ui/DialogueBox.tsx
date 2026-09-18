@@ -83,7 +83,22 @@ export function DialogueBox({
       {done && onAdvance && (
         <button
           type="button"
-          onClick={onAdvance}
+          /*
+            CHẶN SỰ KIỆN NỔI LÊN, nếu không thì một cú bấm đi được HAI câu.
+
+            Cả khung này cũng bắt `onClick` để trẻ chạm vào chữ là bỏ qua hiệu
+            ứng chạy chữ. Cái nút nằm bên trong khung ấy, nên bấm nút là chạy
+            cả hai tay xử lý: tay của nút gọi `onAdvance`, rồi sự kiện nổi lên
+            tới khung và - vì chữ đã chạy xong - khung gọi `onAdvance` thêm
+            lần nữa. Một câu thoại bị nuốt mất, im lặng, mỗi lần bấm.
+
+            Chỉ lộ ra khi nơi gọi truyền `onAdvance` VÀ dùng khung để kể một
+            chuỗi lời thoại - trước bàn hướng dẫn thì chưa chỗ nào làm cả hai.
+          */
+          onClick={(event) => {
+            event.stopPropagation()
+            onAdvance()
+          }}
           className="btn btn-primary mt-3 w-full text-xl"
         >
           {actionLabel ?? 'Tiếp tục'}

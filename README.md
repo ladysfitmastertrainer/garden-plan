@@ -20,7 +20,7 @@ cp .env.example .env.local   # rồi điền ba biến bên trong
 npm run dev        # http://localhost:3000
 npm run build      # build production
 npm start          # chạy bản đã build
-npm test           # 1052 test (gồm 67 test RLS chạy trên Postgres thật)
+npm test           # 1068 test (gồm 67 test RLS chạy trên Postgres thật)
 npm run typecheck  # kiểm kiểu toàn dự án
 npm run validate   # kiểm tra toàn vẹn nội dung
 npm run icons      # sinh lại icon PWA
@@ -95,6 +95,17 @@ hỏi, có đồng hồ đếm ngược; ai trả lời đúng trước thì gi�
 chủ là trọng tài duy nhất - thứ tự xếp theo thời điểm yêu cầu tới nơi, nên máy
 chậm không bị thiệt và máy khai gian không được lợi.
 
+**Cùng lớp là CÙNG MỘT bản đồ.** Bốn hòn đảo trên bản đồ thế giới là bốn MÔN của
+cùng một lớp, không phải bốn thế giới rời nhau - hai em cùng lớp luôn đứng trên
+cùng tấm ấy, chỉ khác nhau ở chỗ đang dừng chân tại đảo nào. Và điều đó được
+**vẽ ra**: linh vật của từng bạn đứng ngay trên hòn đảo bạn ấy đang chơi, còn khi
+hai em bước vào cùng một vùng đất thì thấy nhau đi lại trong đó, mỗi em một chỗ
+xuất phát, tên treo trên đầu.
+
+Chỗ đứng đi kèm nhịp tim của đấu trường (`class_presence` giữ thêm toạ độ Ô, xem
+migration 0009). Nhịp giãn 6 giây khi cả lớp tản ra, rút còn 2,5 giây khi có bạn
+đứng cùng vùng đất - chỉ trả thêm băng thông ở đúng lúc có người để nhìn.
+
 ## Bàn hướng dẫn
 
 Ngay giây phút trẻ vào màn chơi lần đầu, một khung nổi hỏi đúng một câu và cho
@@ -147,6 +158,17 @@ một điểm ảnh chỉ là sửa một ký tự, và test bắt được ngay
 
 Quái được nhân bản bằng **đổi bảng màu** — đúng mẹo của game thời đó khi bộ nhớ
 máy không đủ chứa hàng chục hình khác nhau.
+
+**Nhân vật của trẻ cũng vậy: ba hình, mười hai màu** (`src/features/pixel/heroes.ts`).
+Trẻ CHỌN hình (cáo, gấu trúc, rồng); màu thì được PHÁT, suy ra từ tên cộng linh
+vật đã chọn. Nhờ đó hai em cùng chọn con cáo vẫn ra hai con cáo khác nhau — điều
+bắt buộc từ lúc cả lớp cùng đứng trên một tấm bản đồ. Không có lượt ghi dữ liệu
+nào và không thêm cột nào: cùng một cái tên thì ở máy nào cũng ra đúng một màu.
+
+Ô chọn linh vật — cả của trẻ lẫn của giáo viên — **vẽ ra đúng con sẽ thấy trong
+game**, và đổi màu dần theo từng chữ cái đang gõ vào ô tên. Đó cũng là chỗ bắt
+được trường hợp hiếm còn lại: hai em rơi trúng cùng một màu thì thầy cô nhìn thấy
+ngay lúc nhập, đổi linh vật cho một em là xong.
 
 Font khung game là **VT323**, một trong số rất ít font pixel trên Google Fonts có
 đủ dấu tiếng Việt. Đề bài và đáp án cố ý **giữ font bo tròn dễ đọc**: trẻ lớp 1

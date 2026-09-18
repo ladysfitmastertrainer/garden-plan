@@ -17,12 +17,8 @@ import { useUi } from '../../store/ui'
 import { useGame } from '../../store/game'
 import { ConfirmModal } from '../../ui/ConfirmModal'
 import { DialogueBox } from '../../ui/DialogueBox'
-import {
-  HERO_CREATURES,
-  HERO_NAMES,
-  creatureFromAvatar,
-  type HeroCreatureId,
-} from '../pixel/creatures'
+import { HERO_CREATURES, HERO_NAMES, type HeroCreatureId } from '../pixel/creatures'
+import { heroSprite, heroTint } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
 
 /** Emoji lưu trong hồ sơ ứng với từng nhân vật, để dữ liệu cũ và mới cùng định dạng. */
@@ -80,7 +76,6 @@ export function ProfileScreen() {
         <div className="grid gap-3 sm:grid-cols-2">
           {students.map((student) => {
             const { level } = levelFromTotalXp(student.totalXp)
-            const creature = creatureFromAvatar(student.avatar)
             return (
               <div key={student.id} className="pixel-panel flex items-center gap-3">
                 <button
@@ -88,7 +83,7 @@ export function ProfileScreen() {
                   onClick={() => void selectStudent(student.id).then(() => go('game'))}
                   className="flex flex-1 items-center gap-3 text-left"
                 >
-                  <PixelSprite sprite={HERO_CREATURES[creature]} scale={3} />
+                  <PixelSprite sprite={heroSprite(student.avatar, student.name)} scale={3} />
                   <span>
                     <span className="block text-xl font-extrabold">{student.name}</span>
                     <span className="pixel-font block text-lg opacity-70">
@@ -129,7 +124,7 @@ export function ProfileScreen() {
             {/* Vẽ đúng con thú của hồ sơ đó: người lớn xoá nhầm em này thay vì em
                 kia là mất sạch tiến độ, mà tên trẻ con thì hay na ná nhau. */}
             <PixelSprite
-              sprite={HERO_CREATURES[creatureFromAvatar(pendingDelete.avatar)]}
+              sprite={heroSprite(pendingDelete.avatar, pendingDelete.name)}
               scale={4}
             />
           </ConfirmModal>
@@ -193,7 +188,14 @@ function CreateProfile({ onCancel }: { onCancel: (() => void) | null }) {
         text={`Chào con! Hãy chọn một người bạn đồng hành.\nBạn ấy sẽ cùng con đi khắp bốn vùng đất.`}
       />
 
-      {/* Chọn nhân vật khởi đầu */}
+      {/*
+        Chọn nhân vật khởi đầu, VẼ ĐÚNG MÀU CON SẼ NHẬN.
+
+        Màu suy ra từ tên (xem `pixel/heroes.ts`), và ô nhập tên nằm ngay dưới
+        đây - nên ba con vật đổi màu dần theo từng chữ cái trẻ gõ vào. Vẽ chúng
+        bằng màu gốc rồi vào game mới đổi thì ô chọn này nói dối, mà đó đúng là
+        thứ cả hệ thống linh vật được dựng ra để tránh.
+      */}
       <div className="create-pets grid grid-cols-3 gap-3">
         {(Object.keys(HERO_CREATURES) as HeroCreatureId[]).map((id) => (
           <button
@@ -207,11 +209,18 @@ function CreateProfile({ onCancel }: { onCancel: (() => void) | null }) {
               borderColor: creature === id ? '#b8860b' : undefined,
             }}
           >
-            <PixelSprite sprite={HERO_CREATURES[id]} scale={4} />
+            <PixelSprite sprite={heroSprite(AVATAR_OF[id], name)} scale={4} />
             <span className="pixel-font text-lg">{HERO_NAMES[id]}</span>
           </button>
         ))}
       </div>
+
+      {/* Màu là thứ trẻ ĐƯỢC PHÁT chứ không chọn, nên phải nói ra - nếu không
+          thì việc con vật đổi màu lúc gõ tên trông như một lỗi. */}
+      <p className="create-tint text-center text-base opacity-70">
+        Màu <strong>{heroTint(AVATAR_OF[creature] + name).name.toLowerCase()}</strong> này
+        là của riêng con, lấy theo tên con. Bạn nào trùng linh vật cũng không trùng màu.
+      </p>
 
       <div className="create-form pixel-panel grid gap-4">
         <label className="grid gap-2">

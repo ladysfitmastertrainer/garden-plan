@@ -212,6 +212,7 @@ function WalkAct() {
         biome={biome}
         subject={TUTORIAL_SUBJECT}
         avatar={student?.avatar ?? '🦊'}
+        name={student?.name ?? ''}
         startAt={startAt}
         follower={follower}
         fill={immersive}

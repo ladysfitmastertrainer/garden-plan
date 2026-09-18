@@ -14,7 +14,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
-import { creatureFromAvatar, monsterSpriteFor, viewFor } from '../pixel/creatures'
+import { monsterSpriteFor } from '../pixel/creatures'
+import { heroViewFor } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
 import type { TileKind, TileSet } from '../pixel/tiles'
 import type { Subject } from '../../content/types'
@@ -232,6 +233,8 @@ interface Props {
   biome: Biome
   subject: Subject
   avatar: string
+  /** Tên trẻ - chỉ dùng làm hạt giống MÀU của nhân vật. Xem `pixel/heroes.ts`. */
+  name: string
   onEnterGate: (node: MapNode) => void
   /**
    * Khoá điều khiển khi đang có hội thoại. Thiếu cái này thì trẻ bấm tiếp là
@@ -287,6 +290,14 @@ interface Props {
   onEnterHouse?: (at: { x: number; y: number }) => void
   /** Trẻ giẫm trúng một ô có quái ẩn. Cùng lẽ với trên: truyền toạ độ. */
   onSecret?: (at: { x: number; y: number }) => void
+  /**
+   * Bạn cùng lớp đang đi trong CÙNG vùng đất này, đã kèm hình và chỗ đứng.
+   *
+   * Nhận hình đã tô màu sẵn chứ không nhận emoji: thành phần này vẽ lại ở mọi
+   * bước chân, và tô màu một hình là dựng một đối tượng mới - trả về hình mới
+   * ở mỗi lần vẽ nghĩa là cả đám bạn tô lại canvas liên tục.
+   */
+  friends?: Array<{ id: string; name: string; sprite: import('../pixel/sprite').Sprite; x: number; y: number }>
   /** Thú đi theo sau lưng nhân vật. Không có thì chỉ mình nhân vật đi. */
   follower?: { sprite: import('../pixel/sprite').Sprite } | null
   /**
@@ -299,6 +310,14 @@ interface Props {
   onPosition?: (pos: { x: number; y: number }) => void
 }
 
+/**
+ * Danh sách bạn cùng lớp RỖNG, dựng một lần.
+ *
+ * Không viết `friends ?? []` thẳng trong thân hàm: mảng rỗng viết tại chỗ là
+ * một danh tính mới ở mỗi lần vẽ, và nó đi thẳng vào mảng phụ thuộc của
+ * useMemo/useEffect bên dưới.
+ */
+const EMPTY_FRIENDS: NonNullable<Props['friends']> = []
 /** Cỏ rung bao lâu trước khi con quái ló mặt ra. */
 const RUSTLE_MS = 460
 /** Con quái đứng cho trẻ nhìn bao lâu rồi mới vào trận. */
@@ -310,6 +329,7 @@ export function Overworld({
   biome,
   subject,
   avatar,
+  name,
   onEnterGate,
   paused = false,
   dialogue,
@@ -320,10 +340,12 @@ export function Overworld({
   onEnterHouse,
   onSecret,
   beaten,
+  friends,
   follower,
   startAt,
   onPosition,
 }: Props) {
+  const crowd = friends ?? EMPTY_FRIENDS
   const bossIndex = nodes.findIndex((node) => node.kind === 'boss')
   const map = useMemo(
     () =>
@@ -338,7 +360,7 @@ export function Overworld({
       }),
     [nodes.length, seed, biome, bossIndex],
   )
-  const creature = creatureFromAvatar(avatar)
+
   const bossNode = bossIndex >= 0 ? nodes[bossIndex] : undefined
 
   /**
@@ -682,7 +704,7 @@ export function Overworld({
   }, [tryMove])
 
   // Sprite đổi theo hướng đang đi: đi lên thấy lưng, đi ngang thấy nghiêng.
-  const view = viewFor(creature, facing)
+  const view = heroViewFor(avatar, name, facing)
 
   const viewWidth = viewport.cols * TILE * scale
   const viewHeight = viewport.rows * TILE * scale
@@ -868,6 +890,59 @@ export function Overworld({
               />
             </div>
           )}
+
+          {/*
+            BẠN CÙNG LỚP ĐANG ĐI TRONG CÙNG VÙNG ĐẤT NÀY.
+
+            Vẽ TRƯỚC nhân vật của trẻ, nên khi hai đứa đứng chồng ô thì nhân vật
+            của chính em ấy nằm trên - một tấm bản đồ mà con không tìm thấy mình
+            ở đâu thì mọi thứ khác trên đó đều vô nghĩa.
+
+            Chỗ đứng tới nơi theo NHỊP TIM, hai giây rưỡi một lần (xem
+            `usePvpSync`), chứ không theo từng bước chân. Nên bạn mình không đi
+            từng ô như nhân vật của trẻ mà trượt một quãng dài. `transition` kéo
+            quãng ấy ra cho mượt: một cú trượt chậm đọc ra là "bạn ấy vừa đi qua
+            đằng kia", còn một cú nhảy tức thì đọc ra là màn hình bị lỗi.
+          */}
+          {crowd.map((friend) => (
+            <div
+              key={friend.id}
+              className="absolute"
+              style={{
+                left: friend.x * TILE * scale,
+                top: friend.y * TILE * scale,
+                width: TILE * scale,
+                height: TILE * scale,
+                transition: 'left 600ms ease-out, top 600ms ease-out',
+                zIndex: 1,
+              }}
+            >
+              <PixelSprite sprite={friend.sprite} scale={scale} />
+              {/*
+                Tên treo trên đầu, và nó là thứ BẮT BUỘC chứ không phải trang trí.
+
+                Cả lớp dùng chung ba hình nhân vật; màu tách được hai em ra nhưng
+                không nói được em nào là em nào. Cái tên mới là thứ biến "có ai
+                đó ở kia" thành "Bảo An ở kia".
+              */}
+              <span
+                className="pixel-font absolute whitespace-nowrap"
+                style={{
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  bottom: TILE * scale - 2,
+                  fontSize: Math.max(10, scale * 4),
+                  lineHeight: 1,
+                  padding: '1px 4px',
+                  color: '#fff',
+                  background: 'rgb(12 16 24 / 0.7)',
+                  borderRadius: 3,
+                }}
+              >
+                {friend.name}
+              </span>
+            </div>
+          ))}
 
           {/* Nhân vật */}
           <div

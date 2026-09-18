@@ -15,11 +15,24 @@
  * hay muộn.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Grade, Subject } from '../../content/types'
 import { usePvp } from '../../store/pvp'
 
 const LOBBY_MS = 6_000
+/**
+ * Nhịp khi có bạn ĐỨNG CÙNG MỘT VÙNG ĐẤT.
+ *
+ * Lúc này nhịp tim không còn chỉ để đếm đầu người: nó là thứ vẽ ra chỗ đứng của
+ * bạn ấy trên bản đồ. Sáu giây một lần thì bạn mình không đi bộ mà nhấp nháy từ
+ * chỗ này sang chỗ kia, cách nhau cả chục ô - nhìn như lỗi chứ không như một
+ * người đang đi.
+ *
+ * Hai giây rưỡi là chỗ dừng có tính toán: đủ dày để một bước đi đọc ra được,
+ * mà vẫn chỉ tốn thêm nhịp ở ĐÚNG lúc có người để nhìn. Cả lớp tản ra bốn hòn
+ * đảo khác nhau thì mọi máy quay về sáu giây như cũ.
+ */
+const TOGETHER_MS = 2_500
 const MATCH_MS = 700
 
 /**
@@ -31,19 +44,40 @@ const MATCH_MS = 700
 export function usePvpSync(
   studentId: string | null,
   where: { subject: Subject; grade: Grade } | null,
+  /** Ô trẻ đang đứng trong vùng đất. Bỏ trống khi đang ở bản đồ thế giới. */
+  at?: { x: number; y: number } | null,
 ): void {
   const heartbeat = usePvp((s) => s.heartbeat)
   const poll = usePvp((s) => s.poll)
   const goOffline = usePvp((s) => s.goOffline)
   const inMatch = usePvp((s) => s.match?.status === 'active')
 
+  /*
+    Ô đang đứng đọc qua REF, không qua mảng phụ thuộc.
+
+    Trẻ bước một ô là `at` đổi. Để nó vào mảng phụ thuộc thì mỗi bước chân huỷ
+    cái đồng hồ cũ rồi dựng một cái mới - nhịp tim không bao giờ đủ thời gian
+    chạy hết một vòng, và một đứa trẻ đi liên tục sẽ không bao giờ báo vị trí về
+    máy chủ. Ref thì nhịp cứ đều đặn, mỗi lần đập lại đọc chỗ đứng MỚI NHẤT.
+  */
+  const atRef = useRef(at)
+  atRef.current = at
+
+  // Có bạn nào đứng cùng vùng đất với mình không - quyết định nhịp nhanh hay chậm.
+  const together = usePvp((s) =>
+    where === null
+      ? false
+      : s.lobby.some((e) => e.subject === where.subject && e.grade === where.grade),
+  )
+
   // Nhịp chậm: báo chỗ đứng, nhận lời thách.
   useEffect(() => {
     if (!studentId) return
-    void heartbeat(studentId, where)
-    const timer = window.setInterval(() => void heartbeat(studentId, where), LOBBY_MS)
+    const beat = () => void heartbeat(studentId, where, atRef.current)
+    beat()
+    const timer = window.setInterval(beat, together ? TOGETHER_MS : LOBBY_MS)
     return () => window.clearInterval(timer)
-  }, [studentId, where?.subject, where?.grade, heartbeat])
+  }, [studentId, where?.subject, where?.grade, together, heartbeat])
 
   // Nhịp nhanh: chỉ chạy khi thật sự đang đánh nhau.
   useEffect(() => {

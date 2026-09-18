@@ -20,12 +20,8 @@ import { useReduceMotion } from '../../shell/useReduceMotion'
 import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import type { Subject } from '../../content/types'
 import type { BattleState } from '../../engine/battle'
-import {
-  creatureFromAvatar,
-  monsterSpriteFor,
-  towerSpriteFor,
-  HERO_CREATURES,
-} from '../pixel/creatures'
+import { monsterSpriteFor, towerSpriteFor } from '../pixel/creatures'
+import { heroSprite } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
 
 /**
@@ -188,18 +184,21 @@ export function PixelBattle({
   battle,
   subject,
   avatar,
+  heroName,
   heroLevel,
   enemyLevel,
 }: {
   battle: BattleState
   subject: Subject
   avatar: string
+  /** Tên trẻ - chỉ dùng làm hạt giống MÀU của nhân vật. Xem `pixel/heroes.ts`. */
+  heroName: string
   heroLevel: number
   enemyLevel: number
 }) {
   const reduceMotion = useReduceMotion()
   const scene = SCENE_BY_SUBJECT[subject]
-  const heroSprite = HERO_CREATURES[creatureFromAvatar(avatar)]
+  const heroLookSprite = heroSprite(avatar, heroName)
   // Mỗi con quái một hình riêng, khớp với cái tên nó mang.
   const enemySprite = battle.enemy.isTower
     ? towerSpriteFor(subject)
@@ -357,7 +356,7 @@ export function PixelBattle({
 
       {/* Nhân vật của trẻ: dưới - trái, sprite to hơn cho cảm giác ở gần */}
       <Combatant
-        sprite={heroSprite}
+        sprite={heroLookSprite}
         scene={scene}
         style={{ left: '9%', bottom: '12%' }}
         attacking={live === 'hero-attacks'}

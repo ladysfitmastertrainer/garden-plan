@@ -75,7 +75,7 @@ async function classesOf(studentId: string): Promise<string[]> {
  */
 export async function heartbeat(
   studentId: string,
-  where: { subject: Subject | null; grade: Grade | null },
+  where: { subject: Subject | null; grade: Grade | null; x?: number | null; y?: number | null },
 ): Promise<LobbyEntry[]> {
   const classIds = await classesOf(studentId)
   if (classIds.length === 0) return []
@@ -86,6 +86,9 @@ export async function heartbeat(
       class_id: classIds[0]!,
       subject: where.subject,
       grade: where.grade,
+      // Ô đang đứng. Chỉ có nghĩa khi đang ở trong một vùng đất - xem migration 0009.
+      x: where.subject === null ? null : (where.x ?? null),
+      y: where.subject === null ? null : (where.y ?? null),
       seen_at: new Date().toISOString(),
     },
     { onConflict: 'student_id' },
@@ -102,7 +105,7 @@ export async function lobby(studentId: string, known?: string[]): Promise<LobbyE
   const since = new Date(Date.now() - PRESENCE_TTL_MS).toISOString()
   const { data, error } = await db()
     .from('class_presence')
-    .select('student_id, subject, grade, students(id, name, avatar)')
+    .select('student_id, subject, grade, x, y, students(id, name, avatar)')
     .in('class_id', classIds)
     .gte('seen_at', since)
   check(error, 'Không tải được danh sách bạn đang chơi')
@@ -112,6 +115,8 @@ export async function lobby(studentId: string, known?: string[]): Promise<LobbyE
       student_id: string
       subject: Subject | null
       grade: number | null
+      x: number | null
+      y: number | null
       students: { id: string; name: string; avatar: string } | null
     }> | null) ?? []
 
@@ -125,6 +130,8 @@ export async function lobby(studentId: string, known?: string[]): Promise<LobbyE
       avatar: row.students!.avatar,
       subject: row.subject,
       grade: (row.grade ?? null) as Grade | null,
+      x: row.x ?? null,
+      y: row.y ?? null,
       busy: busy.has(row.student_id),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'))

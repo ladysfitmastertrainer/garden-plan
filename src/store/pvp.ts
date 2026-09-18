@@ -51,7 +51,12 @@ interface PvpState {
   busy: boolean
   error: string | null
 
-  heartbeat: (studentId: string, where: { subject: Subject; grade: Grade } | null) => Promise<void>
+  heartbeat: (
+    studentId: string,
+    where: { subject: Subject; grade: Grade } | null,
+    /** Ô đang đứng - để bạn cùng lớp vẽ được em ấy ra trên bản đồ vùng. */
+    at?: { x: number; y: number } | null,
+  ) => Promise<void>
   poll: (studentId: string) => Promise<void>
   challenge: (input: {
     studentId: string
@@ -100,9 +105,9 @@ export const usePvp = create<PvpState>((set, get) => ({
   busy: false,
   error: null,
 
-  async heartbeat(studentId, where) {
+  async heartbeat(studentId, where, at) {
     try {
-      const { lobby, match } = await sendPresence(studentId, where)
+      const { lobby, match } = await sendPresence(studentId, where, at)
       set({ lobby, ...receive(get(), match ?? get().match) })
     } catch {
       /*

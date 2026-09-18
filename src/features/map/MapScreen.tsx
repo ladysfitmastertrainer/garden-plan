@@ -13,7 +13,7 @@ import { setMuted } from '../../audio/synth'
 import { regionKey, useUi } from '../../store/ui'
 import { Overworld } from '../world/Overworld'
 import { DialogueBox } from '../../ui/DialogueBox'
-import { HERO_CREATURES, creatureFromAvatar } from '../pixel/creatures'
+import { heroSprite } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
 import { PETS, buildTeam } from '../../content/pets'
 import { petSpriteFor } from '../inventory/PetCollection'
@@ -32,6 +32,7 @@ import { useTutorial } from '../../store/tutorial'
 import { InstallCard } from '../../ui/InstallPrompt'
 import { PvpLobby } from '../pvp/PvpLobby'
 import { usePvpSync } from '../pvp/usePvpSync'
+import { usePvp } from '../../store/pvp'
 
 const SUBJECT_STYLE: Record<Subject, { color: string; emoji: string; land: string }> = {
   math: { color: 'var(--color-math)', emoji: '🔢', land: 'Thung lũng Con Số' },
@@ -76,7 +77,18 @@ export function MapScreen() {
     thách đấu được ngay tại đó. Trẻ không ở lớp nào thì đây là một việc không
     làm gì cả (xem `heartbeat` trong `server/pvp.ts`) - app ở nhà vẫn chạy y hệt.
   */
-  usePvpSync(student?.id ?? null, region)
+  /*
+    Ô trẻ đang đứng, đọc từ kho giao diện.
+
+    Báo lên cùng nhịp tim để bạn cùng lớp vẽ được em ấy ra trên bản đồ vùng.
+    Lấy ở ĐÂY chứ không ở trong SubjectMap: nhịp tim phải chạy cả khi trẻ
+    đang ở bản đồ thế giới, mà lúc đó màn ấy còn chưa được dựng.
+  */
+  const posKey = region ? regionKey(region) : null
+  const positions = useUi((s) => s.overworldPos)
+  const standingAt = posKey ? (positions[posKey] ?? null) : null
+
+  usePvpSync(student?.id ?? null, region, standingAt)
 
   // Điện thoại và máy tính bảng dựng đứng: bản đồ chiếm trọn máy, mọi khung phụ
   // chui vào ngăn kéo. Xem cuối hàm này và `shell/useCompactLayout.ts`.
@@ -139,7 +151,7 @@ export function MapScreen() {
   const chrome = (
     <>
       <header className="pixel-panel flex items-center gap-3">
-        <PixelSprite sprite={HERO_CREATURES[creatureFromAvatar(student.avatar)]} scale={3} />
+        <PixelSprite sprite={heroSprite(student.avatar, student.name)} scale={3} />
         <div className="flex-1">
           <p className="text-xl font-extrabold">{student.name}</p>
           <p className="pixel-font text-lg opacity-70">
@@ -236,13 +248,49 @@ export function MapScreen() {
     </>
   )
 
+  /*
+    Bạn cùng lớp đang online. Đọc MỘT LẦN ở đây rồi chia cho cả ba nơi cần:
+    bản đồ thế giới vẽ họ đứng trên đảo, bản đồ vùng vẽ họ đang đi, và bảng
+    ở khung phụ liệt kê tên. Ba nơi cùng một danh sách thì không bao giờ có
+    chuyện bảng nói có bạn mà bản đồ không thấy ai.
+  */
+  const lobby = usePvp((s) => s.lobby)
+
+  /**
+   * Những bạn đang đi trong ĐÚNG vùng đất trẻ đang mở, đã kèm hình vẽ.
+   *
+   * Lọc cả toạ độ ô: một bạn vừa bước vào vùng nhưng nhịp tim mang toạ độ chưa
+   * tới nơi thì chưa biết vẽ ở đâu, và vẽ đại vào ô 0,0 là đặt bạn ấy vào góc
+   * bản đồ - một chỗ em ấy chưa từng đứng.
+   */
+  const friendsHere = useMemo(() => {
+    if (!region) return []
+    return lobby
+      .filter(
+        (e) =>
+          e.subject === region.subject &&
+          e.grade === region.grade &&
+          e.x !== null &&
+          e.y !== null,
+      )
+      .map((e) => ({
+        id: e.studentId,
+        name: e.name,
+        sprite: heroSprite(e.avatar, e.name),
+        x: e.x!,
+        y: e.y!,
+      }))
+  }, [lobby, region?.subject, region?.grade])
+
   const mapArea =
     region === null ? (
       <WorldMapScreen
         grade={student.grade}
         avatar={student.avatar}
+        name={student.name}
         clearedByRegion={progress.clearedNodes}
         towerCleared={progress.towerCleared ?? []}
+        classmates={lobby}
         onEnterRegion={(subject, grade) => setRegion({ subject, grade })}
         onEnterTower={(subject, grade) => startTowerBattle(subject, grade)}
         hud={immersive ? menuButton : undefined}
@@ -255,6 +303,7 @@ export function MapScreen() {
           grade={region.grade}
           map={regionMap}
           immersive={immersive}
+          friends={friendsHere}
           menu={menuButton}
           onBack={() => setRegion(null)}
           onPlay={(node) => startBattle(region.subject, node, region.grade)}
@@ -519,6 +568,7 @@ function SubjectMap({
   grade,
   map,
   immersive = false,
+  friends,
   menu,
   onBack,
   onPlay,
@@ -535,6 +585,8 @@ function SubjectMap({
    * game. Cây kỹ năng chuyển sang nằm trong ngăn kéo của màn cha.
    */
   immersive?: boolean
+  /** Bạn cùng lớp đang đi trong chính vùng đất này. Xem tham số cùng tên của Overworld. */
+  friends?: React.ComponentProps<typeof Overworld>['friends']
   /** Nút ☰ của màn cha, để đặt vào góc trên - phải của khung game. */
   menu?: React.ReactNode
   onBack: () => void
@@ -709,8 +761,10 @@ function SubjectMap({
         }}
         onEnterHouse={enterHouse}
         onSecret={meetSecret}
+        friends={friends}
         follower={follower}
         avatar={student?.avatar ?? '🦊'}
+        name={student?.name ?? ''}
         startAt={savedPos}
         onPosition={onPosition}
         onEnterGate={(node) => (node.kind === 'battle' ? onPlay(node) : setPreview(node))}

@@ -14,7 +14,7 @@ import { GRADES, SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from '../..
 import { emptyProgress, type StudentProfile, type StudentProgress } from '../../data/types'
 import { levelFromTotalXp } from '../../engine/rewards'
 import { getRepository } from '../../store/game'
-import { HERO_CREATURES, creatureFromAvatar } from '../pixel/creatures'
+import { heroSprite } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
 import { ConfirmModal } from '../../ui/ConfirmModal'
 
@@ -109,7 +109,7 @@ export function StudentsPanel() {
           }
         >
           <PixelSprite
-            sprite={HERO_CREATURES[creatureFromAvatar(pending.row.student.avatar)]}
+            sprite={heroSprite(pending.row.student.avatar, pending.row.student.name)}
             scale={4}
           />
         </ConfirmModal>
@@ -130,7 +130,7 @@ export function StudentsPanel() {
           }
         >
           <PixelSprite
-            sprite={HERO_CREATURES[creatureFromAvatar(pending.row.student.avatar)]}
+            sprite={heroSprite(pending.row.student.avatar, pending.row.student.name)}
             scale={4}
           />
         </ConfirmModal>
@@ -158,7 +158,7 @@ function StudentCard({
   return (
     <section className="card grid gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <PixelSprite sprite={HERO_CREATURES[creatureFromAvatar(student.avatar)]} scale={3} />
+        <PixelSprite sprite={heroSprite(student.avatar, student.name)} scale={3} />
         <div className="flex-1">
           <p className="text-xl font-extrabold">{student.name}</p>
           <p className="pixel-font text-base opacity-70">

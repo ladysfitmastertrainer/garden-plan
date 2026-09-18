@@ -17,6 +17,9 @@ interface Body {
   /** Đảo đang đứng. null nghĩa là đang ở bản đồ thế giới. */
   subject?: Subject | null
   grade?: number | null
+  /** Ô đang đứng trong vùng đất đó. */
+  x?: number | null
+  y?: number | null
 }
 
 export const POST = route(async (req) => {
@@ -37,7 +40,16 @@ export const POST = route(async (req) => {
 
   // Đứng ở bản đồ thế giới thì môn và lớp cùng rỗng - không có "đứng ở đảo Toán
   // nhưng không biết lớp mấy".
-  const where = subject !== null && grade !== null ? { subject, grade } : { subject: null, grade: null }
+  // Toạ độ ô chỉ nhận số nguyên không âm. Không phải để chặn kẻ gian - một ô
+  // sai chỉ vẽ bạn mình đứng lệch chỗ - mà để một giá trị rác không rơi vào cột
+  // kiểu số nguyên và làm hỏng cả lượt ghi, kéo theo mất luôn vị trí của em ấy.
+  const tile = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < 1000 ? value : null
+
+  const where =
+    subject !== null && grade !== null
+      ? { subject, grade, x: tile(body.x), y: tile(body.y) }
+      : { subject: null, grade: null, x: null, y: null }
 
   /*
     Trả về cả trận VỪA XONG, không chỉ trận đang chạy.

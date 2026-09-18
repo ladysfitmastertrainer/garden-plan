@@ -76,6 +76,15 @@ export interface LobbyEntry {
   /** Đảo bạn ấy đang đứng. null nghĩa là đang ở bản đồ thế giới. */
   subject: Subject | null
   grade: Grade | null
+  /**
+   * Ô bạn ấy đang đứng trong vùng đất đó. null khi đang ở bản đồ thế giới.
+   *
+   * Toạ độ Ô, không phải điểm ảnh: bản đồ được sinh lại từ hạt giống trên từng
+   * máy nên hai máy có cùng lưới ô, còn cỡ điểm ảnh thì mỗi máy một khác tuỳ
+   * màn hình. Nhờ vậy 'ô số 7 hàng 12' nghĩa như nhau ở cả hai bên.
+   */
+  x: number | null
+  y: number | null
   /** Đang bận một trận khác - thách nữa cũng không nhận được. */
   busy: boolean
 }

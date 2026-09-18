@@ -10,7 +10,19 @@ import { GRADES, type Grade } from '../../content/types'
 import { classApi as api, type ClassRow, type ClassStudent } from '../../data/classes'
 import { ConfirmModal } from '../../ui/ConfirmModal'
 import { generatePin } from './pin'
+import { heroSprite } from '../pixel/heroes'
+import { PixelSprite } from '../pixel/sprite'
 
+/**
+ * Mười hai linh vật phát cho học sinh.
+ *
+ * Mười hai EMOJI, nhưng game chỉ vẽ BA hình nhân vật: 🐼 🐨 🐧 ra hình gấu trúc,
+ * 🐢 🐸 🦄 ra hình rồng, số còn lại ra hình cáo (xem `creatureFromAvatar`). Nghe
+ * như một sự thiếu hụt, nhưng nó không còn là vấn đề từ khi màu nhân vật được
+ * suy ra từ tên: ba hình nhân mười hai tông màu là ba mươi sáu vẻ, thừa cho một
+ * lớp - và ô chọn ngay dưới đây vẽ ra đúng con trẻ sẽ thấy, nên không ai phải
+ * đoán. Xem `pixel/heroes.ts`.
+ */
 const AVATARS = ['🦊', '🐼', '🐯', '🐨', '🦁', '🐸', '🐧', '🦄', '🐢', '🐙', '🦉', '🐝']
 
 export function ClassManager() {
@@ -346,6 +358,18 @@ function ClassDetail({
           className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
           style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
         />
+        {/*
+          VẼ ĐÚNG CON TRẺ SẼ THẤY TRONG GAME, không phải emoji trần.
+
+          Bảng này bày mười hai emoji, nhưng game chỉ vẽ ba hình nhân vật (cáo,
+          gấu trúc, rồng) - nên 🐯 và 🦁 cùng ra hình con cáo, chỉ khác màu. Một
+          ô chọn chỉ hiện emoji thì thầy cô không có cách nào biết điều đó, và
+          hai em được phát hai emoji khác nhau vào game lại trông na ná nhau.
+
+          Màu suy ra từ TÊN (xem `pixel/heroes.ts`), mà ô nhập tên nằm ngay
+          trên đây - nên mười hai ô này đổi màu dần theo từng chữ cái thầy cô gõ
+          vào, và cái thầy cô thấy đúng là cái đứa trẻ sẽ thấy.
+        */}
         <div className="grid grid-cols-6 gap-2">
           {AVATARS.map((emoji) => (
             <button
@@ -353,13 +377,13 @@ function ClassDetail({
               type="button"
               onClick={() => setAvatar(emoji)}
               aria-label={`Chọn ${emoji}`}
-              className="aspect-square rounded-2xl border-4 text-2xl"
+              className="grid aspect-square place-items-center rounded-2xl border-4"
               style={{
                 borderColor: avatar === emoji ? 'var(--color-brand)' : 'transparent',
                 background: avatar === emoji ? 'var(--color-brand-soft)' : 'var(--color-paper-sunk)',
               }}
             >
-              {emoji}
+              <PixelSprite sprite={heroSprite(emoji, name)} scale={2} />
             </button>
           ))}
         </div>
@@ -397,7 +421,7 @@ function ClassDetail({
           }}
         >
           <span className="text-5xl leading-none" aria-hidden="true">
-            {pendingRemove.avatar}
+            <PixelSprite sprite={heroSprite(pendingRemove.avatar, pendingRemove.name)} scale={3} />
           </span>
         </ConfirmModal>
       )}
@@ -431,7 +455,7 @@ function StudentRow({
   return (
     <div className="grid gap-2 rounded-2xl p-3" style={{ background: 'var(--color-paper-sunk)' }}>
       <div className="flex items-center gap-3">
-        <span className="text-3xl">{student.avatar}</span>
+        <PixelSprite sprite={heroSprite(student.avatar, student.name)} scale={2} />
         <div className="flex-1">
           <p className="font-extrabold">{student.name}</p>
           <p className="text-base opacity-70">

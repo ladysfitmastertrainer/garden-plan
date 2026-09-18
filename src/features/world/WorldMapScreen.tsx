@@ -16,7 +16,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import { useCompactLayout } from '../../shell/useCompactLayout'
 import { SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from '../../content/types'
-import { creatureFromAvatar, towerSpriteFor, viewFor } from '../pixel/creatures'
+import { towerSpriteFor } from '../pixel/creatures'
+import { heroViewFor } from '../pixel/heroes'
+import type { LobbyEntry } from '../../data/pvp-types'
 import { TOWER_FLOORS, towerFloorLabel } from '../../content/tower'
 import {
   ISO_MEDIUM,
@@ -177,9 +179,23 @@ interface Props {
   /** Lớp của trẻ - quần đảo đầu tiên, và là lớp thấp nhất trẻ được xem. */
   grade: Grade
   avatar: string
+  /** Tên trẻ - chỉ dùng làm hạt giống MÀU của nhân vật. Xem `pixel/heroes.ts`. */
+  name: string
   clearedByRegion: Record<string, number>
   /** Những tầng tháp đã hạ, khoá dạng `math.g2`. */
   towerCleared: string[]
+  /**
+   * Bạn cùng lớp đang online, kèm chỗ đứng của từng bạn.
+   *
+   * Đây là thứ biến tấm bản đồ từ "của con" thành "của cả lớp". Trước đây danh
+   * sách này chỉ hiện dưới dạng một bảng chữ ở khung phụ, nên trẻ đọc được tên
+   * bạn mình nhưng không bao giờ THẤY bạn ấy - mà bản đồ thì có sẵn chỗ để vẽ.
+   *
+   * CÙNG LỚP LÀ CÙNG MỘT TẤM BẢN ĐỒ. Bốn hòn đảo trên đây là bốn MÔN của cùng
+   * một lớp, không phải bốn thế giới rời nhau; hai đứa trẻ cùng lớp luôn đứng
+   * trên cùng tấm này, chỉ khác nhau ở chỗ đang dừng chân tại đảo nào.
+   */
+  classmates: LobbyEntry[]
   onEnterRegion: (subject: Subject, grade: Grade) => void
   /** Bước vào một tầng Tháp Trí Tuệ ở giữa lục địa. */
   onEnterTower: (subject: Subject, grade: Grade) => void
@@ -208,13 +224,14 @@ interface RegionView {
 export function WorldMapScreen({
   grade,
   avatar,
+  name,
   clearedByRegion,
   towerCleared,
+  classmates,
   onEnterRegion,
   onEnterTower,
   hud,
 }: Props) {
-  const creature = creatureFromAvatar(avatar)
   const open = useMemo(() => unlockedGrades(clearedByRegion, grade), [clearedByRegion, grade])
   const highest = highestUnlockedGrade(clearedByRegion, grade)
 
@@ -287,6 +304,62 @@ export function WorldMapScreen({
   const castle = useMemo(() => anchorCell(view, 'castle'), [view])
   const gate = useMemo(() => anchorCell(view, 'gate'), [view])
   const scatter = useMemo(() => buildScatter(view), [view])
+  /**
+   * BẠN CÙNG LỚP, đã xếp vào chỗ đứng trên lục địa.
+   *
+   * Ba việc, và việc nào bỏ đi cũng hỏng một kiểu:
+   *
+   *   LỌC THEO QUẦN ĐẢO ĐANG XEM. Bảng bạn cùng lớp chứa cả em đang ôn bài lớp
+   *   dưới; vẽ em ấy lên tấm bản đồ đang mở thì cái ghim trỏ vào một hòn đảo
+   *   không phải hòn đảo em ấy đứng.
+   *
+   *   Bạn nào CHƯA vào đảo nào thì đứng quanh lâu đài, và những em ấy không bị
+   *   lọc - nói cho đúng là KHÔNG LỌC ĐƯỢC: nhịp tim chỉ báo môn và lớp của hòn
+   *   đảo đang đứng, mà em ấy chưa đứng ở đảo nào nên cả hai đều rỗng, kể cả khi
+   *   em ấy đang xem quần đảo của một lớp khác. Đặt em ấy ở lâu đài của quần đảo
+   *   đang mở là một phép xấp xỉ, và nó xấp xỉ đúng gần như mọi lúc: trẻ hầu
+   *   như chỉ xem quần đảo lớp mình.
+   *
+   *   TÁN RA HAI BÊN. Ba em cùng đứng một đảo mà vẽ chồng lên nhau thì nhìn ra
+   *   đúng một em. Mỗi em lệch thêm 13 điểm ảnh, xen kẽ trái phải quanh vật
+   *   mốc, nên một đảo đông vẫn đọc được là đông.
+   *
+   *   XẾP THEO ID. `lobby` từ máy chủ đã xếp theo tên, nhưng chỗ lệch phải bám
+   *   theo một thứ KHÔNG ĐỔI: xếp theo tên thì một bạn mới vào chen vào giữa
+   *   danh sách và cả đám bạn phía sau nhảy sang chỗ khác cùng lúc.
+   */
+  const crowd = useMemo(() => {
+    const spots: Array<{
+      studentId: string
+      name: string
+      avatar: string
+      cell: { c: number; r: number }
+      nudgeX: number
+    }> = []
+    const seen = new Map<string, number>()
+
+    for (const friend of [...classmates].sort((a, b) => a.studentId.localeCompare(b.studentId))) {
+      if (friend.subject !== null && friend.grade !== view) continue
+
+      const cell = friend.subject ? anchorCell(view, friend.subject) : castle
+      if (!cell) continue
+
+      const key = friend.subject ?? 'castle'
+      const index = seen.get(key) ?? 0
+      seen.set(key, index + 1)
+
+      spots.push({
+        studentId: friend.studentId,
+        name: friend.name,
+        avatar: friend.avatar,
+        cell,
+        // Xen kẽ phải, trái, phải... quanh vật mốc. Nhân vật của chính trẻ đứng
+        // lệch trái 20 ở lâu đài, nên đám bạn bắt đầu từ bên phải để không đè.
+        nudgeX: (index % 2 === 0 ? 1 : -1) * (14 + Math.floor(index / 2) * 13),
+      })
+    }
+    return spots
+  }, [classmates, view, castle])
 
   /*
     Đo lại mỗi khi bố cục quanh bản đồ đổi - xem `useMeasureOnLayout`.
@@ -468,7 +541,7 @@ export function WorldMapScreen({
         {here === null && castle && (
           <>
             <Marker grade={view} cell={castle} scale={scale} lift={2} nudgeX={-20}>
-              <PixelSprite {...viewFor(creature, 'down')} scale={scale} />
+              <PixelSprite {...heroViewFor(avatar, name, 'down')} scale={scale} />
             </Marker>
             <Marker grade={view} cell={castle} scale={scale} lift={-11} big>
               <span
@@ -486,12 +559,38 @@ export function WorldMapScreen({
           </>
         )}
 
+        {/*
+          BẠN CÙNG LỚP, đứng ngay trên hòn đảo bạn ấy đang chơi.
+
+          Chỉ những bạn đang xem CÙNG MỘT QUẦN ĐẢO (`view`) mới được vẽ: bản đồ
+          này là của một lớp, mà bảng bạn cùng lớp có thể chứa cả em đang ôn bài
+          lớp dưới. Vẽ em ấy lên đây thì cái ghim trỏ vào một hòn đảo không phải
+          hòn đảo em ấy đang đứng.
+
+          Bạn nào chưa vào đảo nào thì đứng quanh lâu đài giữa lục địa - đúng chỗ
+          nhân vật của chính trẻ đứng khi chưa chọn vùng.
+        */}
+        {crowd.map((friend) => (
+          <Marker
+            key={friend.studentId}
+            grade={view}
+            cell={friend.cell}
+            scale={scale}
+            lift={2}
+            nudgeX={friend.nudgeX}
+          >
+            <span style={{ display: 'block', opacity: 0.95 }}>
+              <PixelSprite {...heroViewFor(friend.avatar, friend.name, 'down')} scale={scale} />
+            </span>
+          </Marker>
+        ))}
         {regions.map((region) => (
           <RegionMarker
             key={region.subject}
             region={region}
             scale={scale}
-            creature={creature}
+            avatar={avatar}
+            name={name}
             isHere={here === region.subject}
             onSelect={() => setSelected(region)}
           />
@@ -950,13 +1049,15 @@ function Marker({
 function RegionMarker({
   region,
   scale,
-  creature,
+  avatar,
+  name,
   isHere,
   onSelect,
 }: {
   region: RegionView
   scale: number
-  creature: Parameters<typeof viewFor>[0]
+  avatar: string
+  name: string
   isHere: boolean
   onSelect: () => void
 }) {
@@ -993,7 +1094,7 @@ function RegionMarker({
             style={{ left: (TILE_W * 0.75 - 26) * scale, top: 20 * scale, lineHeight: 0 }}
             aria-hidden="true"
           >
-            <PixelSprite {...viewFor(creature, 'down')} scale={scale} />
+            <PixelSprite {...heroViewFor(avatar, name, 'down')} scale={scale} />
           </span>
 
           {/* Ghim nhô hẳn lên trên vật mốc - chỗ duy nhất chắc chắn không bị cây

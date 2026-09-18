@@ -18,6 +18,8 @@ import type { StudentProfile, StudentProgress } from '../../data/types'
 import type { LobbyEntry } from '../../data/pvp-types'
 import { usePvp } from '../../store/pvp'
 import { PixelModal } from '../../ui/PixelModal'
+import { PixelSprite } from '../pixel/sprite'
+import { heroSprite } from '../pixel/heroes'
 import { buildPvpQuestions, pvpStats, PVP_QUESTIONS } from './pvp-setup'
 
 interface Props {
@@ -93,18 +95,29 @@ export function PvpLobby({ student, progress, region }: Props) {
 
         {open && (
           <div className="grid gap-2">
-            {region === null && (
-              <p className="text-sm leading-snug opacity-70">
-                Bước vào một hòn đảo thì mới thách đấu được - trận đấu lấy đề theo môn của đảo đó.
-              </p>
-            )}
+            {/*
+              Nói thẳng ra rằng cả lớp CHUNG MỘT BẢN ĐỒ.
+
+              Nhãn cũ trên nút chỉ ghi "Khác đảo", và người lớn đọc ra thành
+              "hai đứa đang ở hai bản đồ khác nhau" - rồi đi tìm xem vì sao hai
+              em cùng lớp lại không gặp được nhau. Chúng vẫn luôn ở cùng một
+              tấm; bốn hòn đảo trên đó là bốn MÔN, và thách đấu phải cùng đảo vì
+              đề bài lấy theo môn của đảo ấy.
+            */}
+            <p className="text-sm leading-snug opacity-70">
+              Cả lớp ở chung một bản đồ, chỉ khác nhau ở hòn đảo đang đứng - nhìn bản
+              đồ là thấy bạn mình ở đâu.
+              {region === null
+                ? ' Bước vào một hòn đảo thì mới thách đấu được.'
+                : ' Thách đấu được bạn nào đứng cùng đảo với con.'}
+            </p>
 
             {lobby.map((entry) => {
               const sameIsland =
                 region !== null && entry.subject === region.subject && entry.grade === region.grade
               return (
                 <div key={entry.studentId} className="card flex items-center gap-2" style={{ padding: 8 }}>
-                  <span className="text-2xl">{entry.avatar}</span>
+                  <PixelSprite sprite={heroSprite(entry.avatar, entry.name)} scale={2} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-base font-bold leading-tight">{entry.name}</span>
                     <span className="block text-sm leading-tight opacity-70">{whereIs(entry)}</span>
@@ -116,7 +129,7 @@ export function PvpLobby({ student, progress, region }: Props) {
                     className="btn btn-primary text-base"
                     style={{ opacity: sameIsland && !entry.busy && !pending ? 1 : 0.4 }}
                   >
-                    {entry.busy ? 'Đang bận' : sameIsland ? 'Thách đấu' : 'Khác đảo'}
+                    {entry.busy ? 'Đang bận' : sameIsland ? 'Thách đấu' : 'Ở đảo khác'}
                   </button>
                 </div>
               )
@@ -128,7 +141,10 @@ export function PvpLobby({ student, progress, region }: Props) {
       {incoming && (
         <PixelModal title="Có người thách đấu!" onClose={() => void respond(student.id, false)}>
           <div className="grid justify-items-center gap-2 text-center">
-            <p className="text-5xl">{incoming.challenger.avatar}</p>
+            <PixelSprite
+              sprite={heroSprite(incoming.challenger.avatar, incoming.challenger.name)}
+              scale={4}
+            />
             <h3 className="pixel-font text-2xl leading-none">{incoming.challenger.name}</h3>
             <p className="text-lg leading-snug">
               muốn thi {SUBJECT_LABEL[incoming.subject]} lớp {incoming.grade} với con!
@@ -162,7 +178,12 @@ export function PvpLobby({ student, progress, region }: Props) {
       {outgoing && (
         <PixelModal title="Đang chờ..." onClose={() => void leave(student.id)}>
           <div className="grid justify-items-center gap-2 text-center">
-            <p className="animate-pulse text-5xl">{outgoing.opponent.avatar}</p>
+            <span className="animate-pulse">
+              <PixelSprite
+                sprite={heroSprite(outgoing.opponent.avatar, outgoing.opponent.name)}
+                scale={4}
+              />
+            </span>
             <p className="text-lg leading-snug">
               Đã gửi lời thách tới <strong>{outgoing.opponent.name}</strong>. Đợi bạn ấy nhận lời
               nhé!
@@ -181,7 +202,10 @@ export function PvpLobby({ student, progress, region }: Props) {
       {declined && (
         <PixelModal title="Lần khác nhé" onClose={dismiss}>
           <div className="grid justify-items-center gap-2 text-center">
-            <p className="text-5xl">{declined.opponent.avatar}</p>
+            <PixelSprite
+              sprite={heroSprite(declined.opponent.avatar, declined.opponent.name)}
+              scale={4}
+            />
             <p className="text-lg leading-snug">
               <strong>{declined.opponent.name}</strong> đang bận chút việc. Rủ bạn khác, hoặc đi
               đánh quái một lát rồi quay lại nhé!

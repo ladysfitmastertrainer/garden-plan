@@ -28,10 +28,18 @@ export function toPvpQuestions(questions: PvpMatchQuestion[]): PvpQuestion[] {
 export async function sendPresence(
   studentId: string,
   where: { subject: Subject; grade: Grade } | null,
+  /** Ô đang đứng trong vùng đất. Bỏ trống khi đang ở bản đồ thế giới. */
+  at?: { x: number; y: number } | null,
 ): Promise<{ lobby: LobbyEntry[]; match: PvpMatch | null }> {
   return request('/api/pvp/presence', {
     method: 'POST',
-    body: { studentId, subject: where?.subject ?? null, grade: where?.grade ?? null },
+    body: {
+      studentId,
+      subject: where?.subject ?? null,
+      grade: where?.grade ?? null,
+      x: at?.x ?? null,
+      y: at?.y ?? null,
+    },
   })
 }
 

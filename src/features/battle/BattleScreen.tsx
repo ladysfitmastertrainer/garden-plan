@@ -163,6 +163,7 @@ export function BattleScreen() {
           battle={battle}
           subject={subject}
           avatar={student?.avatar ?? '🦊'}
+          heroName={student?.name ?? ''}
           heroLevel={levelFromTotalXp(student?.totalXp ?? 0).level}
           // Cấp của quái lấy theo chặng trên bản đồ: đi càng xa gặp quái càng mạnh.
           enemyLevel={(battleNode?.index ?? 0) + (student?.grade ?? 1)}

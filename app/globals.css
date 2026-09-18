@@ -1516,6 +1516,17 @@ textarea.admin-input {
     gap: 0.5rem;
     padding-block: 0.5rem;
   }
+
+  /* Và khung nhập bớt khoảng thở. Bước hai của phần đăng ký là màn cao nhất ở
+     đây - dòng "bước 2/2" kèm tên chiếm hai hàng chữ mà màn đăng nhập thường
+     không có - nên nó là màn quyết định mấy con số này. */
+  .auth-layout > .pixel-panel {
+    gap: 0.7rem;
+  }
+
+  .auth-layout > .pixel-panel input {
+    padding-block: 0.5rem;
+  }
 }
 
 /* ---- MÁY NẰM NGANG: HAI CỘT ----
@@ -1554,12 +1565,12 @@ textarea.admin-input {
     max-height: 100%;
     /* Khoảng thở trong khung cũng phải nhường: 390px chiều cao thì bốn khe
        1rem giữa các ô nhập cộng lại đã là một phần mười màn hình. */
-    gap: 0.55rem;
-    padding: 10px 12px;
+    gap: 0.45rem;
+    padding: 8px 12px;
   }
 
   .auth-layout > .pixel-panel input {
-    padding-block: 0.5rem;
+    padding-block: 0.4rem;
   }
 }
 

@@ -236,8 +236,22 @@ function ChildLogin() {
 
 // --- Lối vào của người lớn -------------------------------------------------------
 
-/** Ba việc người lớn làm ở màn này, mỗi việc một bộ ô nhập. */
-type Doing = 'signIn' | 'register' | 'forgot'
+/**
+ * Bốn việc người lớn làm ở màn này, mỗi việc một bộ ô nhập.
+ *
+ * ĐĂNG KÝ CHIẾM HAI VIỆC, không phải một, và đó là chỗ khác so với bản đầu.
+ *
+ * Gộp cả bốn ô vào một biểu mẫu thì nó cao 933px - trên một máy 360×640 nghĩa
+ * là hơn một màn hình rưỡi, nên nút "Tạo tài khoản" nằm ngoài tầm nhìn cho tới
+ * khi người ta vuốt xuống. Cắt làm hai thì mỗi nửa vừa một màn hình ở mọi cỡ
+ * máy, và không có gì phải cuộn nữa.
+ *
+ * Cắt ở đâu cũng có chủ ý: "bạn là ai" (tên, vai trò) là những câu hỏi về CON
+ * NGƯỜI, "tài khoản" (email, mật khẩu) là những câu hỏi về CÁCH ĐĂNG NHẬP. Cắt
+ * giữa hai nhóm ấy thì mỗi màn có một chủ đề đọc ra được, chứ không phải bốn ô
+ * bị chặt đôi cho vừa màn hình.
+ */
+type Doing = 'signIn' | 'registerWho' | 'registerAccount' | 'forgot'
 
 function AdultLogin() {
   const signIn = useAuth((s) => s.signIn)
@@ -247,7 +261,8 @@ function AdultLogin() {
   const notice = useAuth((s) => s.notice)
 
   const [doing, setDoing] = useState<Doing>('signIn')
-  const registering = doing === 'register'
+  /** Đang ở một trong hai bước đăng ký - dùng cho những chỗ không cần biết bước nào. */
+  const registering = doing === 'registerWho' || doing === 'registerAccount'
 
   // Xong một việc thì về màn đăng nhập, vì đó là việc tiếp theo của họ. Để
   // nguyên ở ô đăng ký thì lời nhắn bảo "quay lại đăng nhập" mà trước mặt vẫn là
@@ -261,11 +276,28 @@ function AdultLogin() {
   const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState<SignUpRole>('parent')
 
+  /*
+    Bấm nút chính làm gì - MỘT chỗ duy nhất trả lời, kể cả bước một.
+
+    Bước một không gửi gì lên máy chủ, nó chỉ đi tiếp sang bước hai. Nhưng nó
+    vẫn là `submit` của một `<form>` thật, nên bấm Enter trong ô tên cũng đi
+    tiếp được - trên máy tính đó là thứ người ta làm theo phản xạ, và một biểu
+    mẫu nuốt phím Enter thì trông như bị treo.
+  */
   const submit = () => {
     if (doing === 'forgot') void requestPasswordReset(email)
-    else if (registering) void signUp({ email, password, displayName, role })
+    else if (doing === 'registerWho') setDoing('registerAccount')
+    else if (doing === 'registerAccount') void signUp({ email, password, displayName, role })
     else void signIn({ email, password })
   }
+
+  /** Nút chính đang bị khoá vì còn thiếu gì đó. */
+  const blocked =
+    doing === 'registerWho'
+      ? !displayName.trim()
+      : doing === 'forgot'
+        ? !email
+        : !email || password.length < 6
 
   return (
     <form
@@ -275,18 +307,47 @@ function AdultLogin() {
         submit()
       }}
     >
+      {/*
+        "Bước 1/2" phải nói ra thành lời.
+
+        Không có nó thì bước một chỉ hỏi đúng cái tên rồi có một cái nút - trông
+        như biểu mẫu bị cụt, hoặc như app vừa nuốt mất mấy ô kia. Biết trước là
+        có hai bước thì cùng một màn hình ấy đọc ra hoàn toàn khác.
+      */}
       {registering && (
+        <p className="pixel-font text-center text-base leading-snug opacity-70">
+          Tạo tài khoản · bước {doing === 'registerWho' ? '1' : '2'}/2
+          {/*
+            Bước hai nhắc lại tên vừa nhập, NGAY TRÊN CÙNG DÒNG ẤY.
+
+            Một màn chỉ có email và mật khẩu thì không có gì nói cho người ta
+            biết mình đang tạo tài khoản cho AI - nhất là khi một thầy cô lập
+            hộ đồng nghiệp. Nhưng cho nó một dòng riêng thì bước hai cao hơn cả
+            màn đăng nhập thường, và lại phải cuộn: đúng cái vừa được dọn đi.
+          */}
+          {doing === 'registerAccount' && (
+            <>
+              <br />
+              <strong>{displayName}</strong> · {role === 'parent' ? 'Phụ huynh' : 'Giáo viên'}
+            </>
+          )}
+        </p>
+      )}
+
+      {doing === 'registerWho' && (
         <>
           <label className="grid gap-2">
             <span className="font-bold">Tên của bạn</span>
             <input
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
+              autoFocus
               className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
               style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
             />
           </label>
-{/*
+
+          {/*
             Hai vai, không có 'admin'. Quản trị viên là vai xoá được tài khoản
             người khác, nên nó chỉ được phong bởi một quản trị viên khác - máy chủ
             hạ mọi giá trị lạ xuống 'parent', xem `app/api/auth/signup/route.ts`.
@@ -313,19 +374,22 @@ function AdultLogin() {
         </>
       )}
 
-      <label className="grid gap-2">
-        <span className="font-bold">Email</span>
-        <input
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
-          style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
-        />
-      </label>
 
-      {doing !== 'forgot' && (
+      {doing !== 'registerWho' && (
+        <label className="grid gap-2">
+          <span className="font-bold">Email</span>
+          <input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="rounded-2xl border-4 bg-white px-4 py-3 text-lg outline-none"
+            style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
+          />
+        </label>
+      )}
+
+      {(doing === 'signIn' || doing === 'registerAccount') && (
         <label className="grid gap-2">
           <span className="font-bold">Mật khẩu</span>
           <PasswordInput
@@ -354,23 +418,16 @@ function AdultLogin() {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={
-          busy ||
-          !email ||
-          (doing !== 'forgot' && password.length < 6) ||
-          (registering && !displayName)
-        }
-        className="btn btn-primary text-xl"
-      >
+      <button type="submit" disabled={busy || blocked} className="btn btn-primary text-xl">
         {busy
           ? 'Đang xử lý...'
           : doing === 'forgot'
             ? 'Gửi thư đặt lại mật khẩu'
-            : registering
-              ? 'Tạo tài khoản'
-              : 'Đăng nhập'}
+            : doing === 'registerWho'
+              ? 'Tiếp tục →'
+              : doing === 'registerAccount'
+                ? 'Tạo tài khoản'
+                : 'Đăng nhập'}
       </button>
 
       <div className="grid gap-2 text-center">
@@ -384,13 +441,41 @@ function AdultLogin() {
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => setDoing(registering ? 'signIn' : 'register')}
-          className="text-base font-bold underline opacity-70"
-        >
-          {registering ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}
-        </button>
+        {/*
+          Lùi một bước, KHÔNG xoá gì cả.
+
+          Người ta lùi lại để sửa cái tên hoặc đổi vai, rồi đi tiếp - xoá ô email
+          vừa gõ ở đây thì họ phải gõ lại một thứ chẳng liên quan gì tới việc vừa
+          sửa. Mọi ô nhập sống ở `AdultLogin`, không sống trong từng bước, nên
+          việc giữ lại là mặc định chứ không phải một cố gắng riêng.
+        */}
+        {doing === 'registerAccount' && (
+          <button
+            type="button"
+            onClick={() => setDoing('registerWho')}
+            className="text-base font-bold underline opacity-70"
+          >
+            ← Quay lại bước 1
+          </button>
+        )}
+
+        {/*
+          Ở BƯỚC HAI, liên kết này biến đi.
+
+          Lúc ấy màn hình đã có "← Quay lại bước 1" làm lối lùi, và bước một thì
+          vẫn còn nguyên liên kết về đăng nhập - nên không ai bị nhốt lại. Đổi
+          lại được một hàng chữ, mà một hàng chữ ở đây đúng bằng khoảng còn
+          thiếu để cả bước hai nằm gọn trong một màn hình điện thoại nhỏ.
+        */}
+        {doing !== 'registerAccount' && (
+          <button
+            type="button"
+            onClick={() => setDoing(registering ? 'signIn' : 'registerWho')}
+            className="text-base font-bold underline opacity-70"
+          >
+            {registering ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}
+          </button>
+        )}
 
         {doing === 'forgot' && (
           <button

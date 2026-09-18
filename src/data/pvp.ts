@@ -30,6 +30,8 @@ export async function sendPresence(
   where: { subject: Subject; grade: Grade } | null,
   /** Ô đang đứng trong vùng đất. Bỏ trống khi đang ở bản đồ thế giới. */
   at?: { x: number; y: number } | null,
+  /** Mã câu đang nói. Bỏ trống nghĩa là đang im. */
+  emote?: string | null,
 ): Promise<{ lobby: LobbyEntry[]; match: PvpMatch | null }> {
   return request('/api/pvp/presence', {
     method: 'POST',
@@ -39,6 +41,7 @@ export async function sendPresence(
       grade: where?.grade ?? null,
       x: at?.x ?? null,
       y: at?.y ?? null,
+      emote: emote ?? null,
     },
   })
 }

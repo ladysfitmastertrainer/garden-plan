@@ -85,6 +85,15 @@ export interface LobbyEntry {
    */
   x: number | null
   y: number | null
+  /**
+   * MÃ câu bạn ấy vừa nói, hoặc null khi đang im.
+   *
+   * Mã chứ không phải chữ: bảng câu là một danh sách đóng ở
+   * `content/chat.ts`, và chỉ mã mới đi qua đường truyền. Xem ghi chú ở đó
+   * để biết vì sao đây là một quyết định về AN TOÀN chứ không phải về dung
+   * lượng.
+   */
+  emote: string | null
   /** Đang bận một trận khác - thách nữa cũng không nhận được. */
   busy: boolean
 }

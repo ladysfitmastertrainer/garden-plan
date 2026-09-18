@@ -72,6 +72,8 @@ export function usePvpSync(
   */
   const atRef = useRef(at)
   atRef.current = at
+  const whereRef = useRef(where)
+  whereRef.current = where
 
   // Có bạn nào đứng cùng vùng đất với mình không - quyết định nhịp nhanh hay chậm.
   const together = usePvp((s) =>
@@ -80,14 +82,38 @@ export function usePvpSync(
       : s.lobby.some((e) => e.subject === where.subject && e.grade === where.grade),
   )
 
-  // Nhịp chậm: báo chỗ đứng, nhận lời thách.
+  /*
+    Câu đang nói đọc thẳng từ kho ở LÚC ĐẬP, không qua mảng phụ thuộc.
+
+    Cùng lẽ với chỗ đứng ngay trên: để nó vào mảng thì mỗi lần trẻ nói một câu
+    là đồng hồ bị dựng lại từ đầu, và nhịp tim không bao giờ chạy hết một vòng.
+  */
+  const emote = usePvp((s) => s.emote)
+
+  // Nhịp chậm: báo chỗ đứng, câu đang nói, và nhận lời thách.
   useEffect(() => {
     if (!studentId) return
-    const beat = () => void heartbeat(studentId, where, atRef.current)
+    const beat = () =>
+      void heartbeat(studentId, where, atRef.current, usePvp.getState().emote)
     beat()
     const timer = window.setInterval(beat, together ? TOGETHER_MS : LOBBY_MS)
     return () => window.clearInterval(timer)
   }, [studentId, where?.subject, where?.grade, together, heartbeat])
+
+  /*
+    VỪA NÓI LÀ GỬI NGAY, không đợi nhịp kế tiếp.
+
+    Không có hiệu ứng này thì một câu chào mất tới một giây rưỡi mới rời khỏi
+    máy, cộng thêm một giây rưỡi nữa để bạn bên kia hỏi lại - ba giây cho một
+    cái vẫy tay. Hai đứa trẻ đứng cạnh nhau sẽ tưởng nút bấm bị hỏng.
+
+    Chỉ chạy khi có câu MỚI: `emote` về null lúc câu hết hạn, và nhịp thường
+    đã lo việc dọn dòng ở máy chủ rồi.
+  */
+  useEffect(() => {
+    if (!studentId || !emote) return
+    void heartbeat(studentId, whereRef.current, atRef.current, emote)
+  }, [studentId, emote, heartbeat])
 
   // Nhịp nhanh: chỉ chạy khi thật sự đang đánh nhau.
   useEffect(() => {

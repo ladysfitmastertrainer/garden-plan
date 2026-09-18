@@ -20,7 +20,7 @@ cp .env.example .env.local   # rồi điền ba biến bên trong
 npm run dev        # http://localhost:3000
 npm run build      # build production
 npm start          # chạy bản đã build
-npm test           # 1077 test (gồm 67 test RLS chạy trên Postgres thật)
+npm test           # 1086 test (gồm 67 test RLS chạy trên Postgres thật)
 npm run typecheck  # kiểm kiểu toàn dự án
 npm run validate   # kiểm tra toàn vẹn nội dung
 npm run icons      # sinh lại icon PWA
@@ -115,6 +115,28 @@ lên nên nhìn vẫn y hệt nhau; chỉ có toạ độ là sai, và không c�
 Mỗi em một **ô đặt chân** riêng quanh điểm xuất phát, bốc theo id hồ sơ
 (`features/world/spawn.ts`) - mọi máy cùng tính ra một kết quả, nên chỗ bạn mình
 đứng trên màn hình của mình đúng là chỗ bạn ấy thấy mình đứng.
+
+**Chạm mặt nhau thì có chuyện xảy ra.** Bạn bè CHẶN ĐƯỜNG như một nhân vật trong
+game nhập vai: đi tới là dừng lại, quay mặt sang, và một hộp thoại mở ra với ba
+lối - đi tiếp, nói một câu, hoặc thách đấu ngay tại chỗ.
+
+### Chat: một danh sách đóng, không có ô chữ tự do
+
+Trẻ chọn một trong **tám câu có sẵn** (`src/content/chat.ts`), và câu ấy hiện
+thành bong bóng thoại trên đầu nhân vật vài giây.
+
+Đây là quyết định về **an toàn**, không phải về kỹ thuật. Một ô nhập chữ tự do
+giữa hai đứa bé bảy tuổi kéo theo cả một hệ thống khác: lưu lại toàn bộ tin nhắn
+để thầy cô xem lại, nút báo cáo, lọc từ ngữ, và cuối cùng vẫn phải có một NGƯỜI
+THẬT đọc khi có chuyện. Trường nào không dựng đủ bốn thứ đó thì ô chữ ấy là một
+chỗ để bắt nạt nhau, và là một chỗ để một đứa trẻ viết ra số điện thoại của mẹ.
+
+Danh sách đóng thì không cần thứ nào trong bốn thứ trên - không phải vì đã lọc
+kỹ, mà vì **không có gì để lọc**. Chỉ MÃ câu đi qua đường truyền; máy chủ kiểm mã
+có trong bảng không rồi mới ghi, và máy bên kia tra ngược mã ra chữ từ chính bảng
+ấy. Sửa mã trong trình duyệt để gửi một câu tự nghĩ ra cũng không tới được màn
+hình đứa trẻ khác. Ở tuổi này nó còn TIỆN hơn: một em lớp 1 gõ một câu mất nửa
+phút, bấm một nút mất nửa giây.
 
 ## Bàn hướng dẫn
 

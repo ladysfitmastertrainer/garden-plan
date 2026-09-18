@@ -32,6 +32,30 @@ export const PVP_QUESTIONS = 7
  * tức là những câu chính người ấy còn chưa chắc. Bù lại bên kia không phải chờ
  * thêm một vòng thoả thuận đề bài, mà chờ thì lời thách nguội mất.
  */
+/**
+ * Trọn bộ tham số cho một lời thách đấu.
+ *
+ * Gói lại ở đây vì giờ có HAI chỗ gửi lời thách: bảng bạn cùng lớp, và hộp
+ * thoại hiện ra khi hai đứa trẻ chạm mặt nhau trên bản đồ. Hai chỗ soạn đề
+ * theo hai cách khác nhau thì cùng một lời thách lại ra hai trận khác nhau,
+ * và không ai phát hiện ra cho tới khi có người thắc mắc vì sao đề dễ hơn.
+ */
+export function challengeInput(
+  student: StudentProfile,
+  progress: StudentProgress,
+  region: { subject: Subject; grade: Grade },
+  opponentId: string,
+) {
+  return {
+    studentId: student.id,
+    opponentId,
+    subject: region.subject,
+    grade: region.grade,
+    questions: buildPvpQuestions(student.id, region.subject, region.grade, progress.mastery),
+    stats: pvpStats(student, progress, region.subject),
+  }
+}
+
 export function buildPvpQuestions(
   studentId: string,
   subject: Subject,

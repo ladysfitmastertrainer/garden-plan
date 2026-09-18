@@ -20,7 +20,7 @@ import { usePvp } from '../../store/pvp'
 import { PixelModal } from '../../ui/PixelModal'
 import { PixelSprite } from '../pixel/sprite'
 import { heroSprite } from '../pixel/heroes'
-import { buildPvpQuestions, pvpStats, PVP_QUESTIONS } from './pvp-setup'
+import { challengeInput, pvpStats, PVP_QUESTIONS } from './pvp-setup'
 
 interface Props {
   student: StudentProfile
@@ -58,14 +58,7 @@ export function PvpLobby({ student, progress, region }: Props) {
 
   const send = (entry: LobbyEntry) => {
     if (!region) return
-    void challenge({
-      studentId: student.id,
-      opponentId: entry.studentId,
-      subject: region.subject,
-      grade: region.grade,
-      questions: buildPvpQuestions(student.id, region.subject, region.grade, progress.mastery),
-      stats: pvpStats(student, progress, region.subject),
-    })
+    void challenge(challengeInput(student, progress, region, entry.studentId))
   }
 
   const accept = () => {

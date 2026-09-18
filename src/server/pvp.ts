@@ -75,7 +75,14 @@ async function classesOf(studentId: string): Promise<string[]> {
  */
 export async function heartbeat(
   studentId: string,
-  where: { subject: Subject | null; grade: Grade | null; x?: number | null; y?: number | null },
+  where: {
+    subject: Subject | null
+    grade: Grade | null
+    x?: number | null
+    y?: number | null
+    /** Mã câu vừa nói. API đã kiểm nó có trong bảng câu - xem `content/chat.ts`. */
+    emote?: string | null
+  },
 ): Promise<LobbyEntry[]> {
   const classIds = await classesOf(studentId)
   if (classIds.length === 0) return []
@@ -89,6 +96,9 @@ export async function heartbeat(
       // Ô đang đứng. Chỉ có nghĩa khi đang ở trong một vùng đất - xem migration 0009.
       x: where.subject === null ? null : (where.x ?? null),
       y: where.subject === null ? null : (where.y ?? null),
+      // Nói xong thì máy nói gửi kèm mã câu trong vài nhịp rồi thôi, nên dòng
+      // này tự trở về rỗng - không cần ai đi dọn.
+      emote: where.emote ?? null,
       seen_at: new Date().toISOString(),
     },
     { onConflict: 'student_id' },
@@ -105,7 +115,7 @@ export async function lobby(studentId: string, known?: string[]): Promise<LobbyE
   const since = new Date(Date.now() - PRESENCE_TTL_MS).toISOString()
   const { data, error } = await db()
     .from('class_presence')
-    .select('student_id, subject, grade, x, y, students(id, name, avatar)')
+    .select('student_id, subject, grade, x, y, emote, students(id, name, avatar)')
     .in('class_id', classIds)
     .gte('seen_at', since)
   check(error, 'Không tải được danh sách bạn đang chơi')
@@ -117,6 +127,7 @@ export async function lobby(studentId: string, known?: string[]): Promise<LobbyE
       grade: number | null
       x: number | null
       y: number | null
+      emote: string | null
       students: { id: string; name: string; avatar: string } | null
     }> | null) ?? []
 
@@ -132,6 +143,7 @@ export async function lobby(studentId: string, known?: string[]): Promise<LobbyE
       grade: (row.grade ?? null) as Grade | null,
       x: row.x ?? null,
       y: row.y ?? null,
+      emote: row.emote ?? null,
       busy: busy.has(row.student_id),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'))

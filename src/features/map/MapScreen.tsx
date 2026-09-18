@@ -24,7 +24,11 @@ import { WorldMapScreen } from '../world/WorldMapScreen'
 import { totalNodes, type MapNode } from '../../content/worldmap'
 // Cùng tên với `regionKey` của store/ui nhưng khác chữ ký - cái này nhận (môn,
 // lớp), cái kia nhận một đối tượng vùng. Đổi tên để không ai gọi nhầm.
-import { regionKey as progressKey, type StudentProgress } from '../../data/types'
+import {
+  regionKey as progressKey,
+  type StudentProfile,
+  type StudentProgress,
+} from '../../data/types'
 import { levelFromTotalXp } from '../../engine/rewards'
 import { useAuth } from '../../store/auth'
 import { useGame } from '../../store/game'
@@ -33,6 +37,8 @@ import { InstallCard } from '../../ui/InstallPrompt'
 import { PvpLobby } from '../pvp/PvpLobby'
 import { usePvpSync } from '../pvp/usePvpSync'
 import { usePvp } from '../../store/pvp'
+import { challengeInput } from '../pvp/pvp-setup'
+import { CHAT_LINES, chatText } from '../../content/chat'
 
 const SUBJECT_STYLE: Record<Subject, { color: string; emoji: string; land: string }> = {
   math: { color: 'var(--color-math)', emoji: '🔢', land: 'Thung lũng Con Số' },
@@ -279,6 +285,9 @@ export function MapScreen() {
         sprite: heroSprite(e.avatar, e.name),
         x: e.x!,
         y: e.y!,
+        // Tra MÃ câu ra chữ ngay ở đây, để `Overworld` không phải biết gì về
+        // bảng câu. Mã lạ thì `chatText` trả null và bong bóng không hiện.
+        says: chatText(e.emote),
       }))
   }, [lobby, region?.subject, region?.grade])
 
@@ -304,6 +313,8 @@ export function MapScreen() {
           map={regionMap}
           immersive={immersive}
           friends={friendsHere}
+          student={student}
+          progress={progress}
           menu={menuButton}
           onBack={() => setRegion(null)}
           onPlay={(node) => startBattle(region.subject, node, region.grade)}
@@ -569,6 +580,8 @@ function SubjectMap({
   map,
   immersive = false,
   friends,
+  student,
+  progress,
   menu,
   onBack,
   onPlay,
@@ -587,6 +600,9 @@ function SubjectMap({
   immersive?: boolean
   /** Bạn cùng lớp đang đi trong chính vùng đất này. Xem tham số cùng tên của Overworld. */
   friends?: React.ComponentProps<typeof Overworld>['friends']
+  /** Hồ sơ và tiến độ của trẻ - hộp thoại chạm mặt cần chúng để soạn lời thách. */
+  student: StudentProfile
+  progress: StudentProgress
   /** Nút ☰ của màn cha, để đặt vào góc trên - phải của khung game. */
   menu?: React.ReactNode
   onBack: () => void
@@ -600,7 +616,6 @@ function SubjectMap({
   const style = SUBJECT_STYLE[subject]
 
   const biome = biomeFor(subject, grade)
-  const student = useGame((s) => s.student)
   const mastery = useGame((s) => s.progress.mastery)
   /**
    * Thứ đang hỏi trẻ "vào chứ?".
@@ -622,6 +637,20 @@ function SubjectMap({
    * con đầu đàn thì bấm tiếp là vào trận.
    */
   const [visit, setVisit] = useState<Visit | null>(null)
+  /**
+   * Người bạn trẻ vừa đi vào, và hộp thoại đang mở với bạn ấy.
+   *
+   * Giữ cả id lẫn cờ "đang mở bảng câu nói": bảng ấy là một bước thứ hai của
+   * cùng một hộp thoại, không phải một hộp thoại khác - bấm "Nói gì đó" rồi
+   * đổi ý thì phải quay về được chỗ cũ chứ không bị đẩy ra ngoài bản đồ.
+   */
+  const [met, setMet] = useState<{ id: string; talking: boolean } | null>(null)
+  const lobby = usePvp((s) => s.lobby)
+  const challenge = usePvp((s) => s.challenge)
+  const say = usePvp((s) => s.say)
+  const myEmote = usePvp((s) => s.emote)
+  const pendingMatch = usePvp((s) => s.match)
+  const friend = met ? (lobby.find((e) => e.studentId === met.id) ?? null) : null
   // Đàn quái đã hạ trong chuyến đi này, và chỗ ghi nhận con vừa đụng vào.
   const beaten = useUi((s) => s.beatenMonsters)
   const bumpMonster = useUi((s) => s.bumpMonster)
@@ -777,13 +806,15 @@ function SubjectMap({
         onEnterHouse={enterHouse}
         onSecret={meetSecret}
         friends={friends}
+        onBumpFriend={(id) => setMet({ id, talking: false })}
+        says={chatText(myEmote)}
         follower={follower}
         avatar={student?.avatar ?? '🦊'}
         name={student?.name ?? ''}
         startAt={savedPos}
         onPosition={onPosition}
         onEnterGate={(node) => (node.kind === 'battle' ? onPlay(node) : setPreview(node))}
-        paused={preview !== null || visit !== null}
+        paused={preview !== null || visit !== null || met !== null}
         fill={immersive}
         /*
           Mũi tên ← và nút ☰ đi VÀO TRONG khung game, hai góc trên.
@@ -811,6 +842,117 @@ function SubjectMap({
         }
         dialogue={
           <AnimatePresence>
+            {/*
+              CHẠM MẶT BẠN thì có chuyện xảy ra, y như chạm mặt quái.
+
+              Trước đây đi vào người bạn mình thì không có gì cả - mà trên
+              chính tấm bản đồ này, đụng vào con quái là vào trận. Một thứ
+              đứng trên đường đi mà không đáp lại khi bị đụng vào thì trẻ hiểu
+              là nó hỏng, chứ không hiểu là "chưa làm".
+            */}
+            {met && friend && (
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 20, opacity: 0 }}
+              >
+                <DialogueBox
+                  text={
+                    /*
+                      MỘT DÒNG, không phải hai.
+
+                      Hộp thoại nằm đè lên đáy khung game, mà khung game lúc
+                      máy nằm ngang chỉ cao 390px. Mỗi dòng chữ ở đây là một
+                      dòng bản đồ bị che, và thứ bị che chính là hai đứa trẻ
+                      đang đứng nói chuyện với nhau.
+                    */
+                    met.talking
+                      ? `Nói gì với ${friend.name} nào?`
+                      : friend.busy
+                        ? `${friend.name} đang dở một trận khác - chào một câu thôi nhé?`
+                        : `${friend.name}! Bạn ấy cũng đang học ở vùng này.`
+                  }
+                >
+                  {met.talking ? (
+                    <>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {CHAT_LINES.map((line) => (
+                          <button
+                            key={line.id}
+                            type="button"
+                            onClick={() => {
+                              say(line.id)
+                              setMet(null)
+                            }}
+                            className="btn btn-ghost text-base"
+                            style={{ minHeight: 40 }}
+                          >
+                            {line.text}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/*
+                        LỐI RA của bảng câu nói.
+
+                        Không có nó thì mở bảng ra rồi đổi ý là kẹt cứng: bốn
+                        mũi tên đã bị khoá vì đang có hội thoại, và tám cái nút
+                        kia đều dẫn tới việc nói một câu. Đứa trẻ chỉ còn cách
+                        nói đại một câu để thoát ra.
+                      */}
+                      <button
+                        type="button"
+                        onClick={() => setMet(null)}
+                        className="mt-2 w-full text-base font-bold underline opacity-70"
+                        style={{ minHeight: 32 }}
+                      >
+                        Thôi, đi tiếp
+                      </button>
+                    </>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMet(null)}
+                        className="btn btn-ghost flex-1 text-base"
+                        style={{ minHeight: 44 }}
+                      >
+                        Đi tiếp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMet({ id: met.id, talking: true })}
+                        className="btn btn-ghost flex-1 text-base"
+                        style={{ minHeight: 44 }}
+                      >
+                        💬 Nói gì đó
+                      </button>
+                      {/*
+                        Nút thách đấu chỉ hiện khi thách được THẬT.
+
+                        Bạn ấy đang dở một trận, hoặc chính mình đang có một
+                        lời thách treo đó, thì bấm vào cũng chỉ nhận về một
+                        dòng báo lỗi. Một cái nút mờ đi kèm lời giải thích
+                        trung thực hơn một cái nút sáng mà bấm không ăn.
+                      */}
+                      <button
+                        type="button"
+                        disabled={friend.busy || pendingMatch !== null}
+                        onClick={() => {
+                          void challenge(challengeInput(student, progress, { subject, grade }, friend.studentId))
+                          setMet(null)
+                        }}
+                        className="btn btn-primary flex-[2] text-base"
+                        style={{ background: style.color, minHeight: 44 }}
+                      >
+                        {friend.busy ? 'Bạn ấy đang bận' : '⚔️ Thách đấu!'}
+                      </button>
+                    </div>
+                  )}
+                </DialogueBox>
+              </motion.div>
+            )}
+
             {visit && (
               <motion.div
                 initial={{ y: 20, opacity: 0 }}

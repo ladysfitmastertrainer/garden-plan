@@ -50,12 +50,30 @@ interface PvpState {
   answeredRound: number
   busy: boolean
   error: string | null
+  /**
+   * Mã câu trẻ VỪA NÓI, hoặc null khi đang im.
+   *
+   * Sống ở đây chứ không ở màn bản đồ vì hai chỗ cùng cần: nhịp tim gửi nó
+   * lên máy chủ, và chính màn bản đồ vẽ bong bóng thoại trên đầu nhân vật
+   * của trẻ. Tự tắt sau vài giây - xem `say`.
+   */
+  emote: string | null
 
+  /**
+   * Nói một câu trong bảng câu có sẵn.
+   *
+   * Chỉ đặt cờ ở máy này; việc gửi đi là của nhịp tim, và nhịp tim gửi kèm
+   * mã câu trong vài giây rồi thôi - nên dòng ở máy chủ tự trở về rỗng và
+   * bong bóng thoại bên kia tự tắt. Không có lượt gọi nào để thu hồi cả.
+   */
+  say: (line: string) => void
   heartbeat: (
     studentId: string,
     where: { subject: Subject; grade: Grade } | null,
     /** Ô đang đứng - để bạn cùng lớp vẽ được em ấy ra trên bản đồ vùng. */
     at?: { x: number; y: number } | null,
+    /** Mã câu đang nói, gửi kèm cho bạn cùng lớp thấy. */
+    emote?: string | null,
   ) => Promise<void>
   poll: (studentId: string) => Promise<void>
   challenge: (input: {
@@ -74,6 +92,17 @@ interface PvpState {
   dismiss: () => void
   clearError: () => void
 }
+
+/** Bong bóng thoại đứng trên đầu bao lâu, mili giây. Xem `say`. */
+const EMOTE_MS = 6_000
+
+/**
+ * Đồng hồ tắt câu nói, giữ NGOÀI store.
+ *
+ * Nó không phải trạng thái ai cần nhìn thấy, và để trong store thì mỗi lần
+ * đặt lại đồng hồ là một lần vẽ lại toàn bộ những gì đang đọc kho này.
+ */
+let sayTimer: number | null = null
 
 const message = (cause: unknown): string =>
   cause instanceof Error ? cause.message : 'Có gì đó không ổn. Thử lại nhé.'
@@ -104,10 +133,31 @@ export const usePvp = create<PvpState>((set, get) => ({
   dismissedId: null,
   busy: false,
   error: null,
+  emote: null,
 
-  async heartbeat(studentId, where, at) {
+  /*
+    Câu nói TỰ TẮT sau vài giây, không cần ai bấm tắt.
+
+    Bong bóng thoại là một lời chào, không phải một tấm biển treo. Để nó
+    đứng mãi thì cả lớp đi lại với một câu dính trên đầu, và câu ấy nói về
+    một lúc đã qua từ lâu. Sáu giây đủ để bạn bên kia - vốn chỉ hỏi lại máy
+    chủ mỗi giây rưỡi - nhìn thấy nó ít nhất ba lần.
+
+    Đồng hồ cũ bị huỷ khi trẻ nói câu mới, nếu không thì câu thứ hai bị câu
+    thứ nhất tắt mất ngay sau đó.
+  */
+  say(line) {
+    if (sayTimer !== null) window.clearTimeout(sayTimer)
+    set({ emote: line })
+    sayTimer = window.setTimeout(() => {
+      sayTimer = null
+      set({ emote: null })
+    }, EMOTE_MS)
+  },
+
+  async heartbeat(studentId, where, at, emote) {
     try {
-      const { lobby, match } = await sendPresence(studentId, where, at)
+      const { lobby, match } = await sendPresence(studentId, where, at, emote)
       set({ lobby, ...receive(get(), match ?? get().match) })
     } catch {
       /*

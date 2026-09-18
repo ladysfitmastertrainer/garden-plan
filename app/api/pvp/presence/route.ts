@@ -11,6 +11,7 @@ import { requireWriteStudent } from '@/server/guard'
 import { badRequest, readJson, route } from '@/server/http'
 import { clearPresence, currentMatch, heartbeat, lastFinishedMatch } from '@/server/pvp'
 import { SUBJECTS, type Grade, type Subject } from '@/content/types'
+import { isChatLine } from '@/content/chat'
 
 interface Body {
   studentId?: string
@@ -20,6 +21,8 @@ interface Body {
   /** Ô đang đứng trong vùng đất đó. */
   x?: number | null
   y?: number | null
+  /** Mã câu vừa nói. Chỉ MÃ, không bao giờ là chữ do trẻ gõ. */
+  emote?: unknown
 }
 
 export const POST = route(async (req) => {
@@ -46,10 +49,21 @@ export const POST = route(async (req) => {
   const tile = (value: unknown): number | null =>
     typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < 1000 ? value : null
 
+  /*
+    MÃ CÂU ĐƯỢC KIỂM Ở ĐÂY, và đây là chỗ DUY NHẤT nó được kiểm.
+
+    Máy trẻ gửi lên một chuỗi, nhưng chỉ chuỗi nào có trong bảng câu đóng
+    (`content/chat.ts`) mới đi tiếp; mọi thứ khác thành rỗng. Nhờ vậy dù ai
+    đó sửa mã trong trình duyệt để gửi một câu tự nghĩ ra, thứ tới được màn
+    hình đứa trẻ khác vẫn chỉ là một trong tám câu đã duyệt - hoặc không gì
+    cả. Đó là cả lý do tính năng này không cần ai ngồi kiểm duyệt.
+  */
+  const emote = isChatLine(body.emote) ? body.emote : null
+
   const where =
     subject !== null && grade !== null
-      ? { subject, grade, x: tile(body.x), y: tile(body.y) }
-      : { subject: null, grade: null, x: null, y: null }
+      ? { subject, grade, x: tile(body.x), y: tile(body.y), emote }
+      : { subject: null, grade: null, x: null, y: null, emote }
 
   /*
     Trả về cả trận VỪA XONG, không chỉ trận đang chạy.

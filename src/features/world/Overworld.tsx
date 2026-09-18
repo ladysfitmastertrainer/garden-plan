@@ -323,7 +323,26 @@ interface Props {
    * bước chân, và tô màu một hình là dựng một đối tượng mới - trả về hình mới
    * ở mỗi lần vẽ nghĩa là cả đám bạn tô lại canvas liên tục.
    */
-  friends?: Array<{ id: string; name: string; sprite: import('../pixel/sprite').Sprite; x: number; y: number }>
+  friends?: Array<{
+    id: string
+    name: string
+    sprite: import('../pixel/sprite').Sprite
+    x: number
+    y: number
+    /** Câu bạn ấy vừa nói, đã tra ra CHỮ. null nghĩa là đang im. */
+    says?: string | null
+  }>
+  /**
+   * Trẻ đi vào ô một người bạn đang đứng.
+   *
+   * Xét cùng chỗ với đụng quái, và đó là chủ ý: trên tấm bản đồ này, chạm mặt
+   * một con quái thì có chuyện xảy ra, nên chạm mặt một người bạn mà KHÔNG có
+   * gì xảy ra là một lời hứa bị nuốt. Cái gì đứng trên đường đi cũng phải đáp
+   * lại khi bị đụng vào.
+   */
+  onBumpFriend?: (friendId: string) => void
+  /** Câu CHÍNH TRẺ vừa nói, để vẽ bong bóng trên đầu nhân vật của mình. */
+  says?: string | null
   /** Thú đi theo sau lưng nhân vật. Không có thì chỉ mình nhân vật đi. */
   follower?: { sprite: import('../pixel/sprite').Sprite } | null
   /**
@@ -369,6 +388,8 @@ export function Overworld({
   spawnSeed,
   beaten,
   friends,
+  onBumpFriend,
+  says,
   follower,
   startAt,
   onPosition,
@@ -525,6 +546,12 @@ export function Overworld({
   const monstersRef = useRef(monsters)
   monstersRef.current = monsters
 
+  // Đám bạn và tay xử lý chạm mặt, đọc qua ref - cùng lẽ với đàn quái ngay trên.
+  const crowdRef = useRef(crowd)
+  crowdRef.current = crowd
+  const onBumpFriendRef = useRef(onBumpFriend)
+  onBumpFriendRef.current = onBumpFriend
+
 
   /**
    * Con quái hoang đang nhảy ra khỏi bụi cỏ.
@@ -655,6 +682,27 @@ export function Overworld({
       const { dx, dy } = DELTA[direction]
       const next = { x: pos.x + dx, y: pos.y + dy }
       if (!isWalkable(map, next.x, next.y)) return
+
+      /*
+        BẠN BÈ CHẶN ĐƯỜNG, và hộp thoại mở ra NGAY - không bước vào ô ấy nữa.
+
+        Xét ở đây, trước `setPos`, chứ không xét sau khi bước xong như với
+        quái. Con quái thì bước vào là vào trận và cả tấm bản đồ biến mất, nên
+        không ai kịp thấy hai hình chồng lên nhau. Người bạn thì vẫn đứng đó:
+        bước vào ô của bạn ấy nghĩa là hai nhân vật khít nhau, và vì nhân vật
+        của trẻ được vẽ sau nên bạn mình biến mất dưới chân mình.
+
+        Dừng lại và quay mặt sang - đó cũng đúng cách game nhập vai thời đó cho
+        trẻ chạm mặt một người: đi tới, bị chắn, rồi nói chuyện.
+
+        Đọc qua ref vì cùng lý do với đàn quái: danh sách bạn đổi theo mỗi nhịp
+        tim, mà chỗ này chỉ cần biết ai đang đứng ở ô ấy LÚC trẻ bước tới.
+      */
+      const met = crowdRef.current.find((f) => f.x === next.x && f.y === next.y)
+      if (met) {
+        onBumpFriendRef.current?.(met.id)
+        return
+      }
 
       setStepping(true)
       setTrail(pos)
@@ -988,6 +1036,8 @@ export function Overworld({
                 không nói được em nào là em nào. Cái tên mới là thứ biến "có ai
                 đó ở kia" thành "Bảo An ở kia".
               */}
+              {friend.says && <SpeechBubble text={friend.says} scale={scale} lift={TILE * scale + 16} />}
+
               <span
                 className="pixel-font absolute whitespace-nowrap"
                 style={{
@@ -1018,6 +1068,10 @@ export function Overworld({
               transition: `left ${STEP_MS}ms linear, top ${STEP_MS}ms linear`,
             }}
           >
+            {/* Bong bóng của CHÍNH TRẺ, vẽ ngay không đợi máy chủ trả lời: một
+                cái nút bấm xong mà nửa giây sau mới thấy gì thì trẻ bấm lại. */}
+            {says && <SpeechBubble text={says} scale={scale} lift={TILE * scale + 4} />}
+
             <PixelSprite
               sprite={view.sprite}
               scale={scale}
@@ -1066,6 +1120,40 @@ export function Overworld({
         {hud}
       </div>
     </div>
+  )
+}
+
+/**
+ * Bong bóng thoại trên đầu một nhân vật.
+ *
+ * Chữ KHÔNG phóng to theo bội số bản đồ mà chỉ nhích theo: ở bội số 5 trên máy
+ * tính, một câu phóng gấp năm lần sẽ rộng hơn cả nửa khung game và che mất chính
+ * hai đứa trẻ đang nói chuyện. Nó là lời thoại, không phải một tấm biển.
+ *
+ * Không xuống dòng, và nở sang hai bên quanh nhân vật: nhờ vậy nó luôn cao đúng
+ * một hàng chữ và không bao giờ đội cái tên bên dưới lên.
+ */
+function SpeechBubble({ text, scale, lift }: { text: string; scale: number; lift: number }) {
+  return (
+    <span
+      className="absolute whitespace-nowrap"
+      style={{
+        left: '50%',
+        transform: 'translateX(-50%)',
+        bottom: lift,
+        zIndex: 2,
+        fontSize: Math.max(11, scale * 4.5),
+        lineHeight: 1.1,
+        padding: '3px 8px',
+        color: '#1b2432',
+        background: '#fffdf5',
+        border: '2px solid #1b2432',
+        borderRadius: 8,
+        fontWeight: 700,
+      }}
+    >
+      {text}
+    </span>
   )
 }
 

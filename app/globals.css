@@ -1357,12 +1357,210 @@ textarea.admin-input {
 
   Lâu nay hiếm khi lộ ra vì phải có một dải nhắc đang mở đúng lúc trẻ vừa đánh
   xong một trận. Dải người dẫn của bàn hướng dẫn thì LUÔN mở trong suốt trận
-  tập, nên ở đó nó xảy ra mỗi lần. */
+  tập, nên ở đó nó xảy ra mỗi lần.
+
+  MÀN ĐĂNG NHẬP LÀ CHỖ THỨ BA, và là chỗ tệ nhất trong ba.
+
+  Nó khai `min-h-dvh` - "cao ÍT NHẤT một màn hình" - nên cộng với dải
+  nhắc xoay máy 66px ở trên, trang cao 910px trên một máy 844px. Đo thật trên
+  390×844. Hai màn kia còn có thể coi là chuyện hiếm; màn này thì mọi người
+  dùng app đều đi qua, và đi qua trước cả khi thấy trò chơi. */
 .app-shell > .battle-layout,
-.app-shell > .summary-layout {
+.app-shell > .summary-layout,
+.app-shell > .auth-layout {
   height: auto;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   MÀN ĐĂNG NHẬP: CHỈ KHUNG NHẬP ĐƯỢC CO, MỌI THỨ KHÁC GIỮ NGUYÊN
+   ---------------------------------------------------------------------------
+
+   Luật ở trên đã dọn phần thừa do dải nhắc gây ra. Còn một nửa nữa: có những
+   lúc NỘI DUNG THẬT dài hơn màn hình, và không mẹo bố cục nào xoá được điều đó.
+   Đo trên máy 360×640, ô đăng ký tài khoản: tên, vai trò, email, mật khẩu, nút,
+   hai dòng liên kết - cộng lại 933px nội dung trên 640px máy.
+
+   Chia như sau, và cách chia này chép nguyên từ màn tổng kết (xem
+   `.summary-stats`): phần đầu, hàng thẻ và hai dải báo lỗi giữ ĐÚNG chiều cao
+   thật của chúng; toàn bộ phần thiếu chỗ dồn vào KHUNG NHẬP, vốn là thứ duy
+   nhất ở màn này dài ra được và cũng là thứ duy nhất cuộn mà không mất gì.
+
+   Vì sao không cho cả trang cuộn như trước: cuộn cả trang thì nút "Đăng nhập"
+   trôi khỏi mép máy, mà phần đầu trang - cái lâu đài và tên app - lại chiếm chỗ
+   ngay trên nó. Cuộn riêng khung nhập thì hàng thẻ "Học sinh / Phụ huynh" luôn
+   nằm trong tầm mắt, và người ta không bao giờ mất dấu mình đang ở đâu. */
+.auth-layout {
+  overflow: hidden;
+}
+
+/* VÀ CẢ CỘT PHẢI CÓ TRẦN THẬT, không chỉ có sàn.
+
+   Đây là chỗ bản sửa đầu tiên hụt, và hụt im lặng: `.app-shell` khai
+   `min-height: 100dvh` - một cái SÀN. Sàn nói "đừng thấp hơn một màn hình",
+   không nói "đừng cao hơn". Nên dù khung nhập đã sẵn sàng co lại, không có gì
+   bắt nó phải co: cột cứ dài ra theo nội dung, và trang lại cuộn y như cũ.
+   Phép co của flex chỉ chạy khi cột có chiều cao DỨT KHOÁT nhỏ hơn nội dung.
+
+   Trần đặt bằng `:has()` nên nó CHỈ có hiệu lực khi màn đang mở là màn đăng
+   nhập. Đặt thẳng lên `.app-shell` thì khu vực người lớn - một trang số liệu
+   dài, vốn PHẢI cuộn - bị cắt cụt ở mép màn hình. */
+.app-shell:has(> .auth-layout) {
+  height: 100dvh;
+}
+
+.auth-layout > .auth-head,
+.auth-layout > .auth-tabs,
+.auth-layout > p {
+  flex: 0 0 auto;
+}
+
+/* Khung nhập: co được xuống dưới cỡ nội dung, và phần vượt thì cuộn.
+
+   `min-height: 0` là dòng quyết định. Một ô co giãn mặc định KHÔNG nhỏ hơn nội
+   dung của nó, nên chỉ `flex: 0 1 auto` thôi thì nó giữ nguyên 933px và cả cụm
+   lại tràn ra ngoài - đúng lỗi mà `.summary-stats` đã mắc một lần rồi. */
+.auth-layout > .pixel-panel {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Thanh cuộn mảnh nhưng THẤY ĐƯỢC: khung bị cắt ngang giữa một ô nhập, và
+     không có gì nói cho người dùng biết là còn phần nữa ở dưới. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-brand) var(--color-paper-sunk);
+}
+
+.auth-layout > .pixel-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.auth-layout > .pixel-panel::-webkit-scrollbar-thumb {
+  background: var(--color-brand);
+  border-radius: 3px;
+}
+
+/* ---- MÁY LÙN: PHẦN ĐẦU NHƯỜNG CHỖ TRƯỚC ----
+
+   Cuộn được không có nghĩa là nên cuộn. Trước khi bắt ai đó vuốt, thứ phải co
+   lại là cái LÂU ĐÀI 60px và cái tên app 40px - hai thứ chỉ để nói "đây là app
+   nào", mà người đang đứng ở màn đăng nhập thì đã biết rồi.
+
+   760px là ngưỡng dùng chung với khung hỏi trong trận (xem `.pixel-modal-panel`
+   ở trên): điện thoại nhỏ cầm dọc, và mọi điện thoại lúc xoay ngang. */
+/* ---- ĐIỆN THOẠI HẸP: PHẦN ĐẦU CŨNG PHẢI NHỎ LẠI ----
+
+   Khối @media dưới đây bắt theo CHIỀU CAO, nên một máy 390×844 - cao hơn 760px
+   - trượt khỏi nó và vẫn giữ cái lâu đài 60px cùng hàng thẻ hai dòng. Cộng lại
+   211px chỉ để nói "đây là app nào", trên một khung nhập đang thiếu chỗ.
+
+   Bắt theo BỀ NGANG là đúng chuyện hơn: máy hẹp thì nhãn "Phụ huynh / Giáo
+   viên" phải xuống hai dòng, và đó mới là thứ đội hàng thẻ lên cao. */
+@media (max-width: 480px) {
+  .auth-layout {
+    padding-block: 1rem;
+    gap: 0.75rem;
+  }
+
+  .auth-layout .auth-crest {
+    font-size: 2.5rem;
+    line-height: 1;
+  }
+
+  .auth-layout .auth-head h1 {
+    font-size: 1.9rem;
+  }
+
+  .auth-layout .auth-tabs button {
+    padding-block: 0.5rem;
+  }
+}
+@media (max-height: 760px) {
+  .auth-layout {
+    gap: 0.6rem;
+    padding-block: 0.75rem;
+  }
+
+  .auth-layout .auth-crest {
+    font-size: 2.25rem;
+    line-height: 1;
+  }
+
+  .auth-layout .auth-head h1 {
+    font-size: 1.75rem;
+  }
+
+  .auth-layout .auth-tabs button {
+    padding-block: 0.5rem;
+    font-size: 1rem;
+  }
+}
+
+/* ---- MÁY LÙN HẲN: BỎ LUÔN CÁI LÂU ĐÀI ----
+
+   Ở 844×390 - điện thoại xoay ngang - chiều cao còn 390px cho một ô đăng ký
+   cần 900px. Cái lâu đài lúc này không còn là thứ co lại được nữa: nó là thứ
+   phải biến đi. Và biến đi thì không mất gì, vì tên app vẫn còn nguyên ngay bên
+   dưới - hình lâu đài chỉ nói lại đúng điều dòng chữ ấy đã nói.
+
+   Ngưỡng bắt theo CHIỀU CAO chứ không kèm hướng máy: một máy 360×640 cầm dọc
+   cũng thiếu chỗ y như vậy, và ở đó 40px của cái lâu đài đúng bằng khoảng còn
+   thiếu để nút Đăng nhập nằm trọn trong màn hình. */
+@media (max-height: 700px) {
+  .auth-layout .auth-crest {
+    display: none;
+  }
+
+  .auth-layout {
+    gap: 0.5rem;
+    padding-block: 0.5rem;
+  }
+}
+
+/* ---- MÁY NẰM NGANG: HAI CỘT ----
+
+   Xoay ngang thì chiều cao còn 390px nhưng bề ngang có tới 844px, và cột phải
+   bỏ trắng gần hết. Xếp phần đầu với hàng thẻ sang TRÁI, khung nhập sang PHẢI:
+   cùng một nội dung, nhưng cao chỉ còn bằng khung nhập thay vì bằng tổng.
+
+   Làm bằng lưới và chỉ chỗ cho từng ô, KHÔNG bọc thêm một khối mới - cùng lý do
+   đã ghi ở bố cục hai cột của màn chơi: mấy luật ngay trên đây nhắm thẳng vào
+   con ruột của `.auth-layout`, thêm một lớp bọc là chúng thôi khớp. Kể cả cái
+   bẫy `row-gap` nhân với hàng rỗng cũng lặp lại y hệt, nên `row-gap` về 0 và bù
+   bằng lề dưới của từng ô cột trái. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .auth-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    align-content: center;
+    column-gap: 1rem;
+    row-gap: 0;
+    max-width: 46rem;
+  }
+
+  /* Phần đầu, hàng thẻ và hai dải báo lỗi: cột trái, xếp dọc. */
+  .auth-layout > *:not(.pixel-panel) {
+    grid-column: 1;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Khung nhập: cột phải, trải hết chiều cao lưới. Hai mươi hàng là con số dư
+     dả - cột trái nhiều nhất có bốn ô. */
+  .auth-layout > .pixel-panel {
+    grid-column: 2;
+    grid-row: 1 / span 20;
+    align-self: center;
+    max-height: 100%;
+    /* Khoảng thở trong khung cũng phải nhường: 390px chiều cao thì bốn khe
+       1rem giữa các ô nhập cộng lại đã là một phần mười màn hình. */
+    gap: 0.55rem;
+    padding: 10px 12px;
+  }
+
+  .auth-layout > .pixel-panel input {
+    padding-block: 0.5rem;
+  }
 }
 
 /* `flex: 1` thay cho `height: 100dvh`, và `min-height: 0` để nó co được thật.

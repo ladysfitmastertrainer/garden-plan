@@ -20,14 +20,23 @@ export function AuthScreen() {
   const notice = useAuth((s) => s.notice)
   const clearError = useAuth((s) => s.clearError)
 
+  /*
+    Màn đăng nhập VỪA ĐÚNG MỘT MÀN HÌNH, không phải một trang cuộn.
+
+    Đây là màn hình đầu tiên của cả app, và trên điện thoại nó từng dài hơn máy:
+    ở 390×844 thì trang cao 910px, nên phải vuốt lên vuốt xuống mới bấm được nút
+    Đăng nhập. Ba cái tên lớp dưới đây - `auth-layout`, `auth-head`, `auth-tabs`
+    - là móc để `globals.css` chia lại chiều cao: phần đầu và hàng thẻ giữ
+    nguyên cỡ, chỉ KHUNG NHẬP được co và cuộn. Lý do đầy đủ nằm ở đó.
+  */
   return (
-    <div className="pixel-ui mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-4 px-4 py-8">
-      <header className="text-center">
-        <p className="text-6xl">🏰</p>
+    <div className="pixel-ui auth-layout mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-4 px-4 py-8">
+      <header className="auth-head text-center">
+        <p className="auth-crest text-6xl">🏰</p>
         <h1 className="pixel-font text-4xl">HỌC VIỆN TRÍ TUỆ</h1>
       </header>
 
-      <div className="flex gap-2">
+      <div className="auth-tabs flex gap-2">
         {(['child', 'adult'] as Tab[]).map((value) => (
           <button
             key={value}

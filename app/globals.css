@@ -521,6 +521,125 @@ body {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   MÀN HÌNH RỘNG: KHUNG PHỤ ĐỨNG SANG BÊN, BẢN ĐỒ LẤY CẢ CHIỀU CAO
+   ---------------------------------------------------------------------------
+
+   Đây là bản sao của cùng một quyết định đã làm cho điện thoại, chỉ khác cách
+   thực hiện. Trên điện thoại, khung phụ chui vào ngăn kéo sau nút ☰ vì màn hình
+   không đủ chỗ cho cả hai. Trên máy tính thì đủ chỗ - chỉ là chỗ ấy nằm BÊN
+   CẠNH chứ không nằm bên trên.
+
+   Đo trên một cửa sổ 1280×860: thanh hồ sơ, hàng nút, thẻ hướng dẫn, lời mời
+   cài app và bảng bạn cùng lớp xếp dọc ăn hết 539px trước khi tới lượt bản đồ.
+   Bản đồ thế giới nhận 297px còn lại - chưa đủ 388px để lên bội số 2 - nên nó
+   đứng ở đúng 336×194 điểm ảnh, bé hơn cả màn đi cảnh ngay cạnh. Đó chính là
+   "bản đồ thế giới trên máy tính bé quá".
+
+   Xếp sang bên thì bản đồ bắt đầu từ mốc 16px và lấy gần trọn chiều cao cửa sổ.
+   Cùng cái cửa sổ ấy, nó nở ra khoảng 890×515 - gấp hơn hai lần rưỡi mỗi chiều.
+
+   ÁP DỤNG CHO CẢ HAI MÀN - bản đồ thế giới và màn đi cảnh trong vùng. Cho mỗi
+   màn một kiểu thì bước chân lên một hòn đảo là cả trang nhảy từ hai cột về một
+   cột, và cái nhảy ấy còn khó chịu hơn tấm bản đồ bé.
+
+   Ngưỡng 1000×640 chứ không phải 820px, và hai con số ấy có lý do riêng.
+
+   BỀ NGANG 1000: cột phụ ăn cố định 360px, nên dưới mức này nó lấy hơn một phần
+   ba bề ngang của chính thứ nó đang nhường chỗ cho. Đúng 1000 thì bản đồ còn
+   592px - vẫn hơn gấp rưỡi cái 336px nó đang có ở bố cục một cột.
+
+   CHIỀU CAO 640: cả điểm của việc xếp sang bên là lấy lại chiều cao. Một cửa sổ
+   lùn hơn thế thì chẳng có chiều cao nào để lấy, mà xếp hai cột lại làm bản đồ
+   hẹp đi - đổi một thứ đang thiếu lấy một thứ cũng đang thiếu.
+
+   `useWideLayout` trong `src/shell/` đọc đúng hai con số này để biết khi nào
+   hàng nút còn chỗ ghi tên. Sửa ở đây thì phải sửa cả ở đó. */
+@media (min-width: 1000px) and (min-height: 640px) {
+  /*
+    LƯỚI HAI CỘT, KHÔNG PHẢI MỘT KHỐI BỌC MỚI.
+
+    Cách hiển nhiên hơn là gói mọi khung phụ vào một cái `<div>` rồi cho nó
+    thành cột thứ hai. Cách ấy HỎNG, và hỏng im lặng: cả tệp này có hơn một
+    chục luật nhắm thẳng vào con RUỘT của `.map-layout` - `> header`,
+    `> nav`, `> header > button` - và thêm một lớp bọc là tất cả thôi khớp.
+    Thanh hồ sơ hết co lại khi trẻ đứng trong vùng đất, hàng nút hết xếp dọc
+    lúc máy nằm ngang. Không có gì báo lỗi cả.
+
+    Lưới thì mọi khung phụ VẪN LÀ con ruột, chỉ là được chỉ sang cột 2. Đây
+    cũng đúng mẹo mà khối @media cho máy nằm ngang ở dưới đã dùng từ trước.
+  */
+  .map-layout:not(.map-immersive) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    /* Khung phụ giữ đúng chiều cao của chúng, không bị kéo giãn cho bằng nhau. */
+    align-items: start;
+    column-gap: 1rem;
+  }
+
+  /*
+    Màn nào KHÔNG CÓ thanh hồ sơ thì cũng không có cột phụ - bản đồ lấy cả hai.
+
+    Bàn hướng dẫn là màn duy nhất như vậy: nó mượn nguyên bố cục này để dựng bãi
+    tập, nhưng không mang theo khung phụ nào cả (xem `TutorialScreen`). Thiếu
+    dòng này thì cột thứ hai vẫn đứng đó chiếm 360px rỗng, và bãi tập hẹp đi
+    đúng ngần ấy mà không đổi lấy được gì.
+  */
+  .map-layout:not(.map-immersive):not(:has(> header)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /*
+    Trần bề ngang nới từ 1280 lên 1600 - CHỈ ở bố cục hai cột này.
+
+    Con số 1280 được chọn hồi trang còn xếp một cột, và ở đó nó là một bề ngang
+    đọc chữ hợp lý. Giờ 360px trong số ấy đã là của cột phụ, nên bản đồ chỉ còn
+    khoảng 870px và bị chính cái trần ấy chặn lại chứ không phải bị màn hình
+    chặn. Trên một màn 1920 thì 640px bên ngoài bỏ không.
+
+    `min()` để cửa sổ hẹp hơn 1600 vẫn lấy đúng bề ngang nó có.
+
+    Tên lớp nhân đôi để thắng luật `max-width: 1280px` ở trên mà không cần
+    `!important` - cùng mẹo đã dùng vài chỗ khác trong tệp này.
+  */
+  .map-layout.map-layout:not(.map-immersive) {
+    max-width: min(1600px, 100%);
+
+    /*
+      KHOẢNG CÁCH HÀNG PHẢI BẰNG 0, bù lại bằng lề dưới của từng khung phụ.
+
+      Bản đồ trải qua ba mươi hàng để luôn phủ hết cột phụ, nhưng phần lớn số
+      hàng ấy rỗng - mà `row-gap` vẫn tính đủ từng khoảng một, cộng lại thành
+      cả trăm điểm ảnh trống chen vào giữa lưới. Đúng cái bẫy mà khối @media
+      cho máy nằm ngang ở dưới đã mắc một lần rồi.
+    */
+    row-gap: 0;
+  }
+
+  /* Mọi khung phụ sang CỘT PHẢI, xếp dọc theo đúng thứ tự chúng đã có. */
+  .map-layout:not(.map-immersive) > *:not(.region-layout):not(.world-layout) {
+    grid-column: 2;
+    margin-bottom: 1rem;
+  }
+
+  /*
+    Bản đồ chiếm CỘT TRÁI và trải hết chiều cao lưới.
+
+    Ba mươi hàng là con số dư dả: cột phụ có năm khung, và dù sau này thêm nữa
+    thì bản đồ vẫn phủ hết. Đây là chỗ mắt trẻ chạm vào trước, nên nó đứng bên
+    trái chứ không phải bên phải.
+  */
+  .map-layout:not(.map-immersive) > .world-layout,
+  .map-layout:not(.map-immersive) > .region-layout {
+    grid-column: 1;
+    grid-row: 1 / span 30;
+    min-width: 0;
+    /* Bản đồ thế giới là một bức hình có tỉ lệ cố định, nên nó gần như không
+       bao giờ cao đúng bằng cột. Căn giữa phần thừa thay vì dồn hết xuống dưới. */
+    align-content: center;
+  }
+}
+
 /*
   Máy tính: phần đầu trang của màn đi cảnh nén lại để khung game phóng to hơn.
 

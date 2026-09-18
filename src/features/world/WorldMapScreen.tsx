@@ -329,23 +329,32 @@ export function WorldMapScreen({
     setScale(drawn)
 
     /*
-      Và MỘT BƯỚC KÉO GIÃN LẺ nữa ở trên, chỉ trên máy cầm tay.
+      Và MỘT BƯỚC KÉO GIÃN LẺ nữa ở trên - Ở MỌI CỠ MÁY.
 
-      Lục địa là một bức hình cố định 336×180. Trên điện thoại xoay ngang, chỗ
-      trống cao khoảng 306px - chưa đủ 360px để lên bội số 2 - nên nó kẹt ở bội
-      số 1 và nằm gọn trong nửa màn hình, phần còn lại bỏ trắng.
+      Lục địa là một bức hình cố định 336×194, nên bội số nguyên chỉ cho đúng ba
+      cỡ: 336, 672, 1008. Giữa chúng là hai khoảng trống mênh mông, và một cái
+      máy rơi vào giữa khoảng thì bản đồ đứng ở cỡ DƯỚI - bỏ trắng phần còn lại.
 
-      Không có bội số nguyên nào lấp được khoảng đó. Nên: vẽ ở bội số nguyên lớn
-      nhất còn vừa, rồi kéo phần đã vẽ giãn ra bằng CSS cho đầy khung.
+      Nên: vẽ ở bội số nguyên lớn nhất còn vừa, rồi kéo phần đã vẽ giãn ra bằng
+      CSS cho đầy khung.
+
+      TRƯỚC ĐÂY BƯỚC NÀY CHỈ CHẠY TRÊN MÁY CẦM TAY, vì "máy tính thì chỗ trống
+      thừa thãi, bội số nguyên tự nó đã đủ lớn". Đo thật thì câu ấy sai, và sai
+      rất xa: trên một cửa sổ 1280×860, thanh hồ sơ, hàng nút và ba khung phụ
+      xếp phía trên đẩy bản đồ xuống mốc 539px, nên nó chỉ còn 297px chiều cao -
+      chưa đủ 388px để lên bội số 2. Bản đồ thế giới đứng ở bội số 1, tức đúng
+      336×194 điểm ảnh, bé hơn cả màn đi cảnh ngay cạnh nó.
 
       ĐÂY LÀ MỘT ĐÁNH ĐỔI, không phải một cải tiến thuần: kéo giãn lẻ thì có
-      điểm ảnh rộng 2, có điểm ảnh rộng 1, nhìn kỹ sẽ thấy gợn. Đổi lại tấm bản
-      đồ lấp đầy màn hình. Trên máy tính thì KHÔNG đánh đổi gì cả - ở đó chỗ
-      trống thừa thãi, bội số nguyên tự nó đã đủ lớn.
+      điểm ảnh rộng 2, có điểm ảnh rộng 1, nhìn kỹ sẽ thấy gợn. Nhưng một tấm
+      bản đồ bé bằng một con tem thì không cần nhìn kỹ cũng thấy, nên đánh đổi
+      này đáng ở cả hai nơi. Hệ số luôn ≥ 1 và lấy bên CHẬT hơn, nên bản đồ
+      không bao giờ tràn ra ngoài khung.
     */
-    const stretch = compact
-      ? Math.max(1, Math.min(width / (CANVAS_WIDTH * drawn), spare / (CANVAS_HEIGHT * drawn)))
-      : 1
+    const stretch = Math.max(
+      1,
+      Math.min(width / (CANVAS_WIDTH * drawn), spare / (CANVAS_HEIGHT * drawn)),
+    )
     setFit((current) => (Math.abs(current - stretch) < 0.01 ? current : stretch))
   })
 

@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCompactLayout } from '../../shell/useCompactLayout'
+import { useWideLayout } from '../../shell/useWideLayout'
 import { AnimatePresence, motion } from 'framer-motion'
 import { setMuted } from '../../audio/synth'
 import { regionKey, useUi } from '../../store/ui'
@@ -80,6 +81,9 @@ export function MapScreen() {
   // Điện thoại và máy tính bảng dựng đứng: bản đồ chiếm trọn máy, mọi khung phụ
   // chui vào ngăn kéo. Xem cuối hàm này và `shell/useCompactLayout.ts`.
   const immersive = useCompactLayout()
+  // Màn hình đủ rộng để khung phụ đứng thành một cột bên cạnh bản đồ. Ngưỡng
+  // khớp với khối @media dựng cột phụ trong globals.css.
+  const wide = useWideLayout()
   const [menuOpen, setMenuOpen] = useState(false)
 
   // Đóng ngăn kéo khi trẻ bước vào hay bước ra khỏi một vùng đất: sau cú bấm ấy
@@ -115,13 +119,15 @@ export function MapScreen() {
   const inRegion = region !== null
 
   /*
-    Hàng nút thu lại còn biểu tượng khi đang đi cảnh - nhưng KHÔNG trong ngăn kéo.
+    Hàng nút thu lại còn biểu tượng khi đang đi cảnh - nhưng KHÔNG trong ngăn kéo,
+    và KHÔNG khi khung phụ đã có một cột riêng.
 
-    Trong ngăn kéo thì chỗ rộng rãi, mà ba biểu tượng trần trụi giữa một trang
-    trống thì phải đoán nghĩa. Lý do thu gọn ban đầu là để nhường chỗ cho bản đồ;
-    trong ngăn kéo không có bản đồ nào để nhường cả.
+    Cả hai ngoại lệ cùng một lẽ: ba biểu tượng trần trụi thì phải đoán nghĩa, và
+    lý do thu gọn ban đầu là để nhường chỗ cho bản đồ. Trong ngăn kéo không có
+    bản đồ nào để nhường; ở bố cục hai cột thì bản đồ đã đứng sang bên kia rồi,
+    nên chỗ này có thừa chỗ ghi tên.
   */
-  const navCompact = inRegion && !immersive
+  const navCompact = inRegion && !immersive && !wide
 
 
   /*

@@ -152,6 +152,31 @@ Font khung game là **VT323**, một trong số rất ít font pixel trên Googl
 đủ dấu tiếng Việt. Đề bài và đáp án cố ý **giữ font bo tròn dễ đọc**: trẻ lớp 1
 phân biệt dấu hỏi với dấu ngã ở độ phân giải thấp rất dễ nhầm.
 
+**Phóng to thì vẽ ở bội số NGUYÊN, rồi kéo giãn phần lẻ bằng CSS.** Pixel art vẽ
+ở bội số lẻ là méo hết điểm ảnh, nên canvas luôn được tô ở bội số nguyên lớn
+nhất còn vừa khung. Nhưng lục địa là một bức hình cố định 336×194, và bội số
+nguyên chỉ cho đúng ba cỡ - 336, 672, 1008 - nên gần như màn hình nào cũng rơi
+vào giữa hai cỡ và bỏ trắng phần thừa. Bước kéo giãn lẻ cuối cùng xoá nốt khoảng
+ấy. Đây là một **đánh đổi**: nhìn kỹ sẽ thấy có điểm ảnh rộng 2, có điểm ảnh rộng
+1. Đổi lại bản đồ lấp đầy khung thay vì nằm như một con tem giữa màn hình.
+
+## Bố cục trên máy tính
+
+Từ **1000×640** trở lên, màn chơi xếp **hai cột**: bản đồ bên trái, mọi khung phụ
+(thanh hồ sơ, hàng nút, thẻ hướng dẫn, lời mời cài app, bảng bạn cùng lớp) dồn
+vào một cột hẹp 360px bên phải.
+
+Đây là cùng một quyết định đã làm cho điện thoại, chỉ khác cách thực hiện: ở đó
+khung phụ chui vào ngăn kéo sau nút ☰ vì không đủ chỗ cho cả hai; ở đây đủ chỗ,
+chỉ là chỗ ấy nằm bên cạnh chứ không nằm bên trên. Xếp dọc thì trên một cửa sổ
+1280×860 riêng phần đầu trang đã ăn 539px, và bản đồ thế giới nhận 297px còn lại
+- chưa đủ để lên nổi bội số 2.
+
+Làm bằng **lưới CSS**, không bằng một khối bọc mới quanh đám khung phụ: cả tệp
+`globals.css` có hơn một chục luật nhắm thẳng vào con ruột của `.map-layout`
+(`> header`, `> nav`), và thêm một lớp bọc là tất cả thôi khớp - im lặng, không
+có gì báo lỗi.
+
 ## Ba quyết định thiết kế
 
 1. **Đạo đức không chấm đúng/sai.** Mỗi tình huống có ba mức `good` / `ok` /

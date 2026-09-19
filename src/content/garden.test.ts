@@ -8,12 +8,14 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { ISO_MEDIUM } from '../features/pixel/iso'
 import { validateSprite } from '../features/pixel/sprite'
 import {
   GARDEN_CELLS,
   GARDEN_COLS,
   GARDEN_PARTS,
   GARDEN_ROWS,
+  PART_SCALE,
   cellKey,
   cleanGarden,
   gardenSlots,
@@ -132,5 +134,45 @@ describe('vàng nằm trong vườn', () => {
   it('vườn trống thì bằng 0', () => {
     expect(gardenWorth(undefined)).toBe(0)
     expect(gardenWorth({})).toBe(0)
+  })
+})
+
+describe('to nhỏ theo vai', () => {
+  it('món nào cũng khai một bậc, và bậc nào cũng có bội số', () => {
+    for (const part of GARDEN_PARTS) {
+      expect(PART_SCALE[part.size], part.id).toBeGreaterThan(0)
+    }
+  })
+
+  it('ba bậc TO DẦN, không bậc nào bằng bậc nào', () => {
+    expect(PART_SCALE.nho).toBeLessThan(PART_SCALE.vua)
+    expect(PART_SCALE.vua).toBeLessThan(PART_SCALE.lon)
+  })
+
+  it('CÔNG TRÌNH to hơn cả viên gạch nó đứng', () => {
+    /*
+      Đây là cái vừa sửa. Mọi món trong `iso.ts` đều vẽ ở 16x16 vì chúng sinh ra
+      để đứng một mình giữa một hòn đảo - đem nguyên cỡ ấy vào vườn thì ngọn hải
+      đăng to đúng bằng bụi cỏ, và cùng bé bằng một phần ba viên gạch.
+    */
+    const lighthouse = getGardenPart('hai-dang')!
+    const width = (lighthouse.sprite.rows[0]?.length ?? 0) * PART_SCALE[lighthouse.size]
+    expect(width).toBeGreaterThan(ISO_MEDIUM.width)
+  })
+
+  it('thứ mọc sát đất thì NHỎ HƠN viên gạch - cỏ không được cao bằng tháp', () => {
+    const bush = getGardenPart('bui-co')!
+    const width = (bush.sprite.rows[0]?.length ?? 0) * PART_SCALE[bush.size]
+    expect(width).toBeLessThan(ISO_MEDIUM.width)
+  })
+
+  it('càng đắt càng to, không có món rẻ nào to hơn món đắt', () => {
+    // Giá đã xếp tăng dần (test ở trên), nên bậc cũng phải không bao giờ tụt.
+    const order = { nho: 0, vua: 1, lon: 2 }
+    let previous = -1
+    for (const part of GARDEN_PARTS) {
+      expect(order[part.size], part.id).toBeGreaterThanOrEqual(previous)
+      previous = order[part.size]
+    }
   })
 })

@@ -32,14 +32,16 @@ import {
   GARDEN_COLS,
   GARDEN_PARTS,
   GARDEN_ROWS,
+  PART_SCALE,
   cellKey,
   cleanGarden,
   gardenSlots,
   getGardenPart,
   nextSlotLevel,
+  type GardenPart,
 } from '../../content/garden'
-import { ISO_MEDIUM, makeIsoIsland, placeProp } from '../pixel/iso'
-import { PixelSprite } from '../pixel/sprite'
+import { ISO_MEDIUM, makeIsoIsland } from '../pixel/iso'
+import { PixelSprite, spriteSize } from '../pixel/sprite'
 import { petSpriteFor } from '../inventory/PetCollection'
 import { getPet } from '../../content/pets'
 import { resolvePet } from '../../engine/pets'
@@ -64,11 +66,29 @@ const TILE = makeIsoIsland(SOIL, ISO_MEDIUM)
 const HALF_W = ISO_MEDIUM.width / 2
 const HALF_H = ISO_MEDIUM.topHeight / 2
 
+/**
+ * KHOẢNG TRỜI chừa phía trên hàng gạch đầu tiên.
+ *
+ * Một công trình cao vươn LÊN khỏi viên gạch nó đứng - toà lâu đài cao 64 điểm
+ * ảnh trong khi mặt gạch chỉ dày 24. Không chừa chỗ thì món ở hàng đầu tiên
+ * trồi ra ngoài khung vẽ và bị cắt cụt nóc, mà đúng cái nóc ấy là thứ làm nó
+ * thành một toà lâu đài.
+ *
+ * Tính từ chính bộ cảnh vật chứ không gõ một con số: thêm một món cao hơn vào
+ * bảng thì khoảng trời tự nới ra, không ai phải nhớ sửa chỗ này.
+ */
+const HEADROOM = Math.max(
+  0,
+  ...GARDEN_PARTS.map(
+    (part) => spriteSize(part.sprite).height * PART_SCALE[part.size] - HALF_H - 2,
+  ),
+)
+
 /** Toạ độ màn hình của một ô, trước khi phóng to. */
 function cellAt(col: number, row: number) {
   return {
     x: (col - row) * HALF_W + (GARDEN_ROWS - 1) * HALF_W,
-    y: (col + row) * HALF_H,
+    y: (col + row) * HALF_H + HEADROOM,
   }
 }
 
@@ -94,7 +114,30 @@ const TILE_CLIP = (() => {
 })()
 
 const BOARD_W = (GARDEN_COLS + GARDEN_ROWS - 1) * HALF_W + ISO_MEDIUM.width
-const BOARD_H = (GARDEN_COLS + GARDEN_ROWS - 1) * HALF_H + ISO_MEDIUM.topHeight + ISO_MEDIUM.depth
+const BOARD_H =
+  HEADROOM + (GARDEN_COLS + GARDEN_ROWS - 1) * HALF_H + ISO_MEDIUM.topHeight + ISO_MEDIUM.depth
+
+/**
+ * Chỗ đứng của một món trên viên gạch của nó.
+ *
+ * Neo theo CHÂN món, không theo tâm. Canh theo tâm thì món càng cao càng lún
+ * sâu xuống đất - một ngọn hải đăng sẽ chôn nửa thân dưới mặt cỏ.
+ *
+ * Chân đặt ở giữa mặt thoi (nửa chiều cao mặt trên), nhích xuống hai điểm ảnh
+ * để nó chạm đất chứ không lơ lửng. Cùng phép tính mà `placeProp` dùng, chỉ
+ * khác là ở đây món được vẽ RỜI nên nó cao bao nhiêu cũng không bị cắt.
+ */
+function propBox(part: GardenPart) {
+  const scale = PART_SCALE[part.size]
+  const { width, height } = spriteSize(part.sprite)
+  const w = width * scale
+  const h = height * scale
+  return {
+    scale,
+    left: Math.round(ISO_MEDIUM.width / 2 - w / 2),
+    top: Math.round(ISO_MEDIUM.topHeight / 2 - h + 2),
+  }
+}
 
 /** Mọi ô, xếp theo thứ tự vẽ: ô xa vẽ trước để ô gần đè lên. */
 const CELLS = Array.from({ length: GARDEN_ROWS }, (_, row) =>
@@ -279,6 +322,17 @@ function Plot({
         }}
       >
         {/*
+          MÓN VẼ RỜI KHỎI VIÊN GẠCH, không ghép vào trong nó.
+
+          `placeProp` ghép món vào ảnh viên gạch rồi cắt mọi thứ thò ra ngoài
+          khung 48x34 - hợp lý ở bản đồ thế giới, nơi mỗi hòn đảo đúng một món
+          nhỏ. Ở đây thì không: một toà lâu đài cao hơn viên gạch sẽ bị cắt mất
+          mái, và mọi món buộc phải bé bằng nhau.
+
+          Vẽ rời thì món cao bao nhiêu cũng được, và thứ tự vẽ vẫn đúng: cả gạch
+          lẫn món của một ô nằm chung một lượt, xếp từ xa tới gần, nên công trình
+          ở hàng trước trùm lên ô phía sau đúng như khi nhìn nghiêng ngoài đời.
+
           HAI LƯỢT VẼ: hình trước, vùng bấm sau. Và chúng KHÔNG gộp được.
 
           Gộp làm một cái nút rồi cắt nó theo hình viên gạch thì phần bị cắt
@@ -307,10 +361,18 @@ function Plot({
                 filter: !part && canPlace ? 'brightness(1.18)' : undefined,
               }}
             >
-              <PixelSprite
-                sprite={part ? placeProp(TILE, part.sprite, 2, 0, ISO_MEDIUM) : TILE}
-                scale={1}
-              />
+              <PixelSprite sprite={TILE} scale={1} />
+              {part && (
+                <PixelSprite
+                  sprite={part.sprite}
+                  scale={propBox(part).scale}
+                  style={{
+                    position: 'absolute',
+                    left: propBox(part).left,
+                    top: propBox(part).top,
+                  }}
+                />
+              )}
             </div>
           )
         })}
@@ -473,7 +535,9 @@ function Shelf({
 
       <div
         className="grid gap-2"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}
+        // 180px chứ không 140: hộp hình cỡ thật ăn mất 68px bề ngang, và ở
+        // mức cũ thì "Ngọn hải đăng" bị cắt còn "Ngọn h...".
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
       >
         {GARDEN_PARTS.map((part) => {
           const picked = holding === part.id
@@ -492,7 +556,21 @@ function Shelf({
                 opacity: tooDear && !picked ? 0.5 : 1,
               }}
             >
-              <PixelSprite sprite={part.sprite} scale={2} />
+              {/*
+                Hình trên giá bày ĐÚNG CỠ nó sẽ có ngoài vườn.
+
+                Thu hết về một cỡ thì giá bày đọc gọn hơn thật, nhưng trẻ chọn
+                "ngọn hải đăng" mà không biết nó sẽ to gấp đôi cái cây bên cạnh -
+                và cái to nhỏ ấy chính là thứ vừa được thêm vào. Một cái hộp cao
+                cố định, món đứng dưới đáy, thì các thẻ vẫn đều nhau mà cỡ thật
+                vẫn nhìn ra.
+              */}
+              <span
+                className="flex shrink-0 items-end justify-center"
+                style={{ width: 68, height: 68 }}
+              >
+                <PixelSprite sprite={part.sprite} scale={PART_SCALE[part.size]} />
+              </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-base font-bold leading-tight">
                   {part.name}

@@ -53,12 +53,35 @@ export const GARDEN_COLS = 6
 export const GARDEN_ROWS = 4
 export const GARDEN_CELLS = GARDEN_COLS * GARDEN_ROWS
 
+/**
+ * TO NHỎ THEO VAI, không phải theo kích thước tệp.
+ *
+ * Mọi món cảnh vật trong `iso.ts` đều được vẽ ở đúng 16x16 - vì chúng sinh ra
+ * để đứng một mình giữa một hòn đảo trên bản đồ thế giới, nơi mỗi đảo chỉ có
+ * một món. Đem nguyên cỡ ấy vào khu vườn thì một ngọn hải đăng to đúng bằng một
+ * bụi cỏ, và cả hai cùng bé bằng một phần ba viên gạch.
+ *
+ * Ba bậc, và khoảng cách giữa chúng chính là thứ làm khu vườn có chiều sâu:
+ *
+ *   'nho'  (x2)  thứ mọc sát đất - cỏ, đá, hoa, nấm.
+ *   'vua'  (x3)  thứ cao ngang người - cây cối, đèn, nhạc cụ, bia đá.
+ *   'lon'  (x4)  CÔNG TRÌNH. To hơn cả viên gạch nó đứng, nên nó trùm sang ô
+ *                phía sau - đúng như một toà tháp thật trông ra khi nhìn nghiêng.
+ *
+ * Bậc 'lon' cố ý vượt khỏi viên gạch. Một toà lâu đài nằm gọn trong một ô thì
+ * nó là một món đồ chơi; tràn ra ngoài thì nó mới là một toà lâu đài.
+ */
+export type PartSize = 'nho' | 'vua' | 'lon'
+
+export const PART_SCALE: Record<PartSize, number> = { nho: 2, vua: 3, lon: 4 }
+
 export interface GardenPart {
   id: string
   name: string
   sprite: Sprite
   /** Vàng phải trả để đặt xuống. Dỡ ra thì lấy lại đủ bấy nhiêu. */
   cost: number
+  size: PartSize
 }
 
 /*
@@ -73,26 +96,26 @@ export interface GardenPart {
   em học gì nhiều nhất.
 */
 export const GARDEN_PARTS: GardenPart[] = [
-  { id: 'bui-co', name: 'Bụi cỏ', sprite: PROP_BUSH, cost: 10 },
-  { id: 'hon-da', name: 'Hòn đá', sprite: PROP_STONE, cost: 10 },
-  { id: 'luong-hoa', name: 'Luống hoa', sprite: PROP_FLOWERS, cost: 15 },
-  { id: 'nam', name: 'Cây nấm', sprite: PROP_MUSHROOM, cost: 15 },
-  { id: 'cay-thong', name: 'Cây thông', sprite: PROP_PINE, cost: 20 },
-  { id: 'cay-to', name: 'Cây to', sprite: PROP_TREE, cost: 20 },
-  { id: 'cay-dua', name: 'Cây dừa', sprite: PROP_PALM, cost: 25 },
-  { id: 'den-long', name: 'Đèn lồng', sprite: PROP_LANTERN, cost: 30 },
-  { id: 'ban-tinh', name: 'Bàn tính', sprite: PROP_ABACUS, cost: 35 },
-  { id: 'gia-sach', name: 'Giá sách', sprite: PROP_BOOKSTAND, cost: 35 },
-  { id: 'cai-trong', name: 'Cái trống', sprite: PROP_DRUM, cost: 35 },
-  { id: 'cay-dan', name: 'Cây đàn', sprite: PROP_HARP, cost: 35 },
-  { id: 'bia-da', name: 'Bia đá', sprite: PROP_OBELISK, cost: 50 },
-  { id: 'khoi-pha-le', name: 'Khối pha lê', sprite: PROP_CRYSTAL, cost: 60 },
-  { id: 'ngoi-mieu', name: 'Ngôi miếu', sprite: PROP_SHRINE, cost: 70 },
-  { id: 'thap-canh', name: 'Tháp canh', sprite: PROP_TOWER, cost: 90 },
-  { id: 'thap-chuong', name: 'Tháp chuông', sprite: PROP_BELLTOWER, cost: 110 },
-  { id: 'hai-dang', name: 'Ngọn hải đăng', sprite: PROP_LIGHTHOUSE, cost: 140 },
-  { id: 'cong-than', name: 'Cổng thần', sprite: PROP_PORTAL, cost: 170 },
-  { id: 'lau-dai', name: 'Toà lâu đài', sprite: PROP_CASTLE, cost: 200 },
+  { id: 'bui-co', name: 'Bụi cỏ', sprite: PROP_BUSH, cost: 10, size: 'nho' },
+  { id: 'hon-da', name: 'Hòn đá', sprite: PROP_STONE, cost: 10, size: 'nho' },
+  { id: 'luong-hoa', name: 'Luống hoa', sprite: PROP_FLOWERS, cost: 15, size: 'nho' },
+  { id: 'nam', name: 'Cây nấm', sprite: PROP_MUSHROOM, cost: 15, size: 'nho' },
+  { id: 'cay-thong', name: 'Cây thông', sprite: PROP_PINE, cost: 20, size: 'vua' },
+  { id: 'cay-to', name: 'Cây to', sprite: PROP_TREE, cost: 20, size: 'vua' },
+  { id: 'cay-dua', name: 'Cây dừa', sprite: PROP_PALM, cost: 25, size: 'vua' },
+  { id: 'den-long', name: 'Đèn lồng', sprite: PROP_LANTERN, cost: 30, size: 'vua' },
+  { id: 'ban-tinh', name: 'Bàn tính', sprite: PROP_ABACUS, cost: 35, size: 'vua' },
+  { id: 'gia-sach', name: 'Giá sách', sprite: PROP_BOOKSTAND, cost: 35, size: 'vua' },
+  { id: 'cai-trong', name: 'Cái trống', sprite: PROP_DRUM, cost: 35, size: 'vua' },
+  { id: 'cay-dan', name: 'Cây đàn', sprite: PROP_HARP, cost: 35, size: 'vua' },
+  { id: 'bia-da', name: 'Bia đá', sprite: PROP_OBELISK, cost: 50, size: 'vua' },
+  { id: 'khoi-pha-le', name: 'Khối pha lê', sprite: PROP_CRYSTAL, cost: 60, size: 'vua' },
+  { id: 'ngoi-mieu', name: 'Ngôi miếu', sprite: PROP_SHRINE, cost: 70, size: 'lon' },
+  { id: 'thap-canh', name: 'Tháp canh', sprite: PROP_TOWER, cost: 90, size: 'lon' },
+  { id: 'thap-chuong', name: 'Tháp chuông', sprite: PROP_BELLTOWER, cost: 110, size: 'lon' },
+  { id: 'hai-dang', name: 'Ngọn hải đăng', sprite: PROP_LIGHTHOUSE, cost: 140, size: 'lon' },
+  { id: 'cong-than', name: 'Cổng thần', sprite: PROP_PORTAL, cost: 170, size: 'lon' },
+  { id: 'lau-dai', name: 'Toà lâu đài', sprite: PROP_CASTLE, cost: 200, size: 'lon' },
 ]
 
 const PART_BY_ID = new Map(GARDEN_PARTS.map((part) => [part.id, part]))

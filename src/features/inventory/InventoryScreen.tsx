@@ -138,6 +138,7 @@ export function InventoryScreen() {
       <PetCollection
         ownedIds={progress.pets ?? []}
         petXp={progress.petXp ?? {}}
+        petNature={progress.petNature ?? {}}
         companionId={progress.companion}
         onChoose={setCompanion}
       />

@@ -129,6 +129,14 @@ export interface PlayerStats {
   maxHp: number
   /** Hệ số sát thương từ cấp độ, trang bị và pet. 1.0 là mặc định. */
   power: number
+  /**
+   * Bấm gợi ý thì cú đánh còn lại bao nhiêu phần. Bỏ trống là mức mặc định.
+   *
+   * Thành một trường thay vì một hằng số cứng, vì con thú tính cách HAM HỌC
+   * được miễn cái giá này (xem `engine/nature.ts`). Để nguyên hằng số thì cái
+   * tính cách ấy chỉ là một dòng chữ trang trí.
+   */
+  hintPenalty?: number
 }
 
 /**
@@ -714,7 +722,7 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
         state.player.power *
         speedMultiplier(durationMs) *
         comboMultiplier(state.combo) *
-        (state.hintUsed ? HINT_DAMAGE_PENALTY : 1) *
+        (state.hintUsed ? (state.player.hintPenalty ?? HINT_DAMAGE_PENALTY) : 1) *
         qualityFactor,
     )
 

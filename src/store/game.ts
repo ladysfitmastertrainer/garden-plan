@@ -11,10 +11,12 @@
 import { create } from 'zustand'
 import { createEnemy } from '../content/bestiary'
 import { useUi } from './ui'
-import type { Enemy } from '../engine/battle'
+import type { Enemy, PlayerStats } from '../engine/battle'
 import { getSkill } from '../content/curriculum'
 import { PETS, SPELLS, companionOf, getPet } from '../content/pets'
-import { currentEvolution, evolutionStage, justEvolved } from '../engine/pets'
+import { cellKey, cleanGarden, gardenSlots, getGardenPart } from '../content/garden'
+import { addAnswers, hintPenaltyScale, natureOf } from '../engine/nature'
+import { currentEvolution, evolutionStage, justEvolved, type Pet } from '../engine/pets'
 import { contentSource } from '../content/registry'
 import { getTuning } from '../content/tuning'
 import { buildWorldMap, type MapNode, type WorldMap } from '../content/worldmap'
@@ -139,6 +141,44 @@ function enemyFor(kind: 'wild' | 'mini' | 'secret', enemy: Enemy): Enemy {
  */
 export type BattleKind = 'node' | 'wild' | 'mini' | 'secret' | 'tower' | 'tutorial'
 
+/**
+ * Thứ nhận được sau khi thắng một trận đấu trường.
+ *
+ * ---- TRỨNG, CHỨ KHÔNG PHẢI CƯỚP ----
+ *
+ * Trò chơi gốc mà ý này mượn về (Monster Capsule) cho người thắng ĐỔI LẤY một
+ * con thú của người thua. Ở đây thì không, và đó là một quyết định về trẻ con
+ * chứ không phải về cân bằng: một em bảy tuổi mất con thú nuôi cả tháng vào tay
+ * bạn ngồi cạnh sẽ khóc thật, và sáng hôm sau đó là chuyện ngoài sân trường.
+ *
+ * Nên người thắng nhận một quả TRỨNG cùng loài với con thú vừa đấu - tức một
+ * con mới tinh, cấp 1, của chính loài ấy - còn người thua không mất gì cả. Vẫn
+ * đủ sướng, vẫn là "chiến lợi phẩm mang hình bạn ấy", mà không ai phải khóc.
+ *
+ * Đã có con ấy rồi thì quy ra vàng. Một quả trứng trùng con đang nuôi thì không
+ * phải phần thưởng, nó là một dòng thông báo.
+ */
+export interface PvpReward {
+  kind: 'egg' | 'gold'
+  /** Loài vừa nở ra. Chỉ có ở 'egg'. */
+  petId?: string
+  petName?: string
+  /** Vàng nhận thay, khi đã có con ấy rồi. */
+  gold?: number
+}
+
+/**
+ * Thắng một trận đấu trường mà đã có sẵn con thú ấy thì được bấy nhiêu vàng.
+ *
+ * Ngang một trận đánh quái thường. Đấu trường ngắn hơn (bảy câu so với mười),
+ * nhưng đối thủ là một đứa trẻ khác đang cố hết sức - nên công sức bỏ ra không
+ * kém, và phần thưởng không được kém.
+ */
+const PVP_GOLD = 25
+
+/** Nhớ lại nhiều nhất bấy nhiêu trận, để hồ sơ không phình ra - xem `pvpClaimed`. */
+const PVP_CLAIMED_KEPT = 20
+
 /** Số câu tối đa trong một trận. Đủ dài để có tiến triển, đủ ngắn để không chán. */
 
 export interface BattleSummary {
@@ -217,6 +257,22 @@ interface GameState {
   leaveStudent: () => void
   /** Mặc hoặc cởi một món trang bị đã có trong kho. */
   toggleEquip: (itemId: string) => Promise<void>
+  /**
+   * Nhận thưởng sau một trận đấu trường đã THẮNG.
+   *
+   * Gọi được nhiều lần cho cùng một trận mà chỉ phát đúng một lần - xem
+   * `pvpClaimed`. Lần sau trả về `null`.
+   */
+  claimPvpReward: (matchId: string, foePetId: string | null) => PvpReward | null
+  /**
+   * Đặt một món xuống ô (cột, hàng). Trả vàng ngay.
+   *
+   * Không làm gì khi thiếu vàng, hết ô, hoặc ô đã có món - ba trường hợp mà
+   * giao diện lẽ ra đã chặn, nhưng luật thì phải sống ở đây.
+   */
+  placeGardenPart: (col: number, row: number, partId: string) => void
+  /** Dỡ món ở ô (cột, hàng) và HOÀN ĐỦ vàng. */
+  removeGardenPart: (col: number, row: number) => void
 
   worldMap: (subject: Subject, grade?: Grade) => WorldMap
   startBattle: (subject: Subject, node: MapNode, grade?: Grade) => void
@@ -336,6 +392,37 @@ function commitBattleStep(
   void repository.recordAttempts([{ ...record, studentId: student.id } as StoredAttempt])
 
   playEffect(record.correct ? 'correct' : 'wrong')
+}
+
+/**
+ * Con thú ra trận, kèm chỉ số của người điều khiển nó.
+ *
+ * Gom hai thứ vào một hàm vì chúng KHÔNG độc lập: mức phạt khi bấm gợi ý phụ
+ * thuộc vào tính cách của chính con thú sắp ra sân (xem `engine/nature.ts`).
+ * Để rời nhau thì mỗi chỗ dựng trận phải tự nhớ tra tính cách trước khi khai
+ * chỉ số - bốn chỗ, và chỉ cần một chỗ quên là con thú Ham Học mất đặc điểm
+ * duy nhất của nó, lặng lẽ.
+ */
+function fighterFor(
+  progress: StudentProgress,
+  subject: Subject,
+  level: number,
+  bonus: { bonusHp?: number; bonusPower?: number } = {},
+): { pet: Pet; player: PlayerStats } {
+  const pet = companionOf(
+    progress.pets,
+    progress.companion,
+    subject,
+    progress.petXp ?? {},
+    progress.petNature ?? {},
+  )
+  return {
+    pet,
+    player: {
+      ...statsForLevel(level, bonus),
+      hintPenalty: hintPenaltyScale(natureOf(progress.petNature?.[pet.id])),
+    },
+  }
 }
 
 export const useGame = create<GameState>((set, get) => ({
@@ -481,8 +568,8 @@ export const useGame = create<GameState>((set, get) => ({
       battle: createBattle(
         {
           enemy,
-          player: statsForLevel(level, bonus),
-          pet: companionOf(progress.pets, progress.companion, subject, progress.petXp ?? {}),
+          player: fighterFor(progress, subject, level, bonus).player,
+          pet: fighterFor(progress, subject, level, bonus).pet,
           maxQuestions: queue.length,
           timeLimitMs: node.kind === 'boss' ? timeLimitFor('boss', target) : null,
           // Lượt ĐỠ ĐÒN luôn có đồng hồ, kể cả trận thường - xem defendLimitFor.
@@ -556,8 +643,8 @@ export const useGame = create<GameState>((set, get) => ({
       battle: createBattle(
         {
           enemy: enemyFor(kind, enemy),
-          player: statsForLevel(level, bonus),
-          pet: companionOf(progress.pets, progress.companion, subject, progress.petXp ?? {}),
+          player: fighterFor(progress, subject, level, bonus).player,
+          pet: fighterFor(progress, subject, level, bonus).pet,
           maxQuestions: queue.length,
           timeLimitMs: kind === 'wild' ? null : timeLimitFor('mini', target),
           defendLimitMs: defendLimitFor(kind === 'wild' ? 'normal' : 'mini', target),
@@ -641,7 +728,7 @@ export const useGame = create<GameState>((set, get) => ({
       battle: createBattle(
         {
           enemy: createTowerBoss(subject, target),
-          player: statsForLevel(level, bonus),
+          player: fighterFor(progress, subject, level, bonus).player,
           /*
             Vẫn đúng con thú ấy, không có ngoại lệ nào cho tháp.
 
@@ -655,7 +742,7 @@ export const useGame = create<GameState>((set, get) => ({
             có chiêu nào khắc được hệ nó vừa đổi sang, và phải chọn giữa đánh
             yếu hay dồn chiêu cuối.
           */
-          pet: companionOf(progress.pets, progress.companion, subject, progress.petXp ?? {}),
+          pet: fighterFor(progress, subject, level, bonus).pet,
           maxQuestions: queue.length,
           timeLimitMs: timeLimitFor('tower', target),
           defendLimitMs: defendLimitFor('tower', target),
@@ -695,13 +782,8 @@ export const useGame = create<GameState>((set, get) => ({
             KHÔNG cộng trang bị: một em quay lại xem hướng dẫn khi đã có đồ sẽ
             hạ con slime trong một đòn và mất luôn lượt đỡ đòn.
           */
-          player: statsForLevel(1),
-          pet: companionOf(
-            progress.pets,
-            progress.companion,
-            TUTORIAL_SUBJECT,
-            progress.petXp ?? {},
-          ),
+          player: fighterFor(progress, TUTORIAL_SUBJECT, 1).player,
+          pet: fighterFor(progress, TUTORIAL_SUBJECT, 1).pet,
           maxQuestions: TUTORIAL_MAX_QUESTIONS,
           // Lượt ra đòn KHÔNG đếm giờ, y như mọi trận thường: trẻ đang học, và
           // ở bàn này em còn đang vừa học vừa đọc lời người dẫn.
@@ -783,6 +865,79 @@ export const useGame = create<GameState>((set, get) => ({
     }
     set({ progress: updated })
     void repository.saveProgress(student.id, updated)
+  },
+
+  placeGardenPart(col, row, partId) {
+    const { student, progress } = get()
+    if (!student) return
+
+    const part = getGardenPart(partId)
+    if (!part) return
+
+    const garden = cleanGarden(progress.garden)
+    const key = cellKey(col, row)
+    if (garden[key]) return
+
+    const level = levelFromTotalXp(student.totalXp).level
+    if (Object.keys(garden).length >= gardenSlots(level)) return
+    if (student.gold < part.cost) return
+
+    const updated: StudentProgress = { ...progress, garden: { ...garden, [key]: partId } }
+    const poorer: StudentProfile = { ...student, gold: student.gold - part.cost }
+    set({ progress: updated, student: poorer })
+    void repository.saveProgress(student.id, updated)
+    void repository.saveStudent(poorer)
+  },
+
+  removeGardenPart(col, row) {
+    const { student, progress } = get()
+    if (!student) return
+
+    const garden = cleanGarden(progress.garden)
+    const key = cellKey(col, row)
+    const part = getGardenPart(garden[key] ?? '')
+    if (!part) return
+
+    const { [key]: _gone, ...rest } = garden
+    const updated: StudentProgress = { ...progress, garden: rest }
+    // HOÀN ĐỦ. Một khu vườn không ai dám thử thì không phải khu vườn - xem
+    // ghi chú đầu `content/garden.ts`.
+    const richer: StudentProfile = { ...student, gold: student.gold + part.cost }
+    set({ progress: updated, student: richer })
+    void repository.saveProgress(student.id, updated)
+    void repository.saveStudent(richer)
+  },
+
+  claimPvpReward(matchId, foePetId) {
+    const { student, progress } = get()
+    if (!student) return null
+
+    const claimed = progress.pvpClaimed ?? []
+    if (claimed.includes(matchId)) return null
+
+    const foePet = foePetId ? getPet(foePetId) : null
+    if (!foePet) return null
+
+    const owned = progress.pets ?? []
+    const isNew = !owned.includes(foePet.id)
+
+    const updated: StudentProgress = {
+      ...progress,
+      pets: isNew ? [...owned, foePet.id] : owned,
+      pvpClaimed: [...claimed, matchId].slice(-PVP_CLAIMED_KEPT),
+    }
+    set({ progress: updated })
+    void repository.saveProgress(student.id, updated)
+
+    if (!isNew) {
+      const richer: StudentProfile = { ...student, gold: student.gold + PVP_GOLD }
+      set({ student: richer })
+      void repository.saveStudent(richer)
+      return { kind: 'gold', gold: PVP_GOLD }
+    }
+
+    playEffect('levelup')
+    return { kind: 'egg', petId: foePet.id, petName: foePet.name }
   },
 
   setCompanion(petId) {
@@ -1002,6 +1157,19 @@ export const useGame = create<GameState>((set, get) => ({
     const petXp = { ...(progress.petXp ?? {}) }
     const petsEvolved: BattleSummary['petsEvolved'] = []
 
+    /*
+      Nết trả lời của trận này ngấm vào con thú vừa ra sân.
+
+      Tích MỌI câu, kể cả câu sai: nết là cách trẻ tiếp cận một câu hỏi - bấm
+      liền, nghĩ kỹ, hay mở gợi ý - và cách ấy có thật dù câu trả lời đúng hay
+      sai. Chỉ đếm câu đúng thì một em hay sai sẽ mãi không có tính cách, mà đó
+      đúng là em cần được nhìn thấy mình nhất.
+    */
+    const petNature = {
+      ...(progress.petNature ?? {}),
+      [battle.pet.pet.id]: addAnswers(progress.petNature?.[battle.pet.pet.id], battle.answers),
+    }
+
     for (const member of [battle.pet]) {
       const id = member.pet.id
       const before = petXp[id] ?? 0
@@ -1048,6 +1216,7 @@ export const useGame = create<GameState>((set, get) => ({
       towerCleared,
       pets: caught ? [...owned, caught.id] : owned,
       petXp,
+      petNature,
       inventory: loot ? [...progress.inventory, loot.id] : progress.inventory,
       battlesPlayed: progress.battlesPlayed + 1,
       battlesWon: progress.battlesWon + (victory ? 1 : 0),

@@ -202,6 +202,15 @@ export function MapScreen() {
         >
           {navCompact ? '🎒' : '🎒 Kho đồ'}
         </button>
+        <button
+          type="button"
+          onClick={() => go('garden')}
+          className={navCompact ? 'btn btn-ghost px-4 text-lg' : 'btn btn-ghost flex-1 text-base'}
+          aria-label="Vườn của con"
+          title="Vườn của con"
+        >
+          {navCompact ? '🌳' : '🌳 Vườn'}
+        </button>
         <MuteButton compact={navCompact} />
         <MusicButton compact={navCompact} />
       </nav>

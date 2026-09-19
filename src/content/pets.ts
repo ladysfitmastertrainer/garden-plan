@@ -36,6 +36,7 @@
 
 import type { Pet, Spell } from '../engine/pets'
 import { oppositeElement, resolvePet } from '../engine/pets'
+import { applyNature, natureOf, type NatureCounts } from '../engine/nature'
 import type { Subject } from './types'
 
 /**
@@ -395,12 +396,20 @@ export function companionOf(
   companionId: string | undefined,
   subject: Subject,
   petXp: Record<string, number> = {},
+  /**
+   * Nết trả lời đã tích được, để con thú ra trận mang đúng tính cách của nó.
+   *
+   * Tham số CUỐI và có thể bỏ trống, vì phần lớn chỗ gọi chỉ cần biết "con nào
+   * ra trận và nó lớn tới đâu" - bộ sưu tập, hình đi theo trên bản đồ. Chỉ
+   * những chỗ dựng một trận đấu thật mới cần tới nó.
+   */
+  petNature: Record<string, NatureCounts> = {},
 ): Pet {
   const owned = (ownedIds ?? []).map(getPet).filter((p): p is Pet => p !== null)
   const chosen = companionId ? owned.find((p) => p.id === companionId) : undefined
   const pet =
     chosen ?? owned.find((p) => p.element === subject) ?? owned[0] ?? defaultCompanion(subject)
-  return resolvePet(pet, petXp[pet.id] ?? 0)
+  return applyNature(resolvePet(pet, petXp[pet.id] ?? 0), natureOf(petNature[pet.id]))
 }
 
 /**

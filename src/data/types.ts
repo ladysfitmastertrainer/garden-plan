@@ -33,6 +33,44 @@ export interface StudentProgress {
    */
   petXp?: Record<string, number>
   /**
+   * HỘP CẢNH: ô nào đặt món gì. Khoá dạng "cột,hàng" - xem `content/garden.ts`.
+   *
+   * Một bảng phẳng chứ không phải một mảng hai chiều, vì khu vườn gần như luôn
+   * thưa: một em cấp 3 mới có năm ô được đặt trên hai mươi tư ô đất. Lưu mảng
+   * thì hai mươi tư ô trong đó mười chín ô rỗng, đi qua đường truyền mỗi lần
+   * ghi tiến độ.
+   *
+   * Không bắt buộc, và nội dung bên trong cũng không cần đúng: `cleanGarden`
+   * bỏ mọi ô nằm ngoài mặt đất và mọi món không còn tồn tại.
+   */
+  garden?: Record<string, string>
+
+  /**
+   * Những trận đấu trường đã nhận thưởng rồi.
+   *
+   * Giữ để không phát hai lần: màn tổng kết PVP có thể vẽ lại nhiều lần (trẻ
+   * xoay máy, React dựng lại), và mỗi lần vẽ mà phát thêm một quả trứng thì cả
+   * bộ sưu tập đầy lên sau một trận.
+   *
+   * CẮT CÒN HAI MƯƠI TRẬN GẦN NHẤT. Danh sách này chỉ để chống phát trùng trong
+   * vài phút trước mắt, không phải một cuốn sổ lịch sử - để nó dài mãi thì hồ sơ
+   * của một em chơi cả năm phình ra vì một thứ không ai đọc.
+   */
+  pvpClaimed?: string[]
+
+  /**
+   * Nết trả lời đã tích được, theo từng con thú - xem `engine/nature.ts`.
+   *
+   * Theo TỪNG CON vì tính cách là của con thú, không phải của đứa trẻ: con đi
+   * theo suốt học kỳ một nhiễm cái nết dò dẫm hồi ấy, con của học kỳ hai nhiễm
+   * cái nết đã thuộc bài. Hai con khác nhau, và đó là câu chuyện đáng giữ.
+   *
+   * Không bắt buộc: hồ sơ cũ chưa có, và thiếu thì tính cách đơn giản là "chưa
+   * rõ" cho tới khi trẻ đánh đủ mười hai câu với con ấy.
+   */
+  petNature?: Record<string, { fast: number; careful: number; hinted: number }>
+
+  /**
    * Con thú trẻ chọn đi theo mình ra trận. Một con, và chỉ một.
    *
    * Không bắt buộc: hồ sơ cũ chưa từng chọn, và `companionOf` tự phát cho con

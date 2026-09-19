@@ -23,6 +23,7 @@ import {
   xpToNextLevel,
 } from '../../engine/pets'
 import { SUBJECT_ELEMENT, SUBJECT_LABEL, SUBJECTS, type Subject } from '../../content/types'
+import { NATURE_AFTER, NATURE_INFO, natureOf, type NatureCounts } from '../../engine/nature'
 import { ALL_SPRITES, recolor } from '../pixel/creatures'
 import { PixelSprite } from '../pixel/sprite'
 
@@ -58,11 +59,14 @@ export function petSpriteFor(spriteId: string, element: Subject, owned = true) {
 export function PetCollection({
   ownedIds,
   petXp = {},
+  petNature = {},
   companionId,
   onChoose,
 }: {
   ownedIds: string[]
   petXp?: Record<string, number>
+  /** Nết trả lời đã tích được - xem `engine/nature.ts`. */
+  petNature?: Record<string, NatureCounts>
   /** Con đang đi theo trẻ. Không có thì chưa ai được chọn. */
   companionId?: string
   onChoose: (petId: string) => void
@@ -89,6 +93,11 @@ export function PetCollection({
         lần tiến hoá đầu (mượn sức một môn khác để đánh được cả những con quái khắc hệ mình), và
         chiêu cuối mở ở lần tiến hoá thứ hai.
       </p>
+      <p className="text-base opacity-70">
+        Đánh trận cùng một con thì nó <strong>nhiễm cái nết của con</strong>: bấm liền thì thành
+        Gan Lì, nghĩ kỹ rồi mới bấm thì thành Điềm Tĩnh, hay mở gợi ý thì thành Ham Học. Nết nào
+        cũng có cái hay riêng - không có nết nào là nết dở.
+      </p>
 
       {SUBJECTS.map((element) => {
         const group = PETS.filter((pet) => pet.element === element)
@@ -109,6 +118,9 @@ export function PetCollection({
                 const next = xpToNextLevel(xp)
                 const mine = have && pet.id === companionId
                 const open = unlockedSpellCount(pet, xp)
+                const counts = petNature[pet.id]
+                const nature = natureOf(counts)
+                const answered = (counts?.fast ?? 0) + (counts?.careful ?? 0) + (counts?.hinted ?? 0)
                 return (
                   <div
                     key={pet.id}
@@ -196,6 +208,24 @@ export function PetCollection({
                       {have && !upcoming && (
                         <p className="text-sm leading-tight" style={{ color: ELEMENT_COLOR[element] }}>
                           Đã tới hình thái cuối cùng.
+                        </p>
+                      )}
+
+                      {/*
+                        Tính cách, và khi chưa rõ thì nói RÕ LÀ CHƯA RÕ kèm còn
+                        bao nhiêu câu nữa. Để trống thì trẻ không biết là có thứ
+                        ấy tồn tại; nói "còn 7 câu nữa" thì nó thành một cái mốc
+                        để ngóng, và ngóng bằng cách đi đánh thêm vài trận.
+                      */}
+                      {have && nature && (
+                        <p className="text-sm leading-tight" style={{ color: ELEMENT_COLOR[element] }}>
+                          {NATURE_INFO[nature].emoji} {NATURE_INFO[nature].label} ·{' '}
+                          {NATURE_INFO[nature].perk}
+                        </p>
+                      )}
+                      {have && !nature && (
+                        <p className="text-sm leading-tight opacity-60">
+                          Tính cách chưa rõ - đánh thêm {NATURE_AFTER - answered} câu nữa cùng con này.
                         </p>
                       )}
 

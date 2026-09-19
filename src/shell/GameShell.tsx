@@ -21,6 +21,7 @@ import { MapScreen } from '../features/map/MapScreen'
 import { ProfileScreen } from '../features/profile/ProfileScreen'
 import { DashboardScreen } from '../features/dashboard/DashboardScreen'
 import { InventoryScreen } from '../features/inventory/InventoryScreen'
+import { GardenScreen } from '../features/garden/GardenScreen'
 import { useAuth } from '../store/auth'
 import { useGame } from '../store/game'
 import { usePvp } from '../store/pvp'
@@ -258,6 +259,7 @@ function Screen() {
 
   if (screen === 'profiles') return <ProfileScreen />
   if (screen === 'inventory') return <InventoryScreen />
+  if (screen === 'garden') return <GardenScreen />
   return <MapScreen />
 }
 

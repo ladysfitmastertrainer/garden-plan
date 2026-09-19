@@ -13,7 +13,7 @@ import type { Grade, Subject } from '../content/types'
  * viễn ở màn ấy. Giờ nó là một nơi đi tới được, chứ không phải một ngõ cụt rơi
  * vào. Xem `GameShell`.
  */
-export type Screen = 'game' | 'profiles' | 'dashboard' | 'inventory'
+export type Screen = 'game' | 'profiles' | 'dashboard' | 'inventory' | 'garden'
 
 /** Vùng đất đang mở. `null` nghĩa là đang đứng ở bản đồ thế giới. */
 export interface Region {

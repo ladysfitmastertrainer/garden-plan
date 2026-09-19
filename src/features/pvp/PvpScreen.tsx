@@ -29,7 +29,7 @@ import {
 } from '../../data/pvp-types'
 import { judge, type AnswerInput } from '../../engine/judge'
 import { usePvp } from '../../store/pvp'
-import { useGame } from '../../store/game'
+import { useGame, type PvpReward } from '../../store/game'
 import { QuestionView } from '../question/QuestionView'
 import { PvpArena } from './PvpArena'
 import { PvpSpellPicker } from './PvpSpellPicker'
@@ -574,9 +574,29 @@ function RoundTimer({
 
 function Result({ match, studentId }: { match: PvpMatch; studentId: string }) {
   const dismiss = usePvp((s) => s.dismiss)
+  const claimPvpReward = useGame((s) => s.claimPvpReward)
   const sides = sidesOf(match, studentId)!
   const won = match.winnerId === studentId
   const draw = match.winnerId === null && match.status === 'finished'
+
+  /*
+    ---- THẮNG THÌ ĐƯỢC MỘT QUẢ TRỨNG CÙNG LOÀI VỚI CON THÚ VỪA ĐẤU ----
+
+    Bạn kia KHÔNG mất gì cả - xem `PvpReward` ở `store/game.ts`.
+
+    Nhận ngay tại màn tổng kết chứ không đợi trẻ bấm nút: bấm mới nhận thì em
+    nào đóng máy ngay sau khi thắng sẽ mất phần, mà đó lại đúng là lúc em ấy
+    đang vui nhất và dễ bỏ chạy đi khoe nhất.
+
+    `claimPvpReward` phát đúng một lần cho mỗi trận, nên gọi lại không sinh
+    thêm trứng. Giữ bằng `prev ?? ...` vì React dựng đôi thành phần này ở bản
+    phát triển: lần gọi thứ hai trả về null, và ghi đè thì lời báo biến mất.
+  */
+  const [reward, setReward] = useState<PvpReward | null>(null)
+  useEffect(() => {
+    if (!won) return
+    setReward((prev) => prev ?? claimPvpReward(match.id, sides.foe.pet ?? null))
+  }, [won, match.id, sides.foe.pet, claimPvpReward])
 
   const headline = draw
     ? '🤝 Hoà!'
@@ -608,6 +628,31 @@ function Result({ match, studentId }: { match: PvpMatch; studentId: string }) {
               ? `Con trả lời đúng nhanh hơn ${sides.foe.name}. Giỏi lắm!`
               : 'Lần sau đọc đề xong là bấm luôn nhé - thuộc bài thì tay nhanh hơn.'}
         </p>
+
+        {/*
+          Quả trứng được một khung riêng, không nhét vào câu nói ở trên.
+
+          Đây là thứ đầu tiên chế độ đấu trường thật sự CHO trẻ mang về - trước
+          bản này thắng hay thua đều về tay không. Một thứ như vậy mà trôi lẫn
+          trong một đoạn văn thì nửa số trẻ sẽ không nhận ra mình vừa có nó.
+        */}
+        {reward?.kind === 'egg' && (
+          <div
+            className="pixel-panel grid gap-1"
+            style={{ background: '#fff8dc', borderColor: '#b8860b' }}
+          >
+            <p className="pixel-font text-2xl leading-none">🥚 CON ĐƯỢC MỘT QUẢ TRỨNG!</p>
+            <p className="text-lg leading-snug">
+              Trứng <strong>{reward.petName}</strong> - cùng loài với con thú của {sides.foe.name}.
+              Nó đã vào bộ sưu tập của con rồi, còn {sides.foe.name} thì không mất gì cả.
+            </p>
+          </div>
+        )}
+        {reward?.kind === 'gold' && (
+          <p className="text-lg leading-snug">
+            🪙 Con đã có con thú ấy rồi, nên nhận <strong>{reward.gold} vàng</strong> thay nhé.
+          </p>
+        )}
 
         <button type="button" onClick={dismiss} className="btn btn-primary w-full text-xl">
           Về bản đồ

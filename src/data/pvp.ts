@@ -58,6 +58,7 @@ export async function sendChallenge(input: {
   questions: PvpMatchQuestion[]
   maxHp: number
   power: number
+  pet: string | null
 }): Promise<PvpMatch> {
   const { match } = await request<{ match: PvpMatch }>('/api/pvp/challenge', {
     method: 'POST',
@@ -77,7 +78,7 @@ export async function respondToMatch(
   matchId: string,
   studentId: string,
   accept: boolean,
-  side?: { maxHp: number; power: number },
+  side?: { maxHp: number; power: number; pet: string | null },
 ): Promise<PvpMatch> {
   const { match } = await request<{ match: PvpMatch }>(`/api/pvp/match/${matchId}/respond`, {
     method: 'POST',

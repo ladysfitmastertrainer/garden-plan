@@ -36,6 +36,14 @@ export interface PvpSide {
   studentId: string
   name: string
   avatar: string
+  /**
+   * Id con thú ĐỨNG ĐẦU đội, chốt lúc vào trận.
+   *
+   * Đây là thứ duy nhất của đội thú mà đấu trường VẼ ra được. Thiếu nó -
+   * trận tạo từ trước bản này - thì giao diện rơi về con thú mặc định của
+   * môn đó, và sân đấu vẫn chạy.
+   */
+  pet?: string | null
   hp: number
   maxHp: number
   power: number
@@ -110,6 +118,33 @@ export function sidesOf(
     return { me: match.opponent, foe: match.challenger }
   }
   return null
+}
+
+/**
+ * Sức đội thú KHI VÀO PVP - nén lại bằng căn bậc hai.
+ *
+ * NẰM Ở ĐÂY chứ không ở `server/pvp.ts`, vì giờ có hai chỗ cần nó: máy chủ để
+ * tính sát thương, và giao diện để NÓI RA cho trẻ biết đội thú đang giúp mình
+ * bao nhiêu. Một con số chỉ sống trong máy chủ là một con số trẻ không bao giờ
+ * thấy, và đội thú thành ra vô hình.
+ *
+ * Ở trận đánh quái, `power` đi thẳng vào công thức: nuôi thú tới nấc tiến hoá
+ * cuối thì đội có thể chạm mốc 2,3 - gấp hơn hai lần một đội mới. Ở đó điều ấy
+ * đúng và nên thế, vì đối thủ là một con quái do máy dựng, và cả việc nuôi thú
+ * sinh ra để trẻ thấy mình mạnh dần lên.
+ *
+ * Ở PVP thì đối thủ là bạn ngồi bàn bên. Để nguyên hệ số ấy thì trận đấu ngã ngũ
+ * TRƯỚC KHI câu hỏi đầu tiên hiện ra: bạn nào chơi lâu hơn thì đánh gấp đôi, và
+ * bạn kia có trả lời nhanh cỡ nào cũng không gỡ nổi. Lúc đó phần thưởng rơi vào
+ * cái trẻ ĐÃ CÓ, chứ không vào cái trẻ vừa LÀM - mà cái trẻ vừa làm mới là cái
+ * chế độ này muốn đo.
+ *
+ * Căn bậc hai kéo khoảng 1,0-2,3 xuống còn 1,0-1,52, hẹp hơn hẳn khoảng thưởng
+ * tốc độ 1,0-1,8. Đội thú vẫn có ích, và có ích thấy được; nó chỉ không còn đè
+ * bẹp được tốc độ nữa.
+ */
+export function pvpPowerFactor(power: number): number {
+  return Math.sqrt(Math.max(0.01, power))
 }
 
 /**

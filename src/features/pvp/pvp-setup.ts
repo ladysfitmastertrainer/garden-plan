@@ -111,5 +111,12 @@ export function pvpStats(
     // ra cùng một con số mà trẻ vẫn quen nhìn.
     maxHp: Math.max(1, Math.round(teamHp)),
     power: Math.round(hero.power * teamPower * 100) / 100,
+    /*
+      Con đứng đầu đội là con RA SÂN.
+
+      `buildTeam` xếp con cùng hệ với môn lên đầu, nên ở đảo Toán thì con thú
+      hệ Số Học của trẻ bước ra - đúng con đang khoẻ nhất trong trận này.
+    */
+    pet: team[0]?.id ?? null,
   }
 }

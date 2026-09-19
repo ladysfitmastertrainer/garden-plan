@@ -4,6 +4,7 @@ import { requireWriteStudent } from '@/server/guard'
 import { badRequest, readJson, route } from '@/server/http'
 import { challenge, type PvpQuestion } from '@/server/pvp'
 import { SUBJECTS, type Grade, type Subject } from '@/content/types'
+import { getPet } from '@/content/pets'
 
 interface Body {
   studentId?: string
@@ -13,6 +14,7 @@ interface Body {
   questions?: PvpQuestion[]
   maxHp?: number
   power?: number
+  pet?: unknown
 }
 
 /**
@@ -44,9 +46,26 @@ export const POST = route(async (req) => {
   // đòn một phát chết người ở bên kia.
   const power = Math.min(5, Math.max(0.1, Number(body.power ?? 1)))
 
+  /*
+    Id con thú được kiểm bằng chính bộ thú của game.
+
+    Cùng lẽ với mã câu nói: một chuỗi lạ lọt vào đây rồi sẽ được tra ra sprite
+    ở máy bên kia, và tra hụt thì con thú biến mất khỏi sân đấu. Kiểm ngay tại
+    cửa thì phần còn lại của hệ thống không phải phòng thủ thêm lần nào nữa.
+  */
+  const pet = typeof body.pet === 'string' && getPet(body.pet) ? body.pet : null
+
   await requireWriteStudent(studentId)
 
   return {
-    match: await challenge(studentId, { opponentId, subject, grade: grade as Grade, questions, maxHp, power }),
+    match: await challenge(studentId, {
+      opponentId,
+      subject,
+      grade: grade as Grade,
+      questions,
+      maxHp,
+      power,
+      pet,
+    }),
   }
 })

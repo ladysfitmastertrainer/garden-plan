@@ -31,6 +31,8 @@ import {
 export interface PvpSideStats {
   maxHp: number
   power: number
+  /** Con thú đứng đầu đội - để đấu trường vẽ nó ra. */
+  pet: string | null
 }
 
 interface PvpState {
@@ -194,6 +196,7 @@ export const usePvp = create<PvpState>((set, get) => ({
         questions: toPvpQuestions(questions) as unknown as PvpMatchQuestion[],
         maxHp: stats.maxHp,
         power: stats.power,
+        pet: stats.pet,
       })
       set({ ...receive(get(), match), busy: false })
     } catch (cause) {

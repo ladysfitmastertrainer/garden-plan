@@ -18,6 +18,7 @@
  */
 import 'server-only'
 
+import { pvpPowerFactor } from '@/data/pvp-types'
 import type { Grade, Subject } from '@/content/types'
 import { pvpTimeLimitMs } from '@/data/pvp-types'
 import type {
@@ -179,7 +180,7 @@ export async function clearPresence(studentId: string): Promise<void> {
 const MATCH_COLUMNS =
   'id, class_id, challenger_id, opponent_id, subject, grade, status, questions, round, ' +
   'round_started_at, challenger_hp, opponent_hp, challenger_max, opponent_max, ' +
-  'challenger_power, opponent_power, buzzes, events, winner_id'
+  'challenger_power, opponent_power, challenger_pet, opponent_pet, buzzes, events, winner_id'
 
 export interface Buzz {
   studentId: string
@@ -205,6 +206,8 @@ interface MatchRow {
   opponent_max: number
   challenger_power: number
   opponent_power: number
+  challenger_pet: string | null
+  opponent_pet: string | null
   buzzes: Buzz[]
   events: PvpEvent[]
   winner_id: string | null
@@ -223,13 +226,20 @@ async function nameOf(ids: string[]): Promise<Map<string, { name: string; avatar
 
 async function toMatch(row: MatchRow): Promise<PvpMatch> {
   const names = await nameOf([row.challenger_id, row.opponent_id])
-  const side = (id: string, hp: number, maxHp: number, power: number): PvpSide => ({
+  const side = (
+    id: string,
+    hp: number,
+    maxHp: number,
+    power: number,
+    pet: string | null,
+  ): PvpSide => ({
     studentId: id,
     name: names.get(id)?.name ?? 'Bạn',
     avatar: names.get(id)?.avatar ?? '🦊',
     hp,
     maxHp,
     power,
+    pet,
   })
 
   return {
@@ -244,8 +254,15 @@ async function toMatch(row: MatchRow): Promise<PvpMatch> {
       row.challenger_hp,
       row.challenger_max,
       Number(row.challenger_power),
+      row.challenger_pet,
     ),
-    opponent: side(row.opponent_id, row.opponent_hp, row.opponent_max, Number(row.opponent_power)),
+    opponent: side(
+      row.opponent_id,
+      row.opponent_hp,
+      row.opponent_max,
+      Number(row.opponent_power),
+      row.opponent_pet,
+    ),
     // Chỉ trả về AI đã bấm, không trả về bấm đúng hay sai. Biết trước bạn mình
     // vừa trả lời sai là biết trước mình chỉ cần bấm đúng là thắng lượt - lúc ấy
     // cuộc đua tốc độ biến thành cuộc chờ.
@@ -350,6 +367,8 @@ export interface ChallengeInput {
   questions: PvpQuestion[]
   maxHp: number
   power: number
+  /** Con thú đứng đầu đội, chốt ngay lúc thách - xem migration 0011. */
+  pet?: string | null
 }
 
 export async function challenge(studentId: string, input: ChallengeInput): Promise<PvpMatch> {
@@ -393,6 +412,7 @@ export async function challenge(studentId: string, input: ChallengeInput): Promi
       opponent_hp: input.maxHp,
       opponent_max: input.maxHp,
       challenger_power: input.power,
+      challenger_pet: input.pet ?? null,
     })
     .select(MATCH_COLUMNS)
     .single()
@@ -406,7 +426,7 @@ export async function respond(
   studentId: string,
   matchId: string,
   accept: boolean,
-  side?: { maxHp: number; power: number },
+  side?: { maxHp: number; power: number; pet?: string | null },
 ): Promise<PvpMatch> {
   const row = await loadRow(matchId)
   if (row.opponent_id !== studentId) throw forbidden('Lời thách này không dành cho con.')
@@ -422,6 +442,7 @@ export async function respond(
     opponent_hp: side.maxHp,
     opponent_max: side.maxHp,
     opponent_power: side.power,
+    opponent_pet: side.pet ?? null,
     round: 0,
     round_started_at: new Date().toISOString(),
   })
@@ -468,28 +489,6 @@ export function speedBonus(elapsedMs: number): number {
   if (elapsedMs < 4_000) return 1.5
   if (elapsedMs < 7_000) return 1.2
   return 1
-}
-
-/**
- * Sức đội thú KHI VÀO PVP - nén lại bằng căn bậc hai.
- *
- * Ở trận đánh quái, `power` đi thẳng vào công thức: nuôi thú tới nấc tiến hoá
- * cuối thì đội có thể chạm mốc 2,3 - gấp hơn hai lần một đội mới. Ở đó điều ấy
- * đúng và nên thế, vì đối thủ là một con quái do máy dựng, và cả việc nuôi thú
- * sinh ra để trẻ thấy mình mạnh dần lên.
- *
- * Ở PVP thì đối thủ là bạn ngồi bàn bên. Để nguyên hệ số ấy thì trận đấu ngã ngũ
- * TRƯỚC KHI câu hỏi đầu tiên hiện ra: bạn nào chơi lâu hơn thì đánh gấp đôi, và
- * bạn kia có trả lời nhanh cỡ nào cũng không gỡ nổi. Lúc đó phần thưởng rơi vào
- * cái trẻ ĐÃ CÓ, chứ không vào cái trẻ vừa LÀM - mà cái trẻ vừa làm mới là cái
- * chế độ này muốn đo.
- *
- * Căn bậc hai kéo khoảng 1,0-2,3 xuống còn 1,0-1,52, hẹp hơn hẳn khoảng thưởng
- * tốc độ 1,0-1,8. Đội thú vẫn có ích, và có ích thấy được; nó chỉ không còn đè
- * bẹp được tốc độ nữa.
- */
-export function pvpPowerFactor(power: number): number {
-  return Math.sqrt(Math.max(0.01, power))
 }
 
 /**

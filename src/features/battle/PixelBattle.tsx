@@ -21,8 +21,16 @@ import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import type { Subject } from '../../content/types'
 import type { BattleState } from '../../engine/battle'
 import { monsterSpriteFor, towerSpriteFor } from '../pixel/creatures'
-import { heroSprite } from '../pixel/heroes'
-import { PixelSprite } from '../pixel/sprite'
+import {
+  Combatant,
+  ENEMY_SCALE,
+  HERO_SCALE,
+  HpBox,
+  SCENE_BY_SUBJECT,
+  Trainer,
+  arenaScales,
+} from './arena'
+import { petSpriteFor } from '../inventory/PetCollection'
 
 /**
  * Hoạt cảnh mở màn dài bao lâu, mili giây.
@@ -51,35 +59,6 @@ const INTRO_MS = 1150
   thích. Nên các bước nhảy hơi thô (7 → 8 là to thêm 14%), và đó là cái giá phải
   trả, không phải lỗi.
 */
-
-/**
- * Khung trận mà hai con số 8 và 6 dưới đây được vẽ vừa.
- *
- * 400×320 không phải con số tròn cho đẹp: nó được chọn để một điện thoại phổ
- * thông XOAY NGANG rơi vào đúng hệ số 1,0 (khung trận khi đó rộng chừng 402px),
- * còn khi dựng đứng thì rơi xuống khoảng 0,89 - tức thấp hơn đúng một bậc. Nhờ
- * vậy xoay máy ra là sân đấu to lên thấy được, chứ không phải to lên trên giấy.
- */
-const ARENA_REFERENCE = { width: 400, height: 320 }
-const HERO_SCALE = 8
-const ENEMY_SCALE = 6
-
-/**
- * Bội số phóng của hai nhân vật, vừa với một khung trận cỡ này.
- *
- * Lấy chiều CHẬT HƠN trong hai chiều làm chuẩn: khung rộng mà thấp thì chiều cao
- * là thứ chặn, và ngược lại. Lấy trung bình hay lấy bề ngang thôi là có một
- * hướng máy nào đó sprite tràn ra ngoài.
- */
-export function arenaScales(width: number, height: number): { hero: number; enemy: number } {
-  const factor = Math.min(width / ARENA_REFERENCE.width, height / ARENA_REFERENCE.height)
-  const pick = (base: number, min: number, max: number) =>
-    Math.max(min, Math.min(max, Math.round(base * factor)))
-
-  // Sàn 4 và 3: dưới mức đó thì con quái nhỏ hơn cái thanh máu của chính nó, và
-  // trẻ không còn nhận ra mình đang đánh con gì.
-  return { hero: pick(HERO_SCALE, 4, 12), enemy: pick(ENEMY_SCALE, 3, 9) }
-}
 
 /** Tên hệ viết tắt cho cái nhãn trên thanh máu quái - chỗ đó chỉ đủ vài chữ. */
 const ELEMENT_SHORT: Record<Subject, string> = {
@@ -170,14 +149,6 @@ function SpellBurst({
   )
 }
 
-/** Nền trận đấu: hai mảng màu phẳng, không chuyển sắc. */
-const SCENE_BY_SUBJECT: Record<Subject, { sky: string; ground: string; platform: string; platformEdge: string }> = {
-  math: { sky: '#a8dcf0', ground: '#7cc96a', platform: '#5aab4c', platformEdge: '#3d7f36' },
-  vietnamese: { sky: '#f6c9d8', ground: '#6fbf86', platform: '#4fa06a', platformEdge: '#357a4c' },
-  music: { sky: '#c9c2f5', ground: '#77c6e0', platform: '#4fa3c4', platformEdge: '#357c99' },
-  ethics: { sky: '#bfe6ff', ground: '#8fd98f', platform: '#66b96e', platformEdge: '#468f50' },
-}
-
 type Turn = 'hero-attacks' | 'enemy-attacks' | 'no-damage' | null
 
 export function PixelBattle({
@@ -198,7 +169,6 @@ export function PixelBattle({
 }) {
   const reduceMotion = useReduceMotion()
   const scene = SCENE_BY_SUBJECT[subject]
-  const heroLookSprite = heroSprite(avatar, heroName)
   // Mỗi con quái một hình riêng, khớp với cái tên nó mang.
   const enemySprite = battle.enemy.isTower
     ? towerSpriteFor(subject)
@@ -290,6 +260,8 @@ export function PixelBattle({
         }
       : null
 
+  /** Con thú đang đứng ra trận - chính con sẽ ăn đòn tiếp theo. */
+  const activePet = battle.team[battle.activeIndex] ?? null
   const live = turn.key === answerCount ? turn.kind : null
   const damage = battle.lastDamage
   const heroHurt = live === 'enemy-attacks'
@@ -354,19 +326,48 @@ export function PixelBattle({
         idleDelay="0.4s"
       />
 
-      {/* Nhân vật của trẻ: dưới - trái, sprite to hơn cho cảm giác ở gần */}
-      <Combatant
-        sprite={heroLookSprite}
-        scene={scene}
-        style={{ left: '9%', bottom: '12%' }}
-        attacking={live === 'hero-attacks'}
-        hit={live === 'enemy-attacks'}
-        direction={1}
+      {/*
+        CON THÚ ĐANG RA TRẬN đứng ở tuyến đầu, không phải nhân vật của trẻ.
+
+        Engine vẫn luôn nói như vậy - "trẻ không tự đánh mà có một ĐỘI THÚ đánh
+        thay", sát thương của quái rơi vào con đang đứng, con ấy gục thì con sau
+        bước ra. Nhưng sân đấu lại vẽ nhân vật của trẻ lao vào. Nên suốt cả trận,
+        thứ trẻ nhìn thấy nói ngược với thứ luật chơi đang làm, và đàn thú - vốn
+        quyết định máu, sức đánh và cả bộ chiêu - không bao giờ xuất hiện.
+
+        Đổi con đứng đây là đổi luôn câu trả lời cho "nuôi thú để làm gì": con
+        thú của trẻ là thứ đang đánh nhau, nhìn thấy được, và đổi hình mỗi lần
+        tiến hoá.
+
+        `key` theo id con thú để hoạt cảnh chạy lại từ đầu khi con trước gục và
+        con sau bước ra - nếu không thì con mới hiện ra ở đúng tư thế con cũ vừa
+        ngã xuống.
+      */}
+      {activePet ? (
+        <Combatant
+          key={activePet.pet.id}
+          sprite={petSpriteFor(activePet.pet.sprite, activePet.pet.element)}
+          scene={scene}
+          style={{ left: '9%', bottom: '12%' }}
+          attacking={live === 'hero-attacks'}
+          hit={live === 'enemy-attacks'}
+          direction={1}
+          reduceMotion={reduceMotion}
+          turnKey={turn.key}
+          scale={fit.hero}
+          enterFrom={-220}
+          idleDelay="0s"
+        />
+      ) : null}
+
+      {/* Trẻ đứng lùi sau con thú, nhỏ hơn: chỗ của người ra lệnh, không phải
+          chỗ của người ăn đòn. */}
+      <Trainer
+        avatar={avatar}
+        name={heroName}
+        scale={Math.max(3, Math.round(fit.hero * 0.5))}
+        style={{ left: '1%', bottom: '9%' }}
         reduceMotion={reduceMotion}
-        turnKey={turn.key}
-        scale={fit.hero}
-        enterFrom={-220}
-        idleDelay="0s"
       />
 
 {/*
@@ -596,208 +597,13 @@ export function PixelBattle({
   )
 }
 
-/**
- * Một bên tham chiến, KÈM LUÔN bệ đứng của mình.
- *
- * Bệ được vẽ như con của nhân vật chứ không đặt riêng: nếu tách rời thì mỗi lần
- * đổi cỡ sprite hay đổi vị trí lại phải căn tay hai chỗ, và nó lệch ngay.
- */
-function Combatant({
-  sprite,
-  scene,
-  style,
-  flip,
-  attacking,
-  hit,
-  direction,
-  reduceMotion,
-  turnKey,
-  scale = 7,
-  enterFrom,
-  idleDelay,
-}: {
-  sprite: Parameters<typeof PixelSprite>[0]['sprite']
-  scene: { platform: string; platformEdge: string }
-  style: React.CSSProperties
-  flip?: boolean
-  attacking: boolean
-  hit: boolean
-  /** 1 = mặt quay sang phải, -1 = sang trái. Quyết định hướng lao tới. */
-  direction: 1 | -1
-  reduceMotion: boolean
-  turnKey: number
-  scale?: number
-  /** Lệch ngang lúc mở màn, tính bằng điểm ảnh. Âm là lao vào từ bên trái. */
-  enterFrom: number
-  /** Lệch pha nhịp nhún, để hai bên không nhún cùng lúc như hai con rối. */
-  idleDelay: string
-}) {
-  const spriteWidth = 16 * scale
+/*
+  Vẫn xuất lại `arenaScales` từ đây.
 
-  return (
-    <motion.div
-      className="absolute"
-      style={{ ...style, zIndex: 2 }}
-      initial={reduceMotion ? false : { x: enterFrom, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.5, ease: [0.2, 0.9, 0.3, 1] }}
-    >
-    <motion.div
-      key={`${turnKey}-${attacking}-${hit}`}
-      animate={
-        reduceMotion
-          ? {}
-          : attacking
-            ? { x: [0, -direction * 9, direction * 30, 0] }
-            : hit
-              ? // Quy ước trúng đòn của game thời đó: sprite nhấp nháy tắt - hiện,
-                // cộng một cú GIẬT tần số cao. Giật thưa và nhẹ thì chỉ thấy
-                // sprite trôi qua trôi lại; phải nhiều bậc và biên độ giảm dần
-                // mới ra cảm giác vừa ăn một đòn nặng.
-                {
-                  opacity: [1, 0, 1, 0, 1, 0, 1],
-                  x: [0, -direction * 12, direction * 10, -direction * 7, direction * 5, -direction * 3, 0],
-                }
-              : {}
-      }
-      transition={
-        attacking
-          ? { duration: 0.35 }
-          : hit
-            ? { duration: 0.38, delay: 0.25, ease: 'linear' }
-            : { duration: 0.55, delay: 0.25 }
-      }
-    >
-      <div className="relative" style={{ width: spriteWidth }}>
-        {/* Bệ elip nằm dưới chân, vẽ trước nên luôn ở phía sau nhân vật. */}
-        <div
-          className="absolute left-1/2 -translate-x-1/2"
-          style={{
-            bottom: scale * 0.5,
-            width: spriteWidth * 1.35,
-            height: scale * 3,
-            background: scene.platform,
-            border: `3px solid ${scene.platformEdge}`,
-            borderRadius: '50%',
-          }}
-          aria-hidden="true"
-        />
-        {/*
-          Bóng mờ đuổi theo sau sprite chính, trễ hơn một nhịp rất ngắn. Mắt
-          gộp hai hình thành một vệt nhoè - đúng cảm giác "giật nhoè" khi trúng
-          đòn. Không dùng filter blur: làm mượt điểm ảnh là phá nét pixel.
-        */}
-        {hit && !reduceMotion && (
-          <motion.div
-            className="absolute inset-0"
-            style={{ opacity: 0.4, mixBlendMode: 'screen' }}
-            initial={{ x: 0 }}
-            animate={{
-              x: [0, -direction * 12, direction * 10, -direction * 7, direction * 5, -direction * 3, 0],
-            }}
-            transition={{ duration: 0.38, delay: 0.3, ease: 'linear' }}
-            aria-hidden="true"
-          >
-            <PixelSprite sprite={sprite} scale={scale} flip={flip} />
-          </motion.div>
-        )}
+  Nó đã chuyển sang `arena.tsx` cùng với hai hằng số nó dùng, nhưng
+  `arena-scale.test.ts` nhập nó từ file này - và cái tên trong câu "test này
+  giữ đúng ba điều" ở đầu file test ấy trỏ về đây. Một dòng xuất lại rẻ hơn việc
+  bắt người đọc đi tìm.
+*/
+export { arenaScales } from './arena'
 
-        {/* Nhún nhẹ trong lúc chờ lượt. Dừng hẳn khi đang đánh hoặc đang trúng
-            đòn - hai chuyển động chồng lên nhau thì cú đánh mất sức nặng. */}
-        <div
-          style={
-            {
-              position: 'relative',
-              // MỘT "điểm ảnh gốc" của sprite mỗi nấc, hai nấc là hai điểm ảnh - đúng
-              // biên độ nhún chờ lượt của game pixel. Gấp đôi lên là nhân vật bay hẳn
-              // khỏi bệ, nhìn thành nhảy chứ không phải thở.
-              '--idle': `${scale}px`,
-              animation:
-                attacking || hit
-                  ? undefined
-                  : `battle-idle 1.1s steps(1, end) ${idleDelay} infinite`,
-            } as React.CSSProperties
-          }
-        >
-          <PixelSprite sprite={sprite} scale={scale} flip={flip} />
-        </div>
-      </div>
-    </motion.div>
-    </motion.div>
-  )
-}
-
-/**
- * Khung máu kiểu GBA: tên + cấp ở trên, thanh máu ở dưới.
- * Thanh đổi màu theo mức còn lại - xanh rồi vàng rồi đỏ - đúng quy ước quen
- * thuộc, và là cách báo nguy hiểm không cần đọc chữ.
- */
-function HpBox({
-  name,
-  level,
-  hp,
-  maxHp,
-  showNumbers,
-}: {
-  name: string
-  level: number
-  hp: number
-  maxHp: number
-  showNumbers?: boolean
-}) {
-  const percent = maxHp === 0 ? 0 : Math.max(0, Math.min(100, (hp / maxHp) * 100))
-  const color = percent > 50 ? '#4bc95a' : percent > 20 ? '#f0c419' : '#e0483e'
-
-  return (
-    <div
-      className="pixel-font"
-      style={{
-        minWidth: 168,
-        background: '#f8f8f0',
-        border: '3px solid #1b2432',
-        borderRadius: 5,
-        boxShadow: 'inset 0 0 0 2px #d8d8c8',
-        padding: '3px 8px 5px',
-        color: '#1b2432',
-      }}
-    >
-      <div className="flex items-baseline justify-between gap-2" style={{ lineHeight: 1.1 }}>
-        <span className="truncate text-lg">{name}</span>
-        <span className="shrink-0 text-base">Lv{level}</span>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <span className="text-sm" style={{ color: '#c8a800' }}>
-          HP
-        </span>
-        <div
-          style={{
-            flex: 1,
-            height: 9,
-            background: '#5a6472',
-            border: '2px solid #1b2432',
-            borderRadius: 3,
-            overflow: 'hidden',
-          }}
-          role="progressbar"
-          aria-valuenow={hp}
-          aria-valuemin={0}
-          aria-valuemax={maxHp}
-          aria-label={`Máu của ${name}`}
-        >
-          <motion.div
-            style={{ height: '100%', background: color }}
-            animate={{ width: `${percent}%` }}
-            transition={{ duration: 0.6, ease: 'linear', delay: 0.3 }}
-          />
-        </div>
-      </div>
-
-      {showNumbers && (
-        <p className="text-right text-base" style={{ lineHeight: 1 }}>
-          {hp}/{maxHp}
-        </p>
-      )}
-    </div>
-  )
-}

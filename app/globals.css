@@ -342,8 +342,20 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  /* Chiếm hết chỗ trống còn lại sau khung hỏi. */
-  flex: 1 1 auto;
+  /*
+    Chiếm hết chỗ trống còn lại sau khung hỏi - nhưng KHÔNG CO LẠI khi thiếu chỗ.
+
+    `1 0 auto` chứ không `1 1 auto`. Bên trong cụm này, sân đấu có sàn 200px
+    còn dải đội thú cao bao nhiêu giữ nguyên bấy nhiêu; nên nếu bản thân cụm co
+    được thì nó co xuống dưới chiều cao của chính hai thứ ấy, và phần thừa -
+    đúng cái dải đội thú - thò ra ngoài, nằm khuất dưới khung hỏi. Đo trên
+    390×844: cụm bị ép còn 243px trong khi nội dung cần 301px, và tên hai con
+    thú bị cắt ngang thân chữ.
+
+    Không co thì phần thiếu dồn hết sang khung hỏi, vốn là thứ duy nhất ở màn
+    này cuộn được mà không mất gì (xem `.battle-ask`).
+  */
+  flex: 1 0 auto;
   min-height: 0;
   /*
     'auto' chứ KHÔNG PHẢI '100%', và đây là chỗ đã sập một lần.
@@ -377,8 +389,22 @@ body {
   min-height: 0;
 }
 
+/*
+  Khung hỏi là THỨ DUY NHẤT ĐƯỢC CO khi cột thiếu chỗ.
+
+  `0 1 auto` chứ không `0 0 auto`, và đó là cả một cái bẫy: sân đấu có sàn
+  200px, dải đội thú cao bao nhiêu là bấy nhiêu, còn nút thoát trận thì không
+  được phép rơi xuống dưới mép máy. Nếu khung hỏi cũng cứng nốt thì không còn
+  gì co được nữa - cả cột dài ra, và thứ rơi ra ngoài là nút thoát ở cuối, đúng
+  cái lỗi màn tổng kết đã mắc một lần (xem ghi chú ở `.app-shell > .battle-layout`).
+
+  Đo trên 390×844, màn đấu PVP: cột cao 901px trên 778px chỗ thật.
+
+  `min-height: 0` là dòng khiến phép co thật sự chạy - một ô co giãn mặc định
+  không bao giờ nhỏ hơn nội dung của nó.
+*/
 .battle-ask {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   min-height: 0;
   /* Đề bài dài bất thường thì RIÊNG khung hỏi cuộn, không kéo cả trang theo. */
   max-height: 58dvh;
@@ -1406,7 +1432,20 @@ textarea.admin-input {
    Trần đặt bằng `:has()` nên nó CHỈ có hiệu lực khi màn đang mở là màn đăng
    nhập. Đặt thẳng lên `.app-shell` thì khu vực người lớn - một trang số liệu
    dài, vốn PHẢI cuộn - bị cắt cụt ở mép màn hình. */
-.app-shell:has(> .auth-layout) {
+.app-shell:has(> .auth-layout),
+/*
+  MÀN TRẬN CŨNG CẦN ĐÚNG CÁI TRẦN ẤY, vì cùng một lý do.
+
+  `.app-shell > .battle-layout` phía trên đã bỏ `h-dvh` của màn trận đi để
+  nhường chỗ cho dải nhắc cài app. Nhưng bỏ trần của con mà cha chỉ có sàn thì
+  chẳng ai còn giữ chiều cao nữa: cột cứ dài theo nội dung, và `overflow: hidden`
+  của chính `.battle-layout` nuốt luôn phần thừa mà không cho vuốt.
+
+  Lộ ra ở màn đấu PVP - sân đấu + dải đội thú + khung hỏi + nút thoát trận, đo
+  được 901px trên một máy 844px có dải nhắc - nhưng đây là lỗi của cả hai màn
+  trận, chỉ là trận đánh quái ít khi đủ dài để chạm tới.
+*/
+.app-shell:has(> .battle-layout) {
   height: 100dvh;
 }
 

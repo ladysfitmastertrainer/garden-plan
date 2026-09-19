@@ -17,11 +17,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { SUBJECT_LABEL, type Subject } from '../../content/types'
-import { asQuestion, pvpTimeLimitMs, sidesOf, type PvpEvent, type PvpMatch } from '../../data/pvp-types'
+import {
+  asQuestion,
+  pvpPowerFactor,
+  pvpTimeLimitMs,
+  sidesOf,
+  type PvpEvent,
+  type PvpMatch,
+  type PvpSide,
+} from '../../data/pvp-types'
 import { judge, type AnswerInput } from '../../engine/judge'
 import { usePvp } from '../../store/pvp'
 import { useGame } from '../../store/game'
 import { QuestionView } from '../question/QuestionView'
+import { PvpArena } from './PvpArena'
+import { getPet } from '../../content/pets'
+import { petSpriteFor } from '../inventory/PetCollection'
+import { PixelSprite } from '../pixel/sprite'
 import { playEffect } from '../../audio/synth'
 
 const SUBJECT_COLOR: Record<Subject, string> = {
@@ -96,9 +108,89 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
   }
 
   return (
-    <div className="pixel-ui mx-auto flex h-dvh max-w-3xl flex-col gap-3 px-3 py-3">
-      <header className="pixel-panel grid gap-2">
-        <div className="flex items-center justify-between gap-2">
+    <div className="pixel-ui battle-layout mx-auto flex h-dvh max-w-3xl flex-col gap-3 px-3 py-3">
+      {/* Cùng bộ tên lớp với trận đánh quái, nên mọi luật chia chiều cao đã
+          viết cho màn ấy áp dụng luôn ở đây - kể cả bố cục hai cột khi máy
+          nằm ngang. */}
+      <div className="battle-stage">
+        <div className="relative battle-arena">
+          <PvpArena
+            me={sides.me}
+            foe={sides.foe}
+            subject={match.subject}
+            flash={flash}
+            studentId={studentId}
+          />
+
+          {/* Đã bấm xong nhưng bạn kia chưa. Đè lên SÂN ĐẤU chứ không đè lên
+              khung hỏi: khung hỏi ở dưới đã khoá hết đáp án rồi, còn chỗ trẻ
+              đang nhìn lúc chờ là hai nhân vật. */}
+          <AnimatePresence>
+            {answered && !flash && (
+              <motion.div
+                className="absolute inset-0 flex items-end justify-center p-3"
+                style={{ background: 'rgb(12 16 24 / 0.45)', zIndex: 5 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <p
+                  className="pixel-font text-xl"
+                  style={{ color: '#fff', textShadow: '2px 2px 0 #1b2432' }}
+                >
+                  Đã trả lời! Chờ {sides.foe.name}...
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {flash && (
+              <motion.div
+                className="absolute inset-0 flex items-end justify-center p-2"
+                style={{ background: 'rgb(12 16 24 / 0.35)', zIndex: 6 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.div
+                  className="pixel-panel w-full text-center"
+                  style={{ maxWidth: 520, padding: '8px 14px' }}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                >
+                  <p className="pixel-font text-2xl leading-tight">
+                    {flashTitle(flash, studentId)}
+                  </p>
+                  <p className="mt-1 text-base leading-snug">
+                    {flashLine(flash, studentId, sides.foe.name)}
+                  </p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <TeamLine me={sides.me} foe={sides.foe} accent={accent} />
+      </div>
+
+      {/*
+        Bấm xong rồi thì KHUNG HỎI BIẾN ĐI khi máy nằm ngang.
+
+        Ở màn đánh quái, luật này gắn với pha chọn phép và pha phản hồi (xem
+        `battle-ask-hidden` trong BattleScreen). PVP không có hai pha ấy, nên
+        khung hỏi nổi giữa màn hình che kín sân đấu SUỐT CẢ TRẬN - đo trên máy
+        844×390 thì hai nhân vật không hề nhìn thấy được lần nào.
+
+        Mốc tương đương ở đây là `answered`: từ lúc trẻ bấm xong, đáp án đã khoá
+        hết, và thứ duy nhất còn đáng nhìn là hai con thú đang đánh nhau - lúc
+        chờ bạn kia lẫn lúc xem ai nhanh hơn đều đã có lớp phủ riêng trên sân
+        đấu. Sang câu mới thì `answered` về false và khung hỏi hiện lại.
+
+        Chỉ khi nằm ngang; màn hình dọc thì tên lớp này không có luật nào.
+      */}
+      <div className={`pixel-panel battle-ask relative${answered ? ' battle-ask-hidden' : ''}`}>
+        <div className="mb-2 flex items-center justify-between gap-3">
           <p className="pixel-font text-lg uppercase" style={{ color: accent }}>
             ⚔️ {SUBJECT_LABEL[match.subject]} lớp {match.grade}
           </p>
@@ -106,14 +198,6 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
             Câu {Math.min(match.round + 1, match.questions.length)}/{match.questions.length}
           </p>
         </div>
-
-        <div className="grid gap-1">
-          <Fighter side={sides.me} mine />
-          <Fighter side={sides.foe} mine={false} waiting={!match.buzzed.includes(sides.foe.studentId)} />
-        </div>
-      </header>
-
-      <div className="pixel-panel relative flex-1 overflow-y-auto">
         <RoundTimer
           key={match.round}
           startedAt={match.roundStartedAt}
@@ -137,45 +221,8 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
           </>
         )}
 
-        {/* Đã bấm xong nhưng bạn kia chưa: đè lên câu hỏi để trẻ không ngồi bấm
-            tiếp vào những đáp án đã khoá và tưởng máy treo. */}
-        <AnimatePresence>
-          {answered && !flash && (
-            <motion.div
-              className="absolute inset-0 flex items-center justify-center p-4 text-center"
-              style={{ background: 'rgb(12 16 24 / 0.6)', zIndex: 5 }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <p className="pixel-font text-2xl" style={{ color: '#fff' }}>
-                Đã trả lời! Chờ {sides.foe.name}...
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {flash && (
-            <motion.div
-              className="absolute inset-0 flex items-center justify-center p-4"
-              style={{ background: 'rgb(12 16 24 / 0.7)', zIndex: 6 }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                className="pixel-panel text-center"
-                style={{ padding: '14px 20px' }}
-                initial={{ scale: 0.8 }}
-                animate={{ scale: 1 }}
-              >
-                <p className="pixel-font text-3xl leading-tight">{flashTitle(flash, studentId)}</p>
-                <p className="mt-1 text-lg leading-snug">{flashLine(flash, studentId, sides.foe.name)}</p>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Khoá đáp án khi đã bấm xong: hai lớp phủ "đang chờ" và "ai nhanh
+            hơn" đã chuyển lên sân đấu, vì đó mới là chỗ trẻ đang nhìn. */}
       </div>
 
       <button
@@ -205,6 +252,56 @@ function flashLine(event: PvpEvent, studentId: string, foeName: string): string 
   const who = mine ? 'Con' : foeName
   const damage = `${who} tung một đòn ${event.damage} sát thương!`
   return stolen ? `Người bấm trước trả lời sai. ${damage}` : damage
+}
+
+// --- Dải đội thú ------------------------------------------------------------
+
+/**
+ * Dải đội thú dưới sân đấu: con nào đang đánh, và nó giúp được bao nhiêu.
+ *
+ * ĐÂY LÀ CHỖ ĐỘI THÚ THÔI VÔ HÌNH. Nó vẫn luôn quyết định máu và sức đánh của
+ * trận PVP, nhưng con số ấy chỉ sống trong máy chủ - trẻ nuôi thú cả tháng rồi
+ * vào đấu trường không thấy gì khác, nên tưởng thú chẳng để làm gì.
+ *
+ * Nói ra thành một con số phần trăm thì lần sau em ấy nhìn thấy nó to lên.
+ *
+ * Hiện CẢ HAI BÊN, và đó là chủ ý: biết bạn mình đang được cộng bao nhiêu thì
+ * mới hiểu vì sao đòn của bạn ấy đau hơn - và đó là lý do để đi nuôi thú, chứ
+ * không phải một điều bí ẩn.
+ */
+function TeamLine({ me, foe, accent }: { me: PvpSide; foe: PvpSide; accent: string }) {
+  return (
+    <div className="pixel-panel team-strip flex items-center gap-2" style={{ padding: '6px 10px' }}>
+      <TeamSide side={me} accent={accent} mine />
+      <span className="pixel-font shrink-0 text-lg opacity-50">VS</span>
+      <TeamSide side={foe} accent={accent} mine={false} />
+    </div>
+  )
+}
+
+function TeamSide({ side, accent, mine }: { side: PvpSide; accent: string; mine: boolean }) {
+  const pet = side.pet ? getPet(side.pet) : null
+  /*
+    Phần trăm cộng thêm, tính bằng ĐÚNG hàm mà máy chủ dùng để ra sát thương.
+
+    Chép lại công thức ở đây thì có ngày máy chủ đổi cân bằng mà con số trên màn
+    hình vẫn nói chuyện cũ - và một con số nói dối còn tệ hơn không có con số.
+  */
+  const bonus = Math.round((pvpPowerFactor(side.power) - 1) * 100)
+
+  return (
+    <span className={`flex min-w-0 flex-1 items-center gap-2${mine ? '' : ' flex-row-reverse'}`}>
+      {pet && <PixelSprite sprite={petSpriteFor(pet.sprite, pet.element)} scale={2} />}
+      <span className={`min-w-0 flex-1${mine ? '' : ' text-right'}`}>
+        <span className="block truncate text-base font-bold leading-tight">
+          {pet?.name ?? 'Chưa có thú'}
+        </span>
+        <span className="pixel-font block text-base leading-tight" style={{ color: accent }}>
+          {bonus > 0 ? `+${bonus}% sát thương` : 'chưa cộng thêm'}
+        </span>
+      </span>
+    </span>
+  )
 }
 
 // --- Hai đấu thủ ---------------------------------------------------------------

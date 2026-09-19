@@ -33,12 +33,36 @@ export interface StudentProgress {
    */
   petXp?: Record<string, number>
   /**
-   * Bộ chiêu trẻ đã sắp để mang ra trận, theo thứ tự.
+   * Con thú trẻ chọn đi theo mình ra trận. Một con, và chỉ một.
    *
-   * Không bắt buộc: hồ sơ cũ chưa từng chọn gì, và `resolveLoadout` tự lấp đầy
-   * từ những phép đội thú đang biết. Số ô nở theo cấp (xem `engine/loadout.ts`),
-   * nên danh sách này có thể dài hơn số ô hiện có - phần thừa bị cắt lúc vào
-   * trận chứ không bị xoá, để lên cấp là dùng lại được ngay.
+   * Không bắt buộc: hồ sơ cũ chưa từng chọn, và `companionOf` tự phát cho con
+   * hợp môn nhất trong số con đang có. Cũng chịu được một id của con thú trẻ
+   * CHƯA thu phục - hồ sơ chép tay, hoặc một con bị gỡ khỏi bộ thú sau này -
+   * và khi ấy rơi về đúng đường mặc định ấy.
+   */
+  companion?: string
+
+  /**
+   * Hai chiêu mang ra trận, RIÊNG cho từng con thú.
+   *
+   * Khoá là id con thú. Riêng từng con chứ không phải một bộ chung, vì bốn
+   * chiêu là của riêng con ấy - một bộ chung thì đổi con đi theo là bộ chiêu
+   * hoá vô nghĩa ngay.
+   *
+   * Không bắt buộc, và phần tử bên trong cũng không cần đúng: `resolvePetLoadout`
+   * bỏ qua mọi chiêu con thú chưa mở tới rồi lấp cho đủ hai ô. Nhờ vậy một hồ
+   * sơ lưu trước khi con thú tiến hoá vẫn dùng được nguyên.
+   */
+  petLoadout?: Record<string, string[]>
+
+  /**
+   * BỎ RỒI - bộ chiêu chung của cả đội, thời còn ra trận bằng ba con thú.
+   *
+   * Giữ lại trường này để hồ sơ cũ đọc lên không vỡ, và CỐ Ý không chuyển đổi
+   * sang `petLoadout`: bộ cũ là chiêu gom từ ba con khác hệ, gán nó cho một con
+   * thú duy nhất thì phần lớn sẽ là chiêu con ấy không biết. Bỏ qua và để
+   * `resolvePetLoadout` phát lại hai chiêu nền thì đúng hơn, và trẻ chỉ mất
+   * một lần vào kho đồ sắp lại.
    */
   loadout?: string[]
   /**

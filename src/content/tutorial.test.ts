@@ -13,9 +13,9 @@ import {
   tutorialNodes,
 } from './tutorial'
 import { getSkill } from './curriculum'
-import { buildTeam, starterTeam } from './pets'
-import { knownSpells, resolveLoadout, usableSlots } from '../engine/loadout'
-import { counterElement, matchupLabel } from '../engine/pets'
+import { companionOf, defaultCompanion } from './pets'
+import { equippedSpells } from '../engine/loadout'
+import { matchupLabel } from '../engine/pets'
 import { judge } from '../engine/judge'
 import {
   advance,
@@ -26,7 +26,6 @@ import {
   submitAnswer,
   type BattleState,
 } from '../engine/battle'
-import { SPELLS } from './pets'
 import { statsForLevel } from '../engine/rewards'
 import { MONSTER_FAMILY, SLIME, monsterSpriteFor } from '../features/pixel/creatures'
 
@@ -80,16 +79,29 @@ describe('con quái của bàn hướng dẫn', () => {
     const enemy = tutorialEnemy()
     expect(enemy.element).toBe(TUTORIAL_SUBJECT)
 
-    // Đúng đội hình một hồ sơ mới ra trận, và đúng bộ chiêu ở cấp 1.
-    const team = buildTeam([], TUTORIAL_SUBJECT, 3, {})
-    const known = knownSpells(team, 1)
-    const loadout = resolveLoadout(undefined, known, usableSlots(1, known.length))
-    const elements = loadout.map((id) => SPELLS[id]!.element)
+    /*
+      KHÔNG một chiêu nào của trẻ BỊ KHẮC ở bàn hướng dẫn.
 
-    expect(elements).toContain(counterElement(enemy.element))
-    expect(
-      elements.some((element) => matchupLabel(element, enemy.element) === 'strong'),
-    ).toBe(true)
+      Đây là luật đã đổi, và đổi cùng lúc với việc bỏ đội ba con. Ngày trước đội
+      mặc định luôn có một con khắc chế được con quái, nên ở đây kiểm được điều
+      mạnh hơn: "có ít nhất một lựa chọn khắc chế". Giờ trẻ đi một con, và con
+      thú mới bắt mới chỉ có hai chiêu nền cùng hệ với nó - chiêu mượn hệ phải
+      tới nấc tiến hoá thứ nhất mới mở.
+
+      Nên điều còn kiểm được, và cũng là điều thật sự quan trọng ở bàn đầu tiên,
+      là KHÔNG CÓ LỰA CHỌN XẤU: mọi chiêu ít nhất cũng trung tính. Một bàn hướng
+      dẫn mà trẻ bấm nút nào cũng "bị khắc" là một bàn dạy sai ngay từ đầu.
+    */
+    const pet = companionOf([], undefined, TUTORIAL_SUBJECT, {})
+    const loadout = equippedSpells(pet, 0, undefined)
+
+    expect(loadout.length).toBeGreaterThan(0)
+    for (const spell of loadout) {
+      expect(
+        matchupLabel(spell.element, enemy.element),
+        `chiêu ${spell.id} bị khắc ngay ở bàn hướng dẫn`,
+      ).not.toBe('weak')
+    }
   })
 
   /*
@@ -114,9 +126,10 @@ describe('con quái của bàn hướng dẫn', () => {
     const enemy = tutorialEnemy()
     expect(enemy.isBoss).toBe(false)
 
-    const weakest = Math.min(...starterTeam(TUTORIAL_SUBJECT).map((pet) => pet.maxHp))
-    // Bốn lượt đỡ đòn hụt sạch vẫn không gục con thú yếu nhất trong đội mặc định.
-    expect(enemy.attack * TUTORIAL_MAX_QUESTIONS).toBeLessThan(weakest)
+    // Bốn lượt đỡ đòn hụt sạch vẫn không gục con thú phát cho hồ sơ mới.
+    expect(enemy.attack * TUTORIAL_MAX_QUESTIONS).toBeLessThan(
+      defaultCompanion(TUTORIAL_SUBJECT).maxHp,
+    )
   })
 })
 
@@ -142,7 +155,7 @@ describe('trận tập luôn kết thúc như bàn hướng dẫn hứa', () => 
       {
         enemy: tutorialEnemy(),
         player: statsForLevel(1),
-        team: buildTeam([], TUTORIAL_SUBJECT, 3, {}),
+        pet: companionOf([], undefined, TUTORIAL_SUBJECT, {}),
         maxQuestions: TUTORIAL_MAX_QUESTIONS,
         timeLimitMs: null,
         defendLimitMs: 30_000,
@@ -162,14 +175,8 @@ describe('trận tập luôn kết thúc như bàn hướng dẫn hứa', () => 
    * quyết định con slime có chết ngay đòn đầu hay không.
    */
   function spellsAtLevelOne(enemyElement: string) {
-    const team = buildTeam([], TUTORIAL_SUBJECT, 3, {})
-    const known = knownSpells(team, 1)
-    const loadout = resolveLoadout(undefined, known, usableSlots(1, known.length))
-    const options = loadout.flatMap((id) =>
-      team.flatMap((pet, casterIndex) =>
-        pet.spellIds.includes(id) ? [{ spell: SPELLS[id]!, casterIndex, pet }] : [],
-      ),
-    )
+    const pet = companionOf([], undefined, TUTORIAL_SUBJECT, {})
+    const options = equippedSpells(pet, 0, undefined).map((spell) => ({ spell, pet }))
     const rank = (option: (typeof options)[number]) =>
       option.spell.power *
       option.pet.power *
@@ -209,7 +216,7 @@ describe('trận tập luôn kết thúc như bàn hướng dẫn hứa', () => 
       }
       if (state.phase === 'spell') {
         const pick = best ? strong : weakest
-        state = castSpell(state, pick.spell, at, pick.casterIndex)
+        state = castSpell(state, pick.spell, at)
         continue
       }
       if (state.phase === 'feedback') {
@@ -241,7 +248,7 @@ describe('trận tập luôn kết thúc như bàn hướng dẫn hứa', () => 
     state = beginAttack(state, NOW)
     // Nhanh nhất có thể: thưởng tốc độ cao nhất, phép khắc chế, con thú khoẻ nhất.
     state = submitAnswer(state, { kind: 'choice', choiceId: question.answer.choiceId }, NOW)
-    state = castSpell(state, strong.spell, NOW, strong.casterIndex)
+    state = castSpell(state, strong.spell, NOW)
 
     expect(state.enemyHp).toBeGreaterThan(0)
     expect(advance(state, TUTORIAL_QUESTIONS[1]!, NOW).phase).toBe('warning')

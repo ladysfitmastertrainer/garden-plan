@@ -38,6 +38,27 @@ export function counterElement(defend: Element): Element {
   return (Object.keys(BEATS) as Element[]).find((attack) => BEATS[attack] === defend)!
 }
 
+/**
+ * Hệ ĐỐI DIỆN trong vòng bốn bậc - hai bước, không phải một.
+ *
+ * Đây là hệ mà một con thú hệ `e` cần mượn thêm để tự đứng được một mình.
+ *
+ * Nghe ngược, nên nói cho hết lẽ. Con thú hệ Ngôn Từ sợ nhất quái hệ Số Học,
+ * vì Số Học khắc Ngôn Từ. Phản xạ đầu tiên là phát cho nó một chiêu Số Học -
+ * nhưng Số Học đánh Số Học chỉ ra hệ số 1,0, chẳng gỡ được gì. Thứ nó cần là
+ * hệ KHẮC ĐƯỢC Số Học, tức Ánh Sáng: đi hai bước trong vòng, không phải một.
+ *
+ *      Số Học  →  Ngôn Từ  →  Thanh Âm  →  Ánh Sáng  →  Số Học
+ *
+ * Hai bước từ Ngôn Từ là Ánh Sáng. Và vì vòng có bốn bậc nên phép này tự đối
+ * xứng: đối diện của đối diện là chính nó (Số Học ↔ Thanh Âm, Ngôn Từ ↔ Ánh
+ * Sáng). Nhờ vậy hai con thú đối hệ nhau mượn chiêu của nhau, không cần bảng
+ * tra riêng.
+ */
+export function oppositeElement(e: Element): Element {
+  return BEATS[BEATS[e]]
+}
+
 export const STRONG_MULTIPLIER = 1.5
 export const WEAK_MULTIPLIER = 0.7
 
@@ -64,6 +85,39 @@ export function matchupLabel(attack: Element, defend: Element): 'strong' | 'weak
 
 // --- Phép thuật ---------------------------------------------------------------
 
+/**
+ * Chiêu cuối làm gì NGOÀI việc gây sát thương.
+ *
+ * Bốn kiểu, mỗi hệ một kiểu, và cả bốn đều chọn theo một tiêu chuẩn: TRẺ SÁU
+ * TUỔI PHẢI NHÌN RA NÓ ĐANG LÀM GÌ mà không cần ai giải thích. Một hiệu ứng
+ * kiểu "giảm 15% kháng phép trong 3 lượt" thì đúng về cân bằng và vô hình trên
+ * màn hình - trẻ chỉ thấy các con số hơi khác, và hiệu ứng ấy coi như không có.
+ *
+ *   'burn'   CHÁY      - quái mất máu mỗi lượt. Thấy được: ngọn lửa trên đầu
+ *                        quái, và một số đỏ bật ra mỗi lượt dù con không đánh.
+ *   'freeze' ĐÓNG BĂNG - quái mất đúng lượt đánh kế tiếp. Thấy được: khối băng
+ *                        phủ kín quái, rồi vỡ ra.
+ *   'bind'   TRÓI      - đòn của quái yếu đi một nửa. Thấy được: dây quấn quanh
+ *                        quái, và con số sát thương của nó tụt hẳn.
+ *   'drain'  HÚT       - quái mất máu mỗi lượt, và con thú HỒI đúng bấy nhiêu.
+ *                        Thấy được nhất trong bốn: thanh máu của mình dài ra.
+ */
+export type EffectKind = 'burn' | 'freeze' | 'bind' | 'drain'
+
+export interface SpellEffect {
+  kind: EffectKind
+  /** Hiệu ứng sống được mấy lượt kể từ lượt sau. */
+  turns: number
+  /**
+   * Máu mất mỗi lượt, tính theo PHẦN TRĂM cú đánh đã tung ra ('burn', 'drain').
+   *
+   * Theo phần trăm chứ không phải một con số cứng: cùng một chiêu cuối tung ở
+   * trận đầu tiên và ở trận trùm cuối phải đáng giá như nhau. Một con số cứng
+   * thì hoặc là quá mạnh lúc đầu, hoặc thành vô nghĩa về sau.
+   */
+  tickPercent?: number
+}
+
 export interface Spell {
   id: string
   name: string
@@ -72,7 +126,31 @@ export interface Spell {
   power: number
   /** Câu tường thuật khi tung phép, hiện trong khung diễn biến. */
   flavour: string
+  /**
+   * Chiêu thứ mấy trong bốn chiêu của một con thú.
+   *
+   *   1, 2 - chiêu nền, hệ của chính con thú. Có ngay từ đầu.
+   *   3    - chiêu MƯỢN HỆ (xem `oppositeElement`), mở ở nấc tiến hoá thứ nhất.
+   *   4    - chiêu cuối, hệ của chính nó, mở ở nấc tiến hoá thứ hai.
+   */
+  tier: 1 | 2 | 3 | 4
+  /** Chỉ chiêu bậc 4 mới có. */
+  effect?: SpellEffect
 }
+
+/**
+ * Chiêu cuối nghỉ bao nhiêu lượt sau mỗi lần dùng.
+ *
+ * Ba, và con số này đến từ độ dài một trận. Trận thường cho con mười lượt ra
+ * đòn, nên hồi ba lượt tức là dùng được chừng ba lần - đủ để trẻ học được cách
+ * dùng nó, chưa đủ để nó thành cái nút duy nhất đáng bấm.
+ *
+ * ĐẾM THEO MỌI LƯỢT TRÔI QUA, không phải theo lượt mình thắng. Ở đấu trường,
+ * đếm theo lượt thắng nghĩa là em đang bị dẫn trước lại càng lâu được nạp lại -
+ * thua thì hồi chiêu đứng yên, và trận đấu khoá chặt lại đúng lúc em ấy cần
+ * một đường gỡ nhất.
+ */
+export const ULTIMATE_COOLDOWN = 3
 
 // --- Thú đồng hành ------------------------------------------------------------
 
@@ -88,8 +166,6 @@ export interface PetEvolution {
   sprite: string
   maxHp: number
   power: number
-  /** Phép học thêm ở nấc này. Gộp vào phép cũ chứ không thay thế. */
-  spellIds: string[]
   /** Cấp cần đạt để lên nấc này. */
   atLevel: number
 }
@@ -103,7 +179,14 @@ export interface Pet {
   maxHp: number
   /** Hệ số sát thương riêng của thú. 1.0 là trung bình. */
   power: number
-  /** Các phép thú này biết. Luôn có ít nhất một phép cùng nguyên tố. */
+  /**
+   * ĐÚNG BỐN chiêu, xếp theo thứ tự mở khoá - xem `Spell.tier`.
+   *
+   * Khai đủ cả bốn ngay từ đây, kể cả hai chiêu con thú chưa với tới. Chiêu nào
+   * đã mở là việc của `unlockedSpellIds`, và để một chỗ duy nhất trả lời câu ấy
+   * thì màn hình kho đồ mới CHO TRẺ XEM TRƯỚC được hai chiêu đang chờ ở nấc
+   * sau - thứ đáng để nuôi tiếp.
+   */
   spellIds: string[]
   /**
    * BA nấc tiến hoá, xếp theo cấp tăng dần.
@@ -190,6 +273,28 @@ export function nextEvolution(pet: Pet, xp: number): PetEvolution | null {
  * Mọi nơi dùng thú trong trận đều phải đi qua hàm này. Dùng thẳng dữ liệu gốc
  * thì con thú đã tiến hoá vẫn đánh yếu như lúc mới bắt.
  */
+/**
+ * BAO NHIÊU chiêu con thú đã mở ở nấc này. Hai, ba hoặc bốn.
+ *
+ * Mở theo NẤC TIẾN HOÁ chứ không theo cấp của trẻ, và đó là cả điểm của bản
+ * này. Trước đây số chiêu nở ra theo cấp của TRẺ, nên con thú vừa bắt được
+ * hôm qua đã biết đủ chiêu như con nuôi từ đầu năm - nuôi thú chẳng để làm gì.
+ * Giờ chiêu thứ ba tới ở nấc tiến hoá thứ nhất, chiêu cuối ở nấc thứ hai: muốn
+ * có chúng thì phải NUÔI ĐÚNG CON ẤY.
+ *
+ * Nấc thứ ba (cấp 20) không thêm chiêu nào - nó đổi hình và cộng chỉ số. Bốn
+ * chiêu là đủ cho hai ô mang ra trận; thêm chiêu thứ năm chỉ làm loãng lựa
+ * chọn chứ không mở ra nước đi nào mới.
+ */
+export function unlockedSpellCount(pet: Pet, xp: number): number {
+  return Math.min(pet.spellIds.length, 2 + Math.min(2, evolutionStage(pet, xp)))
+}
+
+/** Những chiêu con thú đã mở, theo đúng thứ tự bậc. */
+export function unlockedSpellIds(pet: Pet, xp: number): string[] {
+  return pet.spellIds.slice(0, unlockedSpellCount(pet, xp))
+}
+
 export function resolvePet(pet: Pet, xp: number): Pet {
   const level = petLevel(xp)
   const reached = evolutionsReached(pet, xp)
@@ -199,12 +304,19 @@ export function resolvePet(pet: Pet, xp: number): Pet {
     ...pet,
     name: base.name,
     sprite: base.sprite,
-    // Mỗi cấp cộng thêm một chút máu và sức mạnh, ngoài cú nhảy khi tiến hoá.
-    maxHp: base.maxHp + (level - 1) * 2,
+    /*
+      Mỗi cấp cộng thêm máu, ngoài cú nhảy khi tiến hoá.
+
+      NĂM một cấp chứ không phải hai. Con số cũ tính cho một ĐỘI ba con - ba
+      con cùng lên cấp thì đội được sáu máu mỗi cấp. Giờ chỉ còn một con ra
+      trận, nên nó phải gánh cả phần ấy, nếu không thì càng lên cao con thú
+      càng hụt hơi so với con quái.
+    */
+    maxHp: base.maxHp + (level - 1) * 5,
     power: Math.round((base.power + (level - 1) * 0.03) * 1000) / 1000,
-    // Gộp phép của MỌI nấc đã qua, không chỉ nấc hiện tại: nhảy thẳng từ cấp 4
-    // lên cấp 12 trong một trận thì phép của nấc giữa cũng phải theo về.
-    spellIds: [...new Set([...pet.spellIds, ...reached.flatMap((e) => e.spellIds)])],
+    // Chỉ những chiêu đã mở. Con thú chưa tiến hoá cầm sẵn chiêu cuối trong tay
+    // thì cả hai nấc tiến hoá đầu chẳng còn gì để mong.
+    spellIds: unlockedSpellIds(pet, xp),
   }
 }
 
@@ -240,28 +352,16 @@ export function isAlive(p: BattlePet): boolean {
   return p.hp > 0
 }
 
-/**
- * Thú tiếp theo còn sống, tính từ sau `from`. Trả -1 khi cả đội đã gục.
- *
- * Đi vòng từ đầu chứ không chỉ tiến về sau: nếu thú số 1 gục trước rồi thú số 3
- * cũng gục, thú số 2 vẫn phải được gọi ra.
- */
-export function nextAlive(team: BattlePet[], from: number): number {
-  for (let step = 1; step <= team.length; step++) {
-    const index = (from + step) % team.length
-    if (isAlive(team[index]!)) return index
-  }
-  return -1
-}
+/*
+  ---- CHỖ NÀY TỪNG LÀ ĐỘI HÌNH BA CON ----
 
-export function teamAlive(team: BattlePet[]): number {
-  return team.filter(isAlive).length
-}
+  `nextAlive`, `teamAlive` và `teamHp` đã ở đây: con đang đứng gục thì con sau
+  bước ra, và thanh máu là máu ba con cộng lại.
 
-/** Tổng máu còn lại của cả đội - dùng cho thanh máu chung kiểu Prodigy. */
-export function teamHp(team: BattlePet[]): { hp: number; maxHp: number } {
-  return team.reduce(
-    (acc, p) => ({ hp: acc.hp + p.hp, maxHp: acc.maxHp + p.pet.maxHp }),
-    { hp: 0, maxHp: 0 },
-  )
-}
+  Cả ba đi cùng đội hình. Giờ ra trận đúng MỘT con thú trẻ tự chọn, nên "con
+  tiếp theo" không còn là một câu hỏi nữa - con ấy gục là trận kết thúc. Giữ lại
+  ba hàm ấy để "phòng khi cần" thì chúng sẽ đứng đó mô tả một luật chơi không
+  còn tồn tại, và người đọc sau sẽ tin vào chúng.
+
+  Máu của một con thú giờ đọc thẳng từ `BattlePet.hp`.
+*/

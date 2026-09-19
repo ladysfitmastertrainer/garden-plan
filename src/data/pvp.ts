@@ -78,7 +78,7 @@ export async function respondToMatch(
   matchId: string,
   studentId: string,
   accept: boolean,
-  side?: { maxHp: number; power: number; pet: string | null },
+  side?: { maxHp: number; power: number; pet: string | null; spells: string[] },
 ): Promise<PvpMatch> {
   const { match } = await request<{ match: PvpMatch }>(`/api/pvp/match/${matchId}/respond`, {
     method: 'POST',
@@ -92,10 +92,11 @@ export async function sendBuzz(
   studentId: string,
   round: number,
   correct: boolean,
+  spellId: string | null,
 ): Promise<{ match: PvpMatch; won: boolean | null }> {
   return request(`/api/pvp/match/${matchId}/buzz`, {
     method: 'POST',
-    body: { studentId, round, correct },
+    body: { studentId, round, correct, spellId },
   })
 }
 

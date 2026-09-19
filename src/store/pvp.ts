@@ -31,8 +31,10 @@ import {
 export interface PvpSideStats {
   maxHp: number
   power: number
-  /** Con thú đứng đầu đội - để đấu trường vẽ nó ra. */
+  /** Con thú ra trận - để đấu trường vẽ nó ra. */
   pet: string | null
+  /** Hai chiêu con thú ấy đang mang. Máy chủ chỉ chấp nhận đòn đánh bằng chúng. */
+  spells: string[]
 }
 
 interface PvpState {
@@ -87,7 +89,7 @@ interface PvpState {
     stats: PvpSideStats
   }) => Promise<void>
   respond: (studentId: string, accept: boolean, stats?: PvpSideStats) => Promise<void>
-  buzz: (studentId: string, correct: boolean) => Promise<void>
+  buzz: (studentId: string, correct: boolean, spellId: string | null) => Promise<void>
   leave: (studentId: string) => Promise<void>
   goOffline: (studentId: string) => Promise<void>
   /** Đóng màn tổng kết. Chỉ xoá bản sao trên máy này, không đụng tới máy chủ. */
@@ -222,7 +224,7 @@ export const usePvp = create<PvpState>((set, get) => ({
     }
   },
 
-  async buzz(studentId, correct) {
+  async buzz(studentId, correct, spellId) {
     const { match, answered } = get()
     if (!match || answered) return
 
@@ -230,7 +232,7 @@ export const usePvp = create<PvpState>((set, get) => ({
     // quãng ấy nút vẫn bấm được thì trẻ sẽ bấm tiếp.
     set({ answered: true, answeredRound: match.round })
     try {
-      const result = await sendBuzz(match.id, studentId, match.round, correct)
+      const result = await sendBuzz(match.id, studentId, match.round, correct, spellId)
       set(receive(get(), result.match))
     } catch (cause) {
       set({ error: message(cause) })

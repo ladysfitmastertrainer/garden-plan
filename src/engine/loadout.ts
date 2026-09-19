@@ -1,198 +1,137 @@
 /**
- * Chiêu con đã học, và bộ chiêu con mang ra trận.
+ * Bốn chiêu con thú biết, và HAI chiêu nó mang ra trận.
  *
  * Hai con số khác nhau, đừng lẫn:
  *
- *   ĐÃ HỌC  - tổng số chiêu con biết. Mới vào đúng 2, thăng cấp mới học thêm.
- *   Ô RA TRẬN - trong số đã học, con mang được mấy chiêu vào trận. Tối đa 4.
+ *   ĐÃ MỞ    - trong bốn chiêu của con thú, nó đã với tới mấy chiêu. Hai lúc
+ *              mới bắt, ba sau nấc tiến hoá thứ nhất, bốn sau nấc thứ hai.
+ *   MANG RA TRẬN - trong số đã mở, trẻ cầm theo mấy chiêu. LUÔN LÀ HAI.
  *
- * Lúc mới chơi hai con số bằng nhau (2 và 2), nên không có gì phải sắp - đúng
- * như trẻ mong đợi: có hai chiêu thì mang cả hai. Từ cấp 3 trở đi số chiêu đã
- * học vượt số ô, và lúc đó việc sắp chiêu mới thật sự là một quyết định.
+ * Lúc mới bắt hai con số bằng nhau (2 và 2), nên không có gì phải sắp - đúng
+ * như trẻ mong đợi: có hai chiêu thì mang cả hai. Từ nấc tiến hoá thứ nhất trở
+ * đi số chiêu đã mở vượt số ô, và lúc đó việc sắp chiêu mới thật sự là một
+ * quyết định: cầm chiêu nhà cho chắc, hay cầm chiêu mượn hệ để chờ đúng con
+ * quái khắc mình.
  *
- * Trước đây MỌI phép mà đội thú biết đều hiện ra cùng lúc - sáu tới chín nút
- * ngay từ trận đầu. Trẻ lớp 1 nhìn vào không chọn, mà bấm bừa cái gần nhất.
- * Nhiều lựa chọn không phải là nhiều quyết định.
+ * ---- HAI Ô, VÀ VÌ SAO KHÔNG PHẢI BỐN ----
+ *
+ * Trước đây số ô nở theo cấp của TRẺ: hai ô lúc mới vào, bốn ô ở cấp 10. Và
+ * danh sách chiêu thì gom của CẢ ĐỘI ba con. Cả hai điều ấy đi cùng đội hình,
+ * và đội hình thì không còn.
+ *
+ * Hai ô là cố định, vì hai lựa chọn đã đủ để có một quyết định thật (đánh khắc
+ * hệ hay đánh mạnh) mà trẻ lớp 1 vẫn đọc hết được trong một nhịp. Bốn nút thì
+ * trẻ bấm bừa cái gần nhất - nhiều lựa chọn không phải là nhiều quyết định.
+ *
+ * Và vì chỉ có hai ô cho bốn chiêu, mỗi nấc tiến hoá không chỉ CHO THÊM mà còn
+ * BẮT PHẢI BỎ BỚT. Đó mới là chỗ trẻ phải nghĩ.
  */
 
 import { SPELLS } from '../content/pets'
-import type { BattlePet, Spell } from './pets'
+import { evolutionStage, unlockedSpellIds, type Pet, type Spell } from './pets'
 
-/** Mốc cấp mở thêm Ô mang ra trận. Xếp từ cao xuống thấp để tra là lấy cái đầu. */
-const SLOT_TIERS: Array<{ atLevel: number; slots: number }> = [
-  { atLevel: 10, slots: 4 },
-  { atLevel: 5, slots: 3 },
-  { atLevel: 1, slots: 2 },
-]
+/** Số chiêu mang ra trận. Cố định, không nở theo cấp nữa. */
+export const EQUIPPED_SLOTS = 2
 
 /**
- * Mốc cấp HỌC THÊM chiêu.
+ * Nấc tiến hoá nào mở chiêu thứ mấy.
  *
- * Dày ở đoạn đầu rồi thưa dần. Cấp 2 tới sau chừng hai trận, cấp 3 sau năm
- * trận - đủ gần để trẻ thấy phần thưởng, đủ xa để mỗi lần học thêm còn là một
- * sự kiện. Sau cấp 10 thì giãn hẳn ra, vì lúc đó con đã có bốn ô và học thêm
- * chỉ là đổi màu lựa chọn chứ không mở ra lối chơi mới.
+ * Chỉ số của mảng là số chiêu ĐÃ MỞ, giá trị là nấc cần đạt. Chiêu thứ 3 cần
+ * nấc 1, chiêu thứ 4 cần nấc 2. Nấc 3 (cấp 20) không có trong bảng vì nó không
+ * mở thêm chiêu nào - nó đổi hình và cộng chỉ số.
  */
-const SPELL_TIERS: Array<{ atLevel: number; count: number }> = [
-  { atLevel: 26, count: 9 },
-  { atLevel: 20, count: 8 },
-  { atLevel: 15, count: 7 },
-  { atLevel: 11, count: 6 },
-  { atLevel: 8, count: 5 },
-  { atLevel: 5, count: 4 },
-  { atLevel: 3, count: 3 },
-  { atLevel: 1, count: 2 },
-]
+const STAGE_FOR_SPELL: Record<number, number> = { 3: 1, 4: 2 }
 
-/** Số ô chiêu tối đa. */
-export const MAX_SLOTS = 4
-
-/** Số chiêu ít nhất con luôn có, kể cả ở cấp 0 của một hồ sơ hỏng. */
-export const MIN_KNOWN = 2
-
-export function slotsForLevel(level: number): number {
-  return SLOT_TIERS.find((tier) => level >= tier.atLevel)?.slots ?? 2
-}
-
-/** Cấp kế tiếp mở thêm ô, hoặc null nếu đã mở hết. */
-export function nextSlotLevel(level: number): number | null {
-  const next = [...SLOT_TIERS].reverse().find((tier) => tier.atLevel > level)
-  return next?.atLevel ?? null
-}
-
-/** Số chiêu con đã học ở cấp này. */
-export function spellsKnownAt(level: number): number {
-  return SPELL_TIERS.find((tier) => level >= tier.atLevel)?.count ?? MIN_KNOWN
-}
-
-/** Cấp kế tiếp học thêm chiêu, hoặc null nếu đã học hết bảng. */
-export function nextSpellLevel(level: number): number | null {
-  const next = [...SPELL_TIERS].reverse().find((tier) => tier.atLevel > level)
-  return next?.atLevel ?? null
+/** Toàn bộ chiêu con thú này sẽ có, kể cả chiêu chưa mở. Luôn đủ bốn. */
+export function allSpellsOf(pet: Pet): Spell[] {
+  return pet.spellIds.map((id) => SPELLS[id]).filter((s): s is Spell => s !== undefined)
 }
 
 /**
- * Thứ tự HỌC chiêu: lần lượt mỗi con một chiêu, rồi mới vòng lại chiêu thứ hai.
+ * Những chiêu con thú ĐÃ MỞ ở lượng kinh nghiệm này.
  *
- * Không phải học hết chiêu của con thứ nhất rồi mới sang con thứ hai. Lấy theo
- * từng con thì hai chiêu đầu tiên đều cùng một hệ, và trận nào cũng chỉ có một
- * nước đi đúng - trẻ bấm nút nào cũng như nhau. Vòng qua từng con thì ngay từ
- * cấp 1 con đã có hai hệ khác nhau trong tay, và câu hỏi "đánh bằng chiêu nào"
- * mới có câu trả lời thật.
- *
- * Trong mỗi con, thứ tự giữ nguyên như đã khai trong bộ thú: chiêu cơ bản
- * trước, chiêu mạnh sau.
+ * Nhận `Pet` gốc kèm `xp` chứ không nhận con đã qua `resolvePet`. Hai đường vào
+ * cùng ra một kết quả, nhưng đường này còn dùng được ở kho đồ - nơi cần hỏi
+ * "con này mà nuôi thêm thì mở ra chiêu gì" về một con CHƯA ra trận.
  */
-export function learnOrder(pets: Array<{ spellIds: string[] }>): Spell[] {
-  const deepest = pets.reduce((max, pet) => Math.max(max, pet.spellIds.length), 0)
-  const seen = new Set<string>()
-  const out: Spell[] = []
-
-  for (let round = 0; round < deepest; round++) {
-    for (const pet of pets) {
-      // Chiêu SỚM NHẤT của con này mà chưa ai trong đội đóng góp. Lấy thẳng
-      // `spellIds[round]` thì con nào trùng chiêu với con trước sẽ mất lượt,
-      // và hai chiêu đầu tiên lại rơi hết vào một con - đúng cái phải tránh.
-      const id = pet.spellIds.find((candidate) => !seen.has(candidate) && SPELLS[candidate])
-      if (id === undefined) continue
-      seen.add(id)
-      out.push(SPELLS[id]!)
-    }
-  }
-  return out
+export function unlockedSpells(pet: Pet, xp: number): Spell[] {
+  return unlockedSpellIds(pet, xp)
+    .map((id) => SPELLS[id])
+    .filter((s): s is Spell => s !== undefined)
 }
 
 /**
- * Những chiêu con ĐÃ HỌC ở cấp này, theo đúng thứ tự học.
+ * Nấc tiến hoá kế tiếp MỞ THÊM CHIÊU, hoặc null khi đã đủ bốn.
  *
- * Nhận cả `BattlePet` (trong trận) lẫn `Pet` (ở kho đồ) - hai nơi cùng cần danh
- * sách này, và khác nhau chỉ ở chỗ có máu hiện tại hay không.
+ * Trả về cấp cần đạt, để giao diện nói được "cấp 10 thì học chiêu cuối". Đọc
+ * mốc cấp từ chính bản khai của con thú (`evolutions[].atLevel`) chứ không gõ
+ * lại 5 và 10 ở đây: hai chỗ cùng khai một con số thì sẽ có ngày lệch nhau.
  */
-export function knownSpells(pets: Array<{ spellIds: string[] }>, level: number): Spell[] {
-  return learnOrder(pets).slice(0, spellsKnownAt(level))
+export function nextUnlockLevel(pet: Pet, xp: number): number | null {
+  const open = unlockedSpellIds(pet, xp).length
+  const stage = STAGE_FOR_SPELL[open + 1]
+  if (stage === undefined) return null
+  return pet.evolutions[stage - 1]?.atLevel ?? null
+}
+
+/** Con thú đã mở hết bốn chiêu chưa. */
+export function hasAllSpells(pet: Pet, xp: number): boolean {
+  return unlockedSpellIds(pet, xp).length >= pet.spellIds.length
 }
 
 /**
- * Số ô thật sự dùng được: không bao giờ nhiều hơn số chiêu đã học.
+ * Hai chiêu thật sự mang ra trận.
  *
- * Cấp 10 mở ô thứ tư, nhưng nếu đội thú trước mặt chỉ biết ba chiêu thì bày ra
- * một ô trống vĩnh viễn chỉ tổ làm trẻ tưởng mình đang thiếu cái gì.
- */
-export function usableSlots(level: number, knownCount: number): number {
-  return Math.max(1, Math.min(slotsForLevel(level), knownCount))
-}
-
-/**
- * Bộ chiêu thật sự mang ra trận.
+ * KHÔNG BAO GIỜ TRẢ VỀ RỖNG. Bộ đã lưu có thể là của một con thú khác vừa bị
+ * đổi ra, hoặc chứa một chiêu con thú CHƯA mở tới - hồ sơ lưu từ trước khi bản
+ * này ra đời, hoặc trẻ đổi con thú đi theo mà bộ chiêu cũ còn nằm đó. Rỗng thì
+ * trẻ trả lời đúng xong không có nút nào để bấm, kẹt cứng giữa trận.
  *
- * KHÔNG BAO GIỜ TRẢ VỀ RỖNG. Bộ đã lưu có thể toàn phép của một con thú vừa bị
- * đổi ra khỏi đội, hoặc của một hồ sơ cũ chưa từng chọn gì. Rỗng thì trẻ trả lời
- * đúng xong không có nút nào để bấm - kẹt cứng giữa trận. Thiếu bao nhiêu thì
- * lấp bấy nhiêu từ những chiêu con đã học.
+ * Thiếu bao nhiêu thì lấp bấy nhiêu, lấy từ đầu danh sách đã mở - tức là hai
+ * chiêu nền. Chúng luôn có, và luôn là lựa chọn tử tế.
  */
-export function resolveLoadout(
-  saved: string[] | undefined,
-  known: Spell[],
-  slots: number,
-): string[] {
-  const knownIds = new Set(known.map((spell) => spell.id))
-  const picked = (saved ?? []).filter((id) => knownIds.has(id)).slice(0, slots)
+export function resolvePetLoadout(saved: string[] | undefined, unlocked: Spell[]): string[] {
+  const open = new Set(unlocked.map((spell) => spell.id))
+  const picked = (saved ?? []).filter((id) => open.has(id)).slice(0, EQUIPPED_SLOTS)
 
-  for (const spell of known) {
-    if (picked.length >= slots) break
+  for (const spell of unlocked) {
+    if (picked.length >= EQUIPPED_SLOTS) break
     if (!picked.includes(spell.id)) picked.push(spell.id)
   }
   return picked
 }
 
 /**
- * Lọc danh sách lựa chọn trong trận theo bộ chiêu đã sắp.
- *
- * Hai việc mà bản đầu làm sai, và cả hai đều đẻ ra thừa nút:
- *
- *  1. MỖI CHIÊU MỘT NÚT. Danh sách vào đây là từng cặp (chiêu, con thú), mà hai
- *     con trong đội biết chung một chiêu là chuyện thường - thành ra "Tia Số"
- *     hiện hai lần cạnh nhau, và bốn ô hoá năm nút.
- *
- *  2. HẾT ĐƯỜNG THÌ VẪN PHẢI TRONG HẠN MỨC. Khi con thú giữ cả bộ chiêu ngã
- *     xuống giữa trận, không còn chiêu nào trong bộ tung được nữa. Bản cũ lúc
- *     đó đổ HẾT phép của những con còn sống ra - hai nút thành bốn, đúng ngay
- *     lúc trẻ đang cuống. Giờ chỉ lấy đúng `limit` chiêu đầu.
+ * Chiêu đang cầm, dựng thẳng từ con thú và bộ đã lưu. Một lời gọi cho cả hai
+ * bước, vì không chỗ nào cần riêng một trong hai.
  */
-export function filterByLoadout<T extends { spell: Spell }>(
-  options: T[],
-  loadout: string[],
-  limit: number,
-): T[] {
-  const room = Math.max(1, limit)
-
-  const firstOf = (ids: string[]): T[] => {
-    const out: T[] = []
-    for (const id of ids) {
-      if (out.length >= room) break
-      const found = options.find((option) => option.spell.id === id)
-      if (found) out.push(found)
-    }
-    return out
-  }
-
-  const kept = firstOf(loadout)
-  if (kept.length > 0) return kept
-
-  // Không còn con nào tung được chiêu trong bộ: lấy tạm từng chiêu một của
-  // những con còn sống, vẫn không quá số ô.
-  const seen = new Set<string>()
-  const spare: T[] = []
-  for (const option of options) {
-    if (spare.length >= room) break
-    if (seen.has(option.spell.id)) continue
-    seen.add(option.spell.id)
-    spare.push(option)
-  }
-  return spare
+export function equippedSpells(pet: Pet, xp: number, saved: string[] | undefined): Spell[] {
+  const unlocked = unlockedSpells(pet, xp)
+  return resolvePetLoadout(saved, unlocked)
+    .map((id) => SPELLS[id])
+    .filter((s): s is Spell => s !== undefined)
 }
 
-/** Chỉ để đọc cho dễ ở chỗ gọi - `BattlePet` cũng là một thứ có `pet.spellIds`. */
-export function petsOf(team: BattlePet[]): Array<{ spellIds: string[] }> {
-  return team.map((member) => member.pet)
+/**
+ * Chiêu này đã mở chưa, và nếu chưa thì còn chờ nấc nào.
+ *
+ * Dùng ở kho đồ để vẽ hai chiêu CHƯA mở dưới dạng ô khoá kèm lời hẹn, thay vì
+ * giấu chúng đi. Giấu đi thì trẻ không biết có gì đang chờ mình; bày ra thì
+ * nấc tiến hoá kế tiếp có một khuôn mặt cụ thể.
+ */
+export function spellLockOf(
+  pet: Pet,
+  xp: number,
+  spellId: string,
+): { locked: boolean; atLevel: number | null } {
+  const at = pet.spellIds.indexOf(spellId)
+  if (at < 0) return { locked: true, atLevel: null }
+
+  const stage = STAGE_FOR_SPELL[at + 1]
+  if (stage === undefined) return { locked: false, atLevel: null }
+
+  return {
+    locked: evolutionStage(pet, xp) < stage,
+    atLevel: pet.evolutions[stage - 1]?.atLevel ?? null,
+  }
 }

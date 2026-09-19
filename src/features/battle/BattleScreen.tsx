@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { SUBJECT_LABEL, VIRTUE_LABEL, type Subject, type Virtue } from '../../content/types'
 import type { AnswerInput } from '../../engine/judge'
-import { knownSpells, petsOf, resolveLoadout, usableSlots } from '../../engine/loadout'
+import { equippedSpells } from '../../engine/loadout'
 import { levelFromTotalXp } from '../../engine/rewards'
 import { useGame } from '../../store/game'
-import { SpellPicker, TeamStrip } from './SpellPicker'
+import { SpellPicker, PetStrip } from './SpellPicker'
 import { PixelBattle } from './PixelBattle'
 import { DialogueBox } from '../../ui/DialogueBox'
 import { QuestionView } from '../question/QuestionView'
@@ -56,7 +56,8 @@ export function BattleScreen() {
   const student = useGame((s) => s.student)
   const battleNode = useGame((s) => s.battleNode)
 
-  const savedLoadout = useGame((s) => s.progress.loadout)
+  const savedLoadout = useGame((s) => s.progress.petLoadout)
+  const petXp = useGame((s) => s.progress.petXp)
   const [submitted, setSubmitted] = useState<AnswerInput | null>(null)
   const finished = battle?.phase === 'victory' || battle?.phase === 'retreat'
 
@@ -138,14 +139,18 @@ export function BattleScreen() {
     next()
   }
 
-  // Bộ chiêu dùng trong trận này: chỉ những chiêu con ĐÃ HỌC ở cấp hiện tại,
-  // cắt theo số ô, và tự lấp đầy nếu trẻ chưa sắp gì hoặc đội thú đã đổi.
-  const known = knownSpells(petsOf(battle.team), levelFromTotalXp(student?.totalXp ?? 0).level)
-  const loadout = resolveLoadout(
-    savedLoadout,
-    known,
-    usableSlots(levelFromTotalXp(student?.totalXp ?? 0).level, known.length),
-  )
+  /*
+    Hai chiêu dùng trong trận này, của ĐÚNG con thú đang đứng trên sân.
+
+    Dựng lại từ `battle.pet` chứ không đọc một bộ đã chốt lúc vào trận: con thú
+    có thể vừa tiến hoá ngay giữa trận trước và mở thêm chiêu, và `equippedSpells`
+    tự bỏ những chiêu nó chưa mở rồi lấp cho đủ hai ô.
+  */
+  const loadout = equippedSpells(
+    battle.pet.pet,
+    petXp?.[battle.pet.pet.id] ?? 0,
+    savedLoadout?.[battle.pet.pet.id],
+  ).map((spell) => spell.id)
 
   const judgement = battle.lastJudgement
 
@@ -309,7 +314,11 @@ export function BattleScreen() {
         </AnimatePresence>
       </div>
 
-      <TeamStrip team={battle.team} activeIndex={battle.activeIndex} />
+      <PetStrip
+        pet={battle.pet}
+        ultimateCooldown={battle.ultimateCooldown}
+        status={battle.enemyStatus}
+      />
       </div>
 
       {/*

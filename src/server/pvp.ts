@@ -24,11 +24,23 @@ import { pvpTimeLimitMs } from '@/data/pvp-types'
 import type {
   LobbyEntry,
   PvpEvent,
+  PvpHit,
   PvpMatch,
   PvpQuestion,
   PvpSide,
   PvpStatus,
 } from '@/data/pvp-types'
+/*
+  Bộ chiêu và luật khắc chế nhập THẲNG từ phần nội dung của game.
+
+  Máy chủ phải tự tính được sát thương, nếu không thì con số ấy do trình duyệt
+  khai lên - và một con số do máy trẻ khai thì một máy trẻ đã bị sửa cũng khai
+  được. `content/pets.ts` và `engine/pets.ts` đều là mã thuần, không chạm cơ sở
+  dữ liệu, nên nhập vào đây an toàn cả hai chiều.
+*/
+import { SPELLS, getPet } from '@/content/pets'
+import { ULTIMATE_COOLDOWN, elementMultiplier, type Element, type Spell } from '@/engine/pets'
+import type { ActiveEffect } from '@/engine/battle'
 import { check, db } from './db'
 import { badRequest, forbidden, notFound } from './http'
 
@@ -180,10 +192,14 @@ export async function clearPresence(studentId: string): Promise<void> {
 const MATCH_COLUMNS =
   'id, class_id, challenger_id, opponent_id, subject, grade, status, questions, round, ' +
   'round_started_at, challenger_hp, opponent_hp, challenger_max, opponent_max, ' +
-  'challenger_power, opponent_power, challenger_pet, opponent_pet, buzzes, events, winner_id'
+  'challenger_power, opponent_power, challenger_pet, opponent_pet, ' +
+  'challenger_spells, opponent_spells, challenger_cd, opponent_cd, ' +
+  'challenger_status, opponent_status, buzzes, events, winner_id'
 
 export interface Buzz {
   studentId: string
+  /** Chiêu bên này chọn tung. null khi trả lời sai hoặc hết giờ. */
+  spellId?: string | null
   correct: boolean
   /** Thời điểm yêu cầu tới máy chủ, epoch ms. Đây là đồng hồ DUY NHẤT được tin. */
   at: number
@@ -208,6 +224,12 @@ interface MatchRow {
   opponent_power: number
   challenger_pet: string | null
   opponent_pet: string | null
+  challenger_spells: string[] | null
+  opponent_spells: string[] | null
+  challenger_cd: number | null
+  opponent_cd: number | null
+  challenger_status: ActiveEffect[] | null
+  opponent_status: ActiveEffect[] | null
   buzzes: Buzz[]
   events: PvpEvent[]
   winner_id: string | null
@@ -226,21 +248,22 @@ async function nameOf(ids: string[]): Promise<Map<string, { name: string; avatar
 
 async function toMatch(row: MatchRow): Promise<PvpMatch> {
   const names = await nameOf([row.challenger_id, row.opponent_id])
-  const side = (
-    id: string,
-    hp: number,
-    maxHp: number,
-    power: number,
-    pet: string | null,
-  ): PvpSide => ({
-    studentId: id,
-    name: names.get(id)?.name ?? 'Bạn',
-    avatar: names.get(id)?.avatar ?? '🦊',
-    hp,
-    maxHp,
-    power,
-    pet,
-  })
+  const side = (which: 'challenger' | 'opponent'): PvpSide => {
+    const mine = which === 'challenger'
+    const id = mine ? row.challenger_id : row.opponent_id
+    return {
+      studentId: id,
+      name: names.get(id)?.name ?? 'Bạn',
+      avatar: names.get(id)?.avatar ?? '🦊',
+      hp: mine ? row.challenger_hp : row.opponent_hp,
+      maxHp: mine ? row.challenger_max : row.opponent_max,
+      power: Number(mine ? row.challenger_power : row.opponent_power),
+      pet: mine ? row.challenger_pet : row.opponent_pet,
+      spells: (mine ? row.challenger_spells : row.opponent_spells) ?? [],
+      cooldown: (mine ? row.challenger_cd : row.opponent_cd) ?? 0,
+      status: (mine ? row.challenger_status : row.opponent_status) ?? [],
+    }
+  }
 
   return {
     id: row.id,
@@ -249,20 +272,8 @@ async function toMatch(row: MatchRow): Promise<PvpMatch> {
     grade: row.grade as Grade,
     round: row.round,
     questions: row.questions,
-    challenger: side(
-      row.challenger_id,
-      row.challenger_hp,
-      row.challenger_max,
-      Number(row.challenger_power),
-      row.challenger_pet,
-    ),
-    opponent: side(
-      row.opponent_id,
-      row.opponent_hp,
-      row.opponent_max,
-      Number(row.opponent_power),
-      row.opponent_pet,
-    ),
+    challenger: side('challenger'),
+    opponent: side('opponent'),
     // Chỉ trả về AI đã bấm, không trả về bấm đúng hay sai. Biết trước bạn mình
     // vừa trả lời sai là biết trước mình chỉ cần bấm đúng là thắng lượt - lúc ấy
     // cuộc đua tốc độ biến thành cuộc chờ.
@@ -367,8 +378,10 @@ export interface ChallengeInput {
   questions: PvpQuestion[]
   maxHp: number
   power: number
-  /** Con thú đứng đầu đội, chốt ngay lúc thách - xem migration 0011. */
+  /** Con thú ra trận, chốt ngay lúc thách - xem migration 0011. */
   pet?: string | null
+  /** Hai chiêu mang vào trận, chốt cùng lúc - xem migration 0012. */
+  spells?: string[]
 }
 
 export async function challenge(studentId: string, input: ChallengeInput): Promise<PvpMatch> {
@@ -413,6 +426,7 @@ export async function challenge(studentId: string, input: ChallengeInput): Promi
       opponent_max: input.maxHp,
       challenger_power: input.power,
       challenger_pet: input.pet ?? null,
+      challenger_spells: input.spells ?? [],
     })
     .select(MATCH_COLUMNS)
     .single()
@@ -426,7 +440,7 @@ export async function respond(
   studentId: string,
   matchId: string,
   accept: boolean,
-  side?: { maxHp: number; power: number; pet?: string | null },
+  side?: { maxHp: number; power: number; pet?: string | null; spells?: string[] },
 ): Promise<PvpMatch> {
   const row = await loadRow(matchId)
   if (row.opponent_id !== studentId) throw forbidden('Lời thách này không dành cho con.')
@@ -443,6 +457,7 @@ export async function respond(
     opponent_max: side.maxHp,
     opponent_power: side.power,
     opponent_pet: side.pet ?? null,
+    opponent_spells: side.spells ?? [],
     round: 0,
     round_started_at: new Date().toISOString(),
   })
@@ -492,10 +507,10 @@ export function speedBonus(elapsedMs: number): number {
 }
 
 /**
- * Sát thương một đòn trong PVP.
+ * Sát thương NỀN của một đòn trong PVP, trước khi nhân chiêu và nhân hệ.
  *
- * Người quyết định là người bấm đúng trước. Một bạn đội thú xoàng mà nhanh tay
- * vẫn thắng được bạn nuôi thú giỏi mà chậm - xem `pvpPowerFactor`.
+ * Người quyết định vẫn là người bấm nhanh và bấm đúng. Một bạn thú xoàng mà
+ * nhanh tay vẫn ăn được bạn nuôi thú giỏi mà chậm - xem `pvpPowerFactor`.
  */
 export function pvpDamage(difficulty: number, power: number, elapsedMs: number): number {
   const base = 10 + Math.max(0, difficulty) * 5
@@ -504,24 +519,315 @@ export function pvpDamage(difficulty: number, power: number, elapsedMs: number):
 
 export interface BuzzResult {
   match: PvpMatch
-  /** Con có giành được quyền tấn công ở vòng này không. null là vòng chưa ngã ngũ. */
+  /** Con có ra đòn được ở vòng này không. null là vòng chưa ngã ngũ. */
   won: boolean | null
 }
 
 /**
- * "Em trả lời xong rồi."
+ * Một bên tham chiến, đủ mọi thứ cần để chấm một vòng.
  *
- * Máy gửi lên ĐÚNG hay SAI, không gửi thời gian: thời gian do máy chủ tự đo.
+ * Gom thành một khối thay vì sáu tham số rời như bản trước. Sáu đã là nhiều;
+ * thêm hiệu ứng và hồi chiêu thì thành mười hai, và mười hai tham số cùng kiểu
+ * `number` xếp cạnh nhau là một cái bẫy gọi nhầm thứ tự không ai phát hiện ra.
+ */
+export interface PvpSideState {
+  studentId: string
+  hp: number
+  maxHp: number
+  power: number
+  /** Hệ của con thú bên này - để tính khắc chế. Thiếu thì coi như không khắc ai. */
+  element: Element | null
+  /** Hai chiêu bên này mang vào trận. */
+  spells: string[]
+  cooldown: number
+  status: ActiveEffect[]
+}
+
+export interface RoundInput {
+  challenger: PvpSideState
+  opponent: PvpSideState
+  round: number
+  /** Tổng số vòng của trận - hết vòng mà chưa ai gục thì tính điểm. */
+  totalRounds: number
+  difficulty: number
+  buzzes: Buzz[]
+  /** Mốc bắt đầu vòng, epoch ms. Mỗi bên đo riêng từ đây tới lúc mình bấm. */
+  roundStartedAt: number
+}
+
+export interface RoundOutcome {
+  challenger: PvpSideState
+  opponent: PvpSideState
+  event: PvpEvent
+  finished: boolean
+  winnerId: string | null
+}
+
+/**
+ * Một vòng đã đủ điều kiện ngã ngũ chưa: KHI CẢ HAI ĐÃ BẤM.
  *
- * Luật của một vòng, và nó phải đọc được thành một câu cho trẻ bảy tuổi:
- * AI BẤM ĐÚNG TRƯỚC THÌ ĐƯỢC ĐÁNH. Bấm nhanh mà sai thì mất lượt, và bạn kia
- * vẫn còn nguyên cơ hội. Cả hai cùng sai thì vòng đó không ai đánh ai.
+ * Đổi hẳn so với bản trước, và đây là chỗ đổi quan trọng nhất của cả bản này.
+ *
+ * Trước kia có người bấm đúng là vòng chốt NGAY, không chờ bạn kia - vì hồi ấy
+ * một vòng chỉ một người được đánh, nên câu trả lời của người bấm sau không
+ * đổi được gì nữa. Giờ cả hai cùng ra đòn, nên câu trả lời ấy VẪN CÒN Ý NGHĨA,
+ * và chốt vòng trước khi nghe nó là cướp mất lượt đánh của bạn ấy.
+ *
+ * Không sợ chờ mãi: mỗi câu có đồng hồ (`pvpTimeLimitMs`), và máy bên kia tự
+ * gửi lên một lượt bấm SAI khi hết giờ.
+ */
+export function roundIsSettled(buzzes: Buzz[]): boolean {
+  return buzzes.length >= 2
+}
+
+/** Hiệu ứng ăn một nhịp ở ĐẦU vòng, rồi rút ngắn một lượt. */
+function tickSide(
+  side: PvpSideState,
+  foe: PvpSideState,
+): { side: PvpSideState; foe: PvpSideState; lost: number } {
+  let hp = side.hp
+  let healed = 0
+
+  for (const effect of side.status) {
+    if (effect.turnsLeft <= 0 || effect.perTurn <= 0) continue
+    const bite = Math.min(hp, effect.perTurn)
+    hp -= bite
+    // HÚT: máu chảy sang bên kia. Chỉ có hai bên nên "bên kia" là đủ rõ, không
+    // cần ghi lại ai đã tung chiêu.
+    if (effect.kind === 'drain') healed += bite
+  }
+
+  const status = side.status
+    .map((e) => ({ ...e, turnsLeft: e.turnsLeft - 1 }))
+    .filter((e) => e.turnsLeft > 0)
+
+  return {
+    side: { ...side, hp: Math.max(0, hp), status },
+    foe: { ...foe, hp: Math.min(foe.maxHp, foe.hp + healed) },
+    lost: side.hp - Math.max(0, hp),
+  }
+}
+
+/**
+ * Chiêu bên này THẬT SỰ tung ra ở vòng này.
+ *
+ * Ba cửa phải qua, và cả ba là cửa của MÁY CHỦ chứ không phải của giao diện:
+ *
+ *  1. chiêu phải có thật;
+ *  2. chiêu phải nằm trong hai chiêu bên này đã khai lúc vào trận - nếu không
+ *     thì một trình duyệt bị sửa chỉ việc khai bừa id chiêu cuối của hệ khác;
+ *  3. chiêu cuối phải hết hồi chiêu. Còn hồi thì RƠI VỀ chiêu còn lại chứ không
+ *     bỏ cả lượt đánh: lỗi ở đây gần như luôn do trễ mạng (máy bên này chưa kịp
+ *     biết vòng trước mình vừa dùng), và phạt trẻ mất nguyên một lượt vì đường
+ *     truyền thì không đáng.
+ */
+function spellFor(side: PvpSideState, wanted: string | null | undefined): Spell | null {
+  const allowed = side.spells.filter((id) => SPELLS[id])
+  const basic = allowed.map((id) => SPELLS[id]!).find((s) => s.tier !== 4) ?? null
+  const anySpell = allowed.length > 0 ? SPELLS[allowed[0]!]! : null
+
+  if (!wanted || !allowed.includes(wanted)) return basic ?? anySpell
+
+  const spell = SPELLS[wanted]!
+  if (spell.tier === 4 && side.cooldown > 0) return basic
+  return spell
+}
+
+/**
+ * Luật của một vòng, dạng thuần - không đụng cơ sở dữ liệu.
+ *
+ * Đọc thành một câu cho trẻ bảy tuổi: AI TRẢ LỜI ĐÚNG THÌ CON THÚ CỦA BẠN ẤY
+ * ĐƯỢC TUNG CHIÊU. Cả hai cùng đúng thì cả hai cùng đánh, ai nhanh hơn thì đánh
+ * đau hơn. Cả hai cùng sai thì vòng đó không ai mất máu vì đòn đánh - dù vết
+ * cháy từ vòng trước thì vẫn cứ cháy.
+ *
+ * Tách khỏi phần ghi cơ sở dữ liệu vì đây là chỗ DUY NHẤT quyết định ai thắng
+ * ai trong cả chế độ chơi này, và một luật quan trọng như thế phải kiểm được
+ * bằng test mà không cần dựng máy chủ.
+ */
+export function settleRound(input: RoundInput): RoundOutcome {
+  const first = input.buzzes[0] ?? null
+
+  /*
+    ĐỌC CỜ BĂNG TRƯỚC KHI HIỆU ỨNG ĂN NHỊP.
+
+    Đóng băng dài đúng một vòng, mà nhịp trừ lượt ở ngay dưới sẽ đưa nó về 0 và
+    gỡ khỏi danh sách. Đọc sau nhịp ấy thì lớp băng tan trước khi kịp chặn cái
+    gì, và chiêu cuối của hệ Thanh Âm trở thành một cú đánh mạnh không hơn -
+    hỏng lặng lẽ, vì máu hai bên vẫn cộng trừ đúng.
+
+    Cùng một cái bẫy đã gài ở trận đánh quái, và ở đó cũng phải đọc trước.
+  */
+  const frozen = new Set(
+    [input.challenger, input.opponent]
+      .filter((s) => s.status.some((e) => e.kind === 'freeze' && e.turnsLeft > 0))
+      .map((s) => s.studentId),
+  )
+
+  /*
+    ---- ĐẦU VÒNG: hiệu ứng của vòng trước ăn một nhịp ----
+
+    Trước cú đánh, không phải sau. Một bên đang cháy mà chỉ còn ba máu thì vết
+    cháy ấy hạ được bạn ấy, và điều đó phải xảy ra TRƯỚC khi bạn ấy kịp tung
+    chiêu - nếu không thì chiêu cuối của vòng trước hoá ra chỉ có tác dụng khi
+    đối thủ còn nhiều máu.
+  */
+  let challenger = input.challenger
+  let opponent = input.opponent
+  const ticks: Record<string, number> = {}
+
+  {
+    const a = tickSide(challenger, opponent)
+    challenger = a.side
+    opponent = a.foe
+    if (a.lost > 0) ticks[challenger.studentId] = a.lost
+
+    const b = tickSide(opponent, challenger)
+    opponent = b.side
+    challenger = b.foe
+    if (b.lost > 0) ticks[opponent.studentId] = b.lost
+  }
+
+  // ---- CÚ ĐÁNH CỦA TỪNG BÊN ----
+  const hits: PvpHit[] = []
+
+  const strike = (attacker: PvpSideState, defender: PvpSideState) => {
+    const buzz = input.buzzes.find((b) => b.studentId === attacker.studentId)
+    if (!buzz || !buzz.correct) return { attacker, defender }
+
+    // ĐÓNG BĂNG: đứng sững thì không tung được chiêu nào cả. Vẫn ghi một dòng
+    // sát thương 0 để máy bên kia có cái mà diễn ra - im lặng thì trẻ tưởng
+    // mình trả lời sai.
+    if (frozen.has(attacker.studentId)) {
+      hits.push({ studentId: attacker.studentId, damage: 0, spellId: null, effect: null })
+      return { attacker, defender }
+    }
+
+    const spell = spellFor(attacker, buzz.spellId)
+    if (!spell) return { attacker, defender }
+
+    const elapsed = Math.max(0, buzz.at - input.roundStartedAt)
+    const matchup = defender.element ? elementMultiplier(spell.element, defender.element) : 1
+    // TRÓI cắt đòn còn một nửa - cùng con số với trận đánh quái.
+    const bound = attacker.status.some((e) => e.kind === 'bind') ? 0.5 : 1
+    const damage = Math.max(
+      1,
+      Math.round(
+        pvpDamage(input.difficulty, attacker.power, elapsed) * spell.power * matchup * bound,
+      ),
+    )
+
+    const effect = spell.effect ?? null
+    hits.push({
+      studentId: attacker.studentId,
+      damage,
+      spellId: spell.id,
+      effect: effect?.kind ?? null,
+    })
+
+    return {
+      attacker: {
+        ...attacker,
+        cooldown: spell.tier === 4 ? ULTIMATE_COOLDOWN : attacker.cooldown,
+      },
+      defender: {
+        ...defender,
+        hp: Math.max(0, defender.hp - damage),
+        status: effect
+          ? [
+              ...defender.status.filter((e) => e.kind !== effect.kind),
+              {
+                kind: effect.kind,
+                turnsLeft: effect.turns,
+                perTurn: effect.tickPercent
+                  ? Math.max(1, Math.round(damage * effect.tickPercent))
+                  : 0,
+              },
+            ]
+          : defender.status,
+      },
+    }
+  }
+
+  /*
+    CẢ HAI ĐÁNH TRONG CÙNG MỘT NHỊP, không ai đánh trước ai.
+
+    Cụ thể: cú đánh của mỗi bên tính trên máu ĐẦU VÒNG của đối thủ, chứ không
+    trên máu sau khi đối thủ đã ăn đòn kia. Nhờ vậy hai bên cùng còn 5 máu mà
+    cùng trả lời đúng thì CẢ HAI CÙNG GỤC, và trận ra kết quả hoà.
+
+    Cho bên nhanh hơn đánh trước thì ở những giây cuối trận đấu quay về đúng cái
+    cũ: hơn nhau nửa giây là một bên chưa kịp ra đòn đã hết máu. Thưởng tốc độ
+    nằm ở CON SỐ sát thương, không nằm ở quyền được đánh trước.
+  */
+  const fromChallenger = strike(challenger, opponent)
+  const fromOpponent = strike(opponent, challenger)
+
+  challenger = {
+    ...fromChallenger.attacker,
+    hp: fromOpponent.defender.hp,
+    status: fromOpponent.defender.status,
+  }
+  opponent = {
+    ...fromOpponent.attacker,
+    hp: fromChallenger.defender.hp,
+    status: fromChallenger.defender.status,
+  }
+
+  // Hồi chiêu nhích một bước mỗi vòng, kể cả vòng trả lời sai.
+  challenger = { ...challenger, cooldown: Math.max(0, challenger.cooldown - 1) }
+  opponent = { ...opponent, cooldown: Math.max(0, opponent.cooldown - 1) }
+
+  const event: PvpEvent = {
+    round: input.round,
+    /*
+      Trường CŨ, giữ cho trận đang đánh dở lúc bản này lên không mất diễn biến,
+      và cho màn tổng kết đọc được những trận đã xong từ trước. Khi đúng một bên
+      ra đòn thì nó vẫn kể đúng chuyện; hai bên cùng đánh thì để trống, và chỗ
+      đọc phải nhìn sang `hits`.
+    */
+    attackerId: hits.length === 1 ? hits[0]!.studentId : null,
+    damage: hits.length === 1 ? hits[0]!.damage : 0,
+    hits,
+    ticks,
+    firstId: first?.studentId ?? null,
+    firstCorrect: first?.correct ?? false,
+  }
+
+  const knockedOut = challenger.hp <= 0 || opponent.hp <= 0
+  const outOfRounds = input.round + 1 >= input.totalRounds
+  const finished = knockedOut || outOfRounds
+
+  /*
+    Hết vòng mà chưa ai gục thì bên nhiều máu hơn thắng; bằng nhau thì HOÀ.
+
+    Hoà được phép tồn tại. Ép ra một người thắng bằng cách tung đồng xu thì cả
+    bảy câu vừa rồi thành vô nghĩa - và với hai đứa bé ngồi cạnh nhau, "hoà" là
+    một kết quả chúng chấp nhận được, còn "thua vì máy chọn" thì không.
+  */
+  const winnerId = !finished
+    ? null
+    : challenger.hp === opponent.hp
+      ? null
+      : challenger.hp > opponent.hp
+        ? challenger.studentId
+        : opponent.studentId
+
+  return { challenger, opponent, event, finished, winnerId }
+}
+
+/**
+ * "Em trả lời xong rồi, và em tung chiêu này."
+ *
+ * Máy gửi lên ĐÚNG hay SAI cùng id chiêu, KHÔNG gửi thời gian: thời gian do máy
+ * chủ tự đo, vì đó là thứ quyết định sát thương và cũng là thứ dễ khai gian nhất.
  */
 export async function buzz(
   studentId: string,
   matchId: string,
   round: number,
   correct: boolean,
+  spellId?: string | null,
 ): Promise<BuzzResult> {
   const row = await loadRow(matchId)
   assertPlayer(row, studentId)
@@ -540,127 +846,50 @@ export async function buzz(
   }
 
   const now = Date.now()
-  const next: Buzz[] = [...buzzes, { studentId, correct, at: now }]
+  const next: Buzz[] = [...buzzes, { studentId, correct, at: now, spellId: spellId ?? null }]
 
   if (!roundIsSettled(next)) {
     // Chưa ngã ngũ: ghi lượt bấm rồi chờ bạn kia.
     return { match: await update(matchId, { buzzes: next }), won: null }
   }
 
-  const winner = next.find((b) => b.correct) ?? null
-  return { match: await resolveRound(row, next, now), won: winner?.studentId === studentId }
-}
-
-export interface RoundInput {
-  challengerId: string
-  opponentId: string
-  challengerHp: number
-  opponentHp: number
-  challengerPower: number
-  opponentPower: number
-  round: number
-  /** Tổng số vòng của trận - hết vòng mà chưa ai gục thì tính điểm. */
-  totalRounds: number
-  difficulty: number
-  buzzes: Buzz[]
-  /** Máy chủ đo được bao lâu kể từ lúc vòng bắt đầu. */
-  elapsedMs: number
-}
-
-export interface RoundOutcome {
-  challengerHp: number
-  opponentHp: number
-  event: PvpEvent
-  finished: boolean
-  winnerId: string | null
-}
-
-/**
- * Một vòng đã đủ điều kiện ngã ngũ chưa.
- *
- * Xong khi có người bấm ĐÚNG, hoặc khi cả hai đã bấm. Người bấm đúng trước
- * không cần chờ bạn kia trả lời nốt - chờ thì cái "nhanh tay" mất hết ý nghĩa,
- * vì phần thưởng của việc nhanh hơn chính là được đánh NGAY.
- */
-export function roundIsSettled(buzzes: Buzz[]): boolean {
-  return buzzes.some((b) => b.correct) || buzzes.length >= 2
-}
-
-/**
- * Luật của một vòng, dạng thuần - không đụng cơ sở dữ liệu.
- *
- * Đọc thành một câu cho trẻ bảy tuổi: AI BẤM ĐÚNG TRƯỚC THÌ ĐƯỢC ĐÁNH. Bấm
- * nhanh mà sai thì mất lượt, và bạn kia vẫn còn nguyên cơ hội. Cả hai cùng sai
- * thì vòng đó không ai đánh ai.
- *
- * Tách khỏi phần ghi cơ sở dữ liệu vì đây là chỗ DUY NHẤT quyết định ai thắng
- * ai trong cả chế độ chơi này, và một luật quan trọng như thế phải kiểm được
- * bằng test mà không cần dựng máy chủ.
- */
-export function settleRound(input: RoundInput): RoundOutcome {
-  const first = input.buzzes[0] ?? null
-  const winner = input.buzzes.find((b) => b.correct) ?? null
-
-  const isChallenger = winner?.studentId === input.challengerId
-  const power = isChallenger ? input.challengerPower : input.opponentPower
-  const damage = winner ? pvpDamage(input.difficulty, power, input.elapsedMs) : 0
-
-  let challengerHp = input.challengerHp
-  let opponentHp = input.opponentHp
-  if (winner) {
-    if (isChallenger) opponentHp = Math.max(0, opponentHp - damage)
-    else challengerHp = Math.max(0, challengerHp - damage)
-  }
-
-  const event: PvpEvent = {
-    round: input.round,
-    attackerId: winner?.studentId ?? null,
-    damage,
-    firstId: first?.studentId ?? null,
-    firstCorrect: first?.correct ?? false,
-  }
-
-  const knockedOut = challengerHp <= 0 || opponentHp <= 0
-  const outOfRounds = input.round + 1 >= input.totalRounds
-  const finished = knockedOut || outOfRounds
-
-  /*
-    Hết vòng mà chưa ai gục thì bên nhiều máu hơn thắng; bằng nhau thì HOÀ.
-
-    Hoà được phép tồn tại. Ép ra một người thắng bằng cách tung đồng xu thì cả
-    bảy câu vừa rồi thành vô nghĩa - và với hai đứa bé ngồi cạnh nhau, "hoà" là
-    một kết quả chúng chấp nhận được, còn "thua vì máy chọn" thì không.
-  */
-  const winnerId = !finished
-    ? null
-    : challengerHp === opponentHp
-      ? null
-      : challengerHp > opponentHp
-        ? input.challengerId
-        : input.opponentId
-
-  return { challengerHp, opponentHp, event, finished, winnerId }
+  return { match: await resolveRound(row, next, now), won: correct }
 }
 
 /** Chốt một vòng rồi ghi xuống: cộng sát thương, sang câu sau, xem trận xong chưa. */
 async function resolveRound(row: MatchRow, buzzes: Buzz[], now: number): Promise<PvpMatch> {
+  const sideOf = (which: 'challenger' | 'opponent'): PvpSideState => {
+    const mine = which === 'challenger'
+    const petId = (mine ? row.challenger_pet : row.opponent_pet) ?? ''
+    return {
+      studentId: mine ? row.challenger_id : row.opponent_id,
+      hp: mine ? row.challenger_hp : row.opponent_hp,
+      maxHp: mine ? row.challenger_max : row.opponent_max,
+      power: Number(mine ? row.challenger_power : row.opponent_power),
+      element: getPet(petId)?.element ?? null,
+      spells: (mine ? row.challenger_spells : row.opponent_spells) ?? [],
+      cooldown: (mine ? row.challenger_cd : row.opponent_cd) ?? 0,
+      status: (mine ? row.challenger_status : row.opponent_status) ?? [],
+    }
+  }
+
   const outcome = settleRound({
-    challengerId: row.challenger_id,
-    opponentId: row.opponent_id,
-    challengerHp: row.challenger_hp,
-    opponentHp: row.opponent_hp,
-    challengerPower: Number(row.challenger_power),
-    opponentPower: Number(row.opponent_power),
+    challenger: sideOf('challenger'),
+    opponent: sideOf('opponent'),
     round: row.round,
     totalRounds: row.questions.length,
     difficulty: row.questions[row.round]?.difficulty ?? 1,
     buzzes,
-    elapsedMs: Math.max(0, now - Date.parse(row.round_started_at)),
+    roundStartedAt: Date.parse(row.round_started_at),
   })
 
   return update(row.id, {
-    challenger_hp: outcome.challengerHp,
-    opponent_hp: outcome.opponentHp,
+    challenger_hp: outcome.challenger.hp,
+    opponent_hp: outcome.opponent.hp,
+    challenger_cd: outcome.challenger.cooldown,
+    opponent_cd: outcome.opponent.cooldown,
+    challenger_status: outcome.challenger.status,
+    opponent_status: outcome.opponent.status,
     events: [...(row.events ?? []), outcome.event],
     buzzes: [],
     round: row.round + 1,

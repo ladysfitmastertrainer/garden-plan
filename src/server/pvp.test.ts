@@ -1,181 +1,377 @@
 /**
- * Luật trọng tài của đấu trường.
+ * Luật một vòng đấu trường - chỗ DUY NHẤT quyết định ai thắng ai.
  *
- * Cả chế độ chơi này đứng trên đúng một câu - "ai bấm đúng trước thì được đánh"
- * - và câu ấy được thi hành ở đúng một chỗ: `settleRound`. Tệp này khoá nó lại.
+ * Kiểm được mà không cần dựng máy chủ, vì `settleRound` là hàm thuần. Đó cũng
+ * là lý do nó được tách ra khỏi phần ghi cơ sở dữ liệu ngay từ đầu.
  *
- * Phần nối với cơ sở dữ liệu cố ý KHÔNG có ở đây. Nó chỉ làm ba việc: đọc hàng,
- * gọi hàm dưới đây, ghi hàng xuống. Luật thì nằm gọn trong phần thuần.
+ * Tệp này viết lại khi đấu trường đổi từ CUỘC ĐUA BẤM (một vòng một người được
+ * đánh) sang TRẬN ĐẤU HAI CON THÚ (ai trả lời đúng thì bên ấy ra đòn). Luật cũ
+ * không còn chỗ nào trong game nữa.
  */
 
 import { describe, expect, it } from 'vitest'
-import { pvpDamage, roundIsSettled, settleRound, speedBonus, type Buzz } from './pvp'
 
-/**
- * Sức đội thú cao nhất thực tế đạt được.
- *
- * Ba con ở nấc tiến hoá cuối, kịch cấp 20, cộng thêm hệ số cấp của nhân vật.
- * Không gõ bừa một số cho tròn: chính con số này là thứ quyết định việc nuôi
- * thú có đè bẹp được tốc độ hay không.
- */
-const MAX_TEAM_POWER = 2.4
+import { ULTIMATE_COOLDOWN } from '../engine/pets'
 
-const A = 'be-an'
-const B = 'be-binh'
+import {
+  roundIsSettled,
+  settleRound,
+  speedBonus,
+  type Buzz,
+  type PvpSideState,
+  type RoundInput,
+} from './pvp'
 
-const buzz = (studentId: string, correct: boolean, at = 0): Buzz => ({ studentId, correct, at })
+const ME = 'minh-hy'
+const FOE = 'thao-tien'
+const T0 = 1_700_000_000_000
 
-const round = (buzzes: Buzz[], overrides: Partial<Parameters<typeof settleRound>[0]> = {}) =>
-  settleRound({
-    challengerId: A,
-    opponentId: B,
-    challengerHp: 100,
-    opponentHp: 100,
-    challengerPower: 1,
-    opponentPower: 1,
-    round: 0,
-    totalRounds: 7,
-    difficulty: 1,
-    buzzes,
-    elapsedMs: 5_000,
-    ...overrides,
-  })
+/** Bấm ở giây thứ `second` của vòng. */
+const buzz = (studentId: string, correct: boolean, second: number, spellId?: string): Buzz => ({
+  studentId,
+  correct,
+  at: T0 + second * 1_000,
+  spellId: spellId ?? null,
+})
+
+const side = (studentId: string, over: Partial<PvpSideState> = {}): PvpSideState => ({
+  studentId,
+  hp: 100,
+  maxHp: 100,
+  power: 1,
+  // Hai bên cùng hệ Ngôn Từ: không ai khắc ai, nên mọi test dưới đây đo đúng
+  // thứ nó muốn đo chứ không bị hệ số khắc chế trộn vào.
+  element: 'vietnamese',
+  spells: ['gio-chu', 'bao-chu'],
+  cooldown: 0,
+  status: [],
+  ...over,
+})
+
+const round = (over: Partial<RoundInput> = {}): RoundInput => ({
+  challenger: side(ME),
+  opponent: side(FOE),
+  round: 0,
+  totalRounds: 7,
+  difficulty: 1,
+  buzzes: [],
+  roundStartedAt: T0,
+  ...over,
+})
+
+const hitOf = (out: ReturnType<typeof settleRound>, id: string) =>
+  out.event.hits!.find((h) => h.studentId === id) ?? null
 
 describe('khi nào một vòng ngã ngũ', () => {
-  it('có người bấm ĐÚNG là xong ngay, không chờ bạn kia', () => {
-    // Chờ cho đủ hai người thì phần thưởng của việc nhanh hơn biến mất: nhanh
-    // hay chậm cũng phải ngồi đợi như nhau.
-    expect(roundIsSettled([buzz(A, true)])).toBe(true)
+  it('phải ĐỦ CẢ HAI người bấm', () => {
+    expect(roundIsSettled([buzz(ME, true, 1)])).toBe(false)
+    expect(roundIsSettled([buzz(ME, true, 1), buzz(FOE, false, 3)])).toBe(true)
   })
 
-  it('một người bấm SAI thì chưa xong - bạn kia vẫn còn cơ hội', () => {
-    expect(roundIsSettled([buzz(A, false)])).toBe(false)
-  })
-
-  it('cả hai cùng bấm thì xong, dù cùng sai', () => {
-    expect(roundIsSettled([buzz(A, false), buzz(B, false)])).toBe(true)
-  })
-
-  it('chưa ai bấm thì chưa xong', () => {
-    expect(roundIsSettled([])).toBe(false)
+  it('bấm đúng KHÔNG còn chốt vòng ngay như luật cũ', () => {
+    // Giờ câu trả lời của người bấm sau vẫn còn ý nghĩa - bạn ấy cũng được đánh.
+    expect(roundIsSettled([buzz(ME, true, 1)])).toBe(false)
   })
 })
 
-describe('ai được tấn công', () => {
-  it('người bấm ĐÚNG TRƯỚC được đánh', () => {
-    const out = round([buzz(A, true, 1), buzz(B, true, 2)])
-    expect(out.event.attackerId).toBe(A)
-    expect(out.opponentHp).toBeLessThan(100)
-    expect(out.challengerHp).toBe(100)
+describe('ai được ra đòn', () => {
+  it('cả hai cùng đúng thì CẢ HAI cùng đánh', () => {
+    const out = settleRound(round({ buzzes: [buzz(ME, true, 1), buzz(FOE, true, 3)] }))
+    expect(out.event.hits).toHaveLength(2)
+    expect(out.challenger.hp).toBeLessThan(100)
+    expect(out.opponent.hp).toBeLessThan(100)
   })
 
-  it('bấm nhanh mà SAI thì mất lượt - bạn kia đúng sau vẫn được đánh', () => {
-    // Đây là bài học chính của cả chế độ chơi: nhanh mà ẩu thì không ăn thua.
-    const out = round([buzz(A, false, 1), buzz(B, true, 2)])
-    expect(out.event.attackerId).toBe(B)
-    expect(out.event.firstId).toBe(A)
-    expect(out.event.firstCorrect).toBe(false)
-    expect(out.challengerHp).toBeLessThan(100)
-    expect(out.opponentHp).toBe(100)
+  it('một người sai thì chỉ người đúng đánh', () => {
+    const out = settleRound(round({ buzzes: [buzz(ME, true, 1), buzz(FOE, false, 3)] }))
+    expect(out.event.hits).toHaveLength(1)
+    expect(out.opponent.hp).toBeLessThan(100)
+    expect(out.challenger.hp).toBe(100)
   })
 
   it('cả hai cùng sai thì không ai mất máu', () => {
-    const out = round([buzz(A, false, 1), buzz(B, false, 2)])
-    expect(out.event.attackerId).toBeNull()
-    expect(out.event.damage).toBe(0)
-    expect(out.challengerHp).toBe(100)
-    expect(out.opponentHp).toBe(100)
+    const out = settleRound(round({ buzzes: [buzz(ME, false, 1), buzz(FOE, false, 3)] }))
+    expect(out.event.hits).toHaveLength(0)
+    expect(out.challenger.hp).toBe(100)
+    expect(out.opponent.hp).toBe(100)
   })
 
-  it('ghi lại AI BẤM TRƯỚC, kể cả khi người đó không phải người đánh', () => {
-    // Giao diện dựa vào đây để nói "người bấm trước trả lời sai" - không có nó
-    // thì trẻ chỉ thấy mình bấm trước mà vẫn không được đánh, và tưởng máy sai.
-    const out = round([buzz(B, false, 1), buzz(A, true, 2)])
-    expect(out.event.firstId).toBe(B)
-    expect(out.event.attackerId).toBe(A)
+  it('ghi lại AI BẤM TRƯỚC, kể cả khi người đó trả lời sai', () => {
+    const out = settleRound(round({ buzzes: [buzz(FOE, false, 1), buzz(ME, true, 3)] }))
+    expect(out.event.firstId).toBe(FOE)
+    expect(out.event.firstCorrect).toBe(false)
   })
 })
 
 describe('sát thương', () => {
-  it('bấm nhanh hơn thì đánh đau hơn', () => {
-    expect(speedBonus(1_000)).toBeGreaterThan(speedBonus(4_000))
-    expect(speedBonus(4_000)).toBeGreaterThan(speedBonus(10_000))
-    expect(speedBonus(10_000)).toBe(1)
+  it('bấm nhanh hơn thì đánh đau hơn - thưởng tốc độ vẫn còn', () => {
+    expect(speedBonus(1_000)).toBeGreaterThan(speedBonus(9_000))
+
+    const out = settleRound(round({ buzzes: [buzz(ME, true, 1), buzz(FOE, true, 9)] }))
+    expect(hitOf(out, ME)!.damage).toBeGreaterThan(hitOf(out, FOE)!.damage)
   })
 
   it('câu khó hơn thì đánh đau hơn', () => {
-    expect(pvpDamage(3, 1, 5_000)).toBeGreaterThan(pvpDamage(1, 1, 5_000))
+    const easy = settleRound(round({ difficulty: 1, buzzes: [buzz(ME, true, 1), buzz(FOE, false, 2)] }))
+    const hard = settleRound(round({ difficulty: 4, buzzes: [buzz(ME, true, 1), buzz(FOE, false, 2)] }))
+    expect(hitOf(hard, ME)!.damage).toBeGreaterThan(hitOf(easy, ME)!.damage)
   })
 
-  it('đội thú khoẻ hơn thì đánh đau hơn', () => {
-    // Nuôi thú phải có ích ở đây, nếu không thì cả phần thu phục và tiến hoá
-    // chẳng liên quan gì tới đấu trường.
-    expect(pvpDamage(1, 1.6, 5_000)).toBeGreaterThan(pvpDamage(1, 1, 5_000))
+  it('chiêu mạnh hơn thì đánh đau hơn', () => {
+    const base = settleRound(
+      round({ buzzes: [buzz(ME, true, 1, 'gio-chu'), buzz(FOE, false, 2)] }),
+    )
+    const better = settleRound(
+      round({ buzzes: [buzz(ME, true, 1, 'bao-chu'), buzz(FOE, false, 2)] }),
+    )
+    expect(hitOf(better, ME)!.damage).toBeGreaterThan(hitOf(base, ME)!.damage)
   })
 
-  it('nhưng đội thú KHÔNG lấn át được tốc độ', () => {
+  it('KHẮC CHẾ tính theo hệ của CHIÊU, không theo hệ con thú', () => {
     /*
-      ĐÂY LÀ TEST QUAN TRỌNG NHẤT CỦA CẢ TỆP, và nó đã bắt được một lỗi thật:
-      bản đầu để `power` đi thẳng vào công thức, và một đội nuôi tới nấc tiến hoá
-      cuối (power ~2,3) đánh gấp hơn hai lần một đội mới - nhiều hơn cả khoảng
-      thưởng cho tốc độ. Trận đấu ngã ngũ trước khi câu hỏi đầu tiên hiện ra.
-
-      So hai đầu xa nhất của khoảng thật: đội MẠNH NHẤT bấm chậm, đối lại đội
-      YẾU NHẤT bấm nhanh. Bên nhanh phải thắng.
+      Đây là chỗ chiêu mượn hệ kiếm sống. Con thú Ngôn Từ gặp con thú Số Học
+      thì hai chiêu nhà bị khắc; chiêu Ánh Sáng mượn được mới xuyên qua.
     */
-    const strongestSlow = pvpDamage(1, MAX_TEAM_POWER, 20_000)
-    const weakestFast = pvpDamage(1, 1, 1_000)
-    expect(weakestFast).toBeGreaterThan(strongestSlow)
+    const foe = side(FOE, { element: 'math' })
+    const me = side(ME, { spells: ['gio-chu', 'binh-minh'] })
+
+    const home = settleRound(
+      round({ challenger: me, opponent: foe, buzzes: [buzz(ME, true, 1, 'gio-chu'), buzz(FOE, false, 2)] }),
+    )
+    const borrowed = settleRound(
+      round({ challenger: me, opponent: foe, buzzes: [buzz(ME, true, 1, 'binh-minh'), buzz(FOE, false, 2)] }),
+    )
+    expect(hitOf(borrowed, ME)!.damage).toBeGreaterThan(hitOf(home, ME)!.damage * 2)
   })
 
-  it('đội thú vẫn có ích thấy rõ khi hai bên nhanh như nhau', () => {
-    // Nén tốc độ lại là đúng, nén tới mức nuôi thú thành vô nghĩa thì sai.
-    const strong = pvpDamage(1, MAX_TEAM_POWER, 1_000)
-    const weak = pvpDamage(1, 1, 1_000)
-    expect(strong).toBeGreaterThan(weak * 1.3)
+  it('đội thú khoẻ hơn thì đánh đau hơn, nhưng KHÔNG lấn át được tốc độ', () => {
+    const strongSlow = settleRound(
+      round({
+        challenger: side(ME, { power: 2.3 }),
+        buzzes: [buzz(ME, true, 9), buzz(FOE, true, 1)],
+      }),
+    )
+    // Bạn thú xoàng mà nhanh tay vẫn đánh đau hơn bạn nuôi thú giỏi mà chậm.
+    expect(hitOf(strongSlow, FOE)!.damage).toBeGreaterThan(hitOf(strongSlow, ME)!.damage)
   })
 
-  it('không bao giờ xuống dưới 1', () => {
-    expect(pvpDamage(0, 0.1, 60_000)).toBeGreaterThanOrEqual(1)
+  it('không đòn nào xuống dưới 1', () => {
+    const out = settleRound(
+      round({
+        challenger: side(ME, { power: 0.01, status: [{ kind: 'bind', turnsLeft: 2, perTurn: 0 }] }),
+        difficulty: 0,
+        buzzes: [buzz(ME, true, 30), buzz(FOE, false, 31)],
+      }),
+    )
+    expect(hitOf(out, ME)!.damage).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('cả hai đánh trong CÙNG một nhịp', () => {
+  it('hai bên cùng hết máu thì cùng gục, và trận HOÀ', () => {
+    /*
+      Cú đánh của mỗi bên tính trên máu ĐẦU VÒNG. Cho bên nhanh hơn đánh trước
+      thì ở những giây cuối trận đấu quay về đúng cái cũ: hơn nhau nửa giây là
+      một bên chưa kịp ra đòn đã hết máu.
+    */
+    const out = settleRound(
+      round({
+        challenger: side(ME, { hp: 3 }),
+        opponent: side(FOE, { hp: 3 }),
+        buzzes: [buzz(ME, true, 1), buzz(FOE, true, 6)],
+      }),
+    )
+    expect(out.challenger.hp).toBe(0)
+    expect(out.opponent.hp).toBe(0)
+    expect(out.finished).toBe(true)
+    expect(out.winnerId).toBeNull()
+  })
+
+  it('máu không bao giờ xuống dưới 0 - thanh máu không được phép âm', () => {
+    const out = settleRound(
+      round({ opponent: side(FOE, { hp: 2 }), buzzes: [buzz(ME, true, 1), buzz(FOE, false, 2)] }),
+    )
+    expect(out.opponent.hp).toBe(0)
+  })
+})
+
+describe('chiêu cuối và hồi chiêu', () => {
+  const withUltimate = (over: Partial<PvpSideState> = {}) =>
+    side(ME, { spells: ['gio-chu', 'thien-thu'], ...over })
+
+  it('dùng chiêu cuối thì hồi chiêu được đặt ngay', () => {
+    const out = settleRound(
+      round({
+        challenger: withUltimate(),
+        buzzes: [buzz(ME, true, 1, 'thien-thu'), buzz(FOE, false, 2)],
+      }),
+    )
+    expect(hitOf(out, ME)!.spellId).toBe('thien-thu')
+    // Đặt ULTIMATE_COOLDOWN rồi trừ một ở cuối vòng này.
+    expect(out.challenger.cooldown).toBe(ULTIMATE_COOLDOWN - 1)
+  })
+
+  it('còn hồi chiêu thì KHÔNG tung được, rơi về chiêu còn lại', () => {
+    const out = settleRound(
+      round({
+        challenger: withUltimate({ cooldown: 2 }),
+        buzzes: [buzz(ME, true, 1, 'thien-thu'), buzz(FOE, false, 2)],
+      }),
+    )
+    expect(hitOf(out, ME)!.spellId).toBe('gio-chu')
+    expect(hitOf(out, ME)!.effect).toBeNull()
+  })
+
+  it('hồi chiêu nhích theo MỌI vòng, kể cả vòng trả lời sai', () => {
+    const out = settleRound(
+      round({
+        challenger: withUltimate({ cooldown: 3 }),
+        buzzes: [buzz(ME, false, 1), buzz(FOE, false, 2)],
+      }),
+    )
+    // Thua liên tiếp vẫn nạp lại được, để bên đang bị dẫn còn đường gỡ.
+    expect(out.challenger.cooldown).toBe(2)
+  })
+
+  it('chiêu KHÔNG khai lúc vào trận thì không dùng được', () => {
+    // Một trình duyệt bị sửa khai bừa id chiêu cuối của hệ khác.
+    const out = settleRound(
+      round({ buzzes: [buzz(ME, true, 1, 'vang-duong'), buzz(FOE, false, 2)] }),
+    )
+    expect(hitOf(out, ME)!.spellId).toBe('gio-chu')
+  })
+
+  it('không khai chiêu nào thì vòng ấy không có đòn nào ra', () => {
+    const out = settleRound(
+      round({ challenger: side(ME, { spells: [] }), buzzes: [buzz(ME, true, 1), buzz(FOE, false, 2)] }),
+    )
+    expect(hitOf(out, ME)).toBeNull()
+    expect(out.opponent.hp).toBe(100)
+  })
+})
+
+describe('hiệu ứng của chiêu cuối', () => {
+  it('TRÓI bám vào đối thủ và cắt đòn của bạn ấy còn một nửa', () => {
+    const bound = settleRound(
+      round({
+        challenger: side(ME, { spells: ['gio-chu', 'thien-thu'] }),
+        buzzes: [buzz(ME, true, 1, 'thien-thu'), buzz(FOE, false, 2)],
+      }),
+    )
+    expect(bound.opponent.status.map((e) => e.kind)).toContain('bind')
+
+    const free = settleRound(round({ buzzes: [buzz(FOE, true, 1), buzz(ME, false, 2)] }))
+    const tied = settleRound(
+      round({
+        opponent: side(FOE, { status: [{ kind: 'bind', turnsLeft: 2, perTurn: 0 }] }),
+        buzzes: [buzz(FOE, true, 1), buzz(ME, false, 2)],
+      }),
+    )
+    expect(hitOf(tied, FOE)!.damage).toBeLessThan(hitOf(free, FOE)!.damage)
+  })
+
+  it('ĐÓNG BĂNG làm đối thủ mất hẳn lượt đánh, dù trả lời đúng', () => {
+    const out = settleRound(
+      round({
+        opponent: side(FOE, { status: [{ kind: 'freeze', turnsLeft: 1, perTurn: 0 }] }),
+        buzzes: [buzz(FOE, true, 1), buzz(ME, false, 2)],
+      }),
+    )
+    // Vẫn ghi một dòng, nhưng 0 sát thương - im lặng thì trẻ tưởng mình bấm sai.
+    expect(hitOf(out, FOE)!.damage).toBe(0)
+    expect(hitOf(out, FOE)!.spellId).toBeNull()
+    expect(out.challenger.hp).toBe(100)
+  })
+
+  it('CHÁY trừ máu ở đầu vòng sau, không cần ai trả lời đúng', () => {
+    const out = settleRound(
+      round({
+        opponent: side(FOE, { status: [{ kind: 'burn', turnsLeft: 3, perTurn: 7 }] }),
+        buzzes: [buzz(ME, false, 1), buzz(FOE, false, 2)],
+      }),
+    )
+    expect(out.opponent.hp).toBe(93)
+    expect(out.event.ticks?.[FOE]).toBe(7)
+    expect(out.opponent.status[0]!.turnsLeft).toBe(2)
+  })
+
+  it('HÚT trừ máu đối thủ và HỒI đúng bấy nhiêu cho mình', () => {
+    const out = settleRound(
+      round({
+        challenger: side(ME, { hp: 50 }),
+        opponent: side(FOE, { status: [{ kind: 'drain', turnsLeft: 3, perTurn: 9 }] }),
+        buzzes: [buzz(ME, false, 1), buzz(FOE, false, 2)],
+      }),
+    )
+    expect(out.opponent.hp).toBe(91)
+    expect(out.challenger.hp).toBe(59)
+  })
+
+  it('hồi máu không bao giờ vượt quá máu tối đa', () => {
+    const out = settleRound(
+      round({
+        challenger: side(ME, { hp: 98 }),
+        opponent: side(FOE, { status: [{ kind: 'drain', turnsLeft: 3, perTurn: 20 }] }),
+        buzzes: [buzz(ME, false, 1), buzz(FOE, false, 2)],
+      }),
+    )
+    expect(out.challenger.hp).toBe(100)
+  })
+
+  it('hiệu ứng hết hạn thì rời khỏi danh sách', () => {
+    const out = settleRound(
+      round({
+        opponent: side(FOE, { status: [{ kind: 'bind', turnsLeft: 1, perTurn: 0 }] }),
+        buzzes: [buzz(ME, false, 1), buzz(FOE, false, 2)],
+      }),
+    )
+    expect(out.opponent.status).toHaveLength(0)
+  })
+
+  it('vết cháy ăn nốt máu cuối thì hạ được đối thủ TRƯỚC khi bạn ấy kịp đánh', () => {
+    const out = settleRound(
+      round({
+        opponent: side(FOE, { hp: 4, status: [{ kind: 'burn', turnsLeft: 2, perTurn: 9 }] }),
+        buzzes: [buzz(ME, false, 1), buzz(FOE, true, 2)],
+      }),
+    )
+    expect(out.opponent.hp).toBe(0)
+    expect(out.finished).toBe(true)
+    expect(out.winnerId).toBe(ME)
   })
 })
 
 describe('trận kết thúc lúc nào', () => {
   it('còn vòng và cả hai còn máu thì chưa xong', () => {
-    const out = round([buzz(A, true)])
+    const out = settleRound(round({ buzzes: [buzz(ME, true, 1), buzz(FOE, true, 2)] }))
     expect(out.finished).toBe(false)
     expect(out.winnerId).toBeNull()
   })
 
   it('một bên hết máu là xong ngay, bên kia thắng', () => {
-    const out = round([buzz(A, true)], { opponentHp: 3 })
-    expect(out.opponentHp).toBe(0)
+    const out = settleRound(
+      round({ opponent: side(FOE, { hp: 1 }), buzzes: [buzz(ME, true, 1), buzz(FOE, false, 2)] }),
+    )
     expect(out.finished).toBe(true)
-    expect(out.winnerId).toBe(A)
-  })
-
-  it('máu không bao giờ tụt xuống dưới 0 - thanh máu không được phép âm', () => {
-    expect(round([buzz(A, true)], { opponentHp: 1 }).opponentHp).toBe(0)
+    expect(out.winnerId).toBe(ME)
   })
 
   it('hết vòng thì bên nhiều máu hơn thắng', () => {
-    const out = round([buzz(B, true)], {
-      round: 6,
-      totalRounds: 7,
-      challengerHp: 80,
-      opponentHp: 40,
-    })
+    const out = settleRound(
+      round({
+        round: 6,
+        opponent: side(FOE, { hp: 40 }),
+        buzzes: [buzz(ME, false, 1), buzz(FOE, false, 2)],
+      }),
+    )
     expect(out.finished).toBe(true)
-    expect(out.winnerId).toBe(A)
+    expect(out.winnerId).toBe(ME)
   })
 
   it('hết vòng mà bằng máu thì HOÀ, không tung đồng xu chọn bừa', () => {
-    const out = round([buzz(A, false), buzz(B, false)], {
-      round: 6,
-      totalRounds: 7,
-      challengerHp: 50,
-      opponentHp: 50,
-    })
+    const out = settleRound(
+      round({ round: 6, buzzes: [buzz(ME, false, 1), buzz(FOE, false, 2)] }),
+    )
     expect(out.finished).toBe(true)
     expect(out.winnerId).toBeNull()
   })

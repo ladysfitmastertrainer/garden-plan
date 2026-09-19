@@ -33,7 +33,7 @@ import {
   WALK_SCRIPT,
   tutorialNodes,
 } from '../../content/tutorial'
-import { buildTeam } from '../../content/pets'
+import { companionOf } from '../../content/pets'
 import { useCompactLayout } from '../../shell/useCompactLayout'
 import { markTutorialInvited } from '../../shell/tutorial-seen'
 import { useGame } from '../../store/game'
@@ -163,13 +163,14 @@ function WalkAct() {
     phút sau trong trận tập. Nhờ vậy cái tên trên nút phép không phải là một cái
     tên lạ - nó là bạn đồng hành vừa đi cùng con suốt quãng đường.
 
-    Nhớ theo GIÁ TRỊ chứ không theo đối tượng `Pet`: `buildTeam` dựng đội mới ở
+    Nhớ theo GIÁ TRỊ chứ không theo đối tượng `Pet`: `companionOf` dựng đội mới ở
     mỗi lần vẽ, và `petSpriteFor` tô lại màu ra một sprite mới - hai cái cộng
     lại là con thú vẽ lại canvas ở mọi lần vẽ. Cùng mẹo với `SubjectMap`.
   */
   const ownedPets = useGame((s) => s.progress.pets)
   const petXp = useGame((s) => s.progress.petXp)
-  const leader = buildTeam(ownedPets ?? [], TUTORIAL_SUBJECT, 3, petXp ?? {})[0]
+  const companion = useGame((s) => s.progress.companion)
+  const leader = companionOf(ownedPets, companion, TUTORIAL_SUBJECT, petXp ?? {})
   const follower = useMemo(
     () => (leader ? { sprite: petSpriteFor(leader.sprite, leader.element) } : null),
     [leader?.sprite, leader?.element],

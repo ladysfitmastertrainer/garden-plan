@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 import { findLootItem, levelFromTotalXp, statsForLevel, RARITY_LABEL } from '../../engine/rewards'
 import { useGame } from '../../store/game'
 import { useUi } from '../../store/ui'
+import { companionOf } from '../../content/pets'
 import { PetCollection } from './PetCollection'
 import { SpellLoadout } from './SpellLoadout'
 
@@ -22,11 +23,16 @@ export function InventoryScreen() {
   const go = useUi((s) => s.go)
   const student = useGame((s) => s.student)
   const progress = useGame((s) => s.progress)
+  const setCompanion = useGame((s) => s.setCompanion)
   const equip = useGame((s) => s.toggleEquip)
 
   if (!student) return null
 
   const { level } = levelFromTotalXp(student.totalXp)
+
+  // Dựng qua đúng hàm trận đấu dùng, để hai nơi không bao giờ lệch nhau. Môn
+  // truyền vào chỉ đổi kết quả khi trẻ chưa từng chọn con nào - xem SpellLoadout.
+  const companion = companionOf(progress.pets, progress.companion, 'math', progress.petXp ?? {})
 
   // Đếm theo số lượng: nhặt được hai cái mũ thì hiện hai dòng.
   const owned = progress.inventory
@@ -61,7 +67,19 @@ export function InventoryScreen() {
 
       <section className="pixel-panel grid gap-2">
         <h2 className="text-xl font-extrabold">Chỉ số hiện tại</h2>
-        <StatLine label="❤️ Máu tối đa" base={base.maxHp} now={withGear.maxHp} />
+        {/*
+          MÁU LÀ MÁU CỦA CON THÚ, không phải của nhân vật.
+
+          Dòng này từng đọc `statsForLevel(level).maxHp`, và con số ấy giờ không
+          còn nghĩa: ra trận là con thú chịu đòn, nên thanh máu trong trận đọc
+          từ `battle.pet`. Để nguyên thì kho đồ khai 98 trong khi trận đấu hiện
+          260/260 - hai màn hình của cùng một trò chơi nói hai con số khác nhau,
+          và trẻ sẽ tin vào con số sai.
+
+          Sức mạnh thì vẫn là của nhân vật: nó nhân vào sát thương mọi chiêu
+          (xem `state.player.power` trong `castSpell`).
+        */}
+        <StatLine label="❤️ Máu của thú đi theo" base={companion.maxHp} now={companion.maxHp} />
         <StatLine
           label="⚔️ Sức mạnh"
           base={Math.round(base.power * 100)}
@@ -117,7 +135,12 @@ export function InventoryScreen() {
         </div>
       </section>
 
-      <PetCollection ownedIds={progress.pets ?? []} petXp={progress.petXp ?? {}} />
+      <PetCollection
+        ownedIds={progress.pets ?? []}
+        petXp={progress.petXp ?? {}}
+        companionId={progress.companion}
+        onChoose={setCompanion}
+      />
 
       <SpellLoadout />
     </div>

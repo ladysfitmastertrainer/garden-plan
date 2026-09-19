@@ -28,13 +28,12 @@ import type {
 import { getTuning } from '../content/tuning'
 import { judge, type AnswerInput } from './judge'
 import {
+  ULTIMATE_COOLDOWN,
   elementMultiplier,
   matchupLabel,
-  nextAlive,
-  teamAlive,
-  teamHp,
   toBattlePet,
   type BattlePet,
+  type EffectKind,
   type Element,
   type Pet,
   type Spell,
@@ -179,11 +178,30 @@ export interface AnswerRecord {
   answeredAt: number
 }
 
+/**
+ * Một hiệu ứng đang bám trên con quái.
+ *
+ * `perTurn` được CHỐT THÀNH SỐ THẬT ngay lúc chiêu cuối chạm vào, chứ không giữ
+ * tỉ lệ phần trăm rồi tính lại mỗi lượt. Vết cháy là vết cháy của CÚ ĐÁNH ĐÃ
+ * TUNG RA: nó không mạnh lên vì lượt sau trẻ trả lời nhanh hơn, cũng không yếu
+ * đi vì trẻ vừa trả lời sai. Giữ tỉ lệ thì con số nhảy loạn giữa các lượt mà
+ * không ai giải thích được vì sao.
+ */
+export interface ActiveEffect {
+  kind: EffectKind
+  /** Còn sống mấy lượt nữa. Về 0 là gỡ khỏi danh sách. */
+  turnsLeft: number
+  /** Máu mất mỗi lượt. 0 với 'freeze' và 'bind' - chúng không gây sát thương. */
+  perTurn: number
+}
+
 /** Kết quả một lần tung phép, để giao diện vẽ số sát thương và nhãn khắc chế. */
 export interface SpellHit {
   spell: Spell
   damage: number
   matchup: 'strong' | 'weak' | 'neutral'
+  /** Chiêu cuối vừa gắn hiệu ứng gì lên quái. Giao diện lấy đây để diễn hoạt. */
+  effect: EffectKind | null
 }
 
 export interface BattleState {
@@ -209,12 +227,28 @@ export interface BattleState {
   /** Quái đã nổi giận chưa. Một chiều: nổi rồi thì không nguôi. */
   enraged: boolean
   player: PlayerStats
-  /** Máu CẢ ĐỘI thú, không phải máu riêng con nào. */
+  /**
+   * Máu con thú đang đánh. Giữ tên cũ vì mọi giao diện đang đọc nó, nhưng giờ
+   * nó là máu của MỘT con - hết máu là hết trận, không còn ai bước ra thay.
+   */
   playerHp: number
-  /** Đội thú của trẻ. */
-  team: BattlePet[]
-  /** Con thú đang đứng ra trận. */
-  activeIndex: number
+  /** Con thú ra trận. Một con, do trẻ chọn ở kho đồ. */
+  pet: BattlePet
+  /**
+   * Hiệu ứng chiêu cuối đang bám trên quái.
+   *
+   * Một MẢNG chứ không phải một ô: trẻ có thể trói quái rồi lượt sau đốt nó,
+   * và hai thứ ấy phải cùng sống. Một ô duy nhất thì hiệu ứng sau lặng lẽ xoá
+   * hiệu ứng trước, và trẻ thấy dây trói biến mất mà không hiểu vì sao.
+   */
+  enemyStatus: ActiveEffect[]
+  /**
+   * Chiêu cuối còn phải nghỉ mấy lượt. 0 là dùng được.
+   *
+   * Đếm theo MỌI lượt trôi qua, kể cả lượt trẻ trả lời sai - xem ghi chú ở
+   * `ULTIMATE_COOLDOWN`.
+   */
+  ultimateCooldown: number
   question: Question | null
   /** Epoch ms lúc câu hỏi hiện ra - dùng để tính thưởng tốc độ. */
   questionShownAt: number
@@ -266,8 +300,8 @@ export interface BattleState {
 export interface BattleConfig {
   enemy: Enemy
   player: PlayerStats
-  /** Đội thú ra trận. Rỗng thì trận không thể bắt đầu. */
-  team: Pet[]
+  /** Con thú ra trận. */
+  pet: Pet
   /** Hết số câu này mà quái chưa gục thì trận kết thúc hoà (tính là rút lui). */
   maxQuestions?: number
   /** Giới hạn thời gian mỗi câu. Bỏ trống là không đếm giờ. */
@@ -378,10 +412,25 @@ export function nextEnemyElement(state: BattleState): Element {
   return cycle[(at + 1) % cycle.length] ?? state.enemyElement
 }
 
-/** Sát thương một đòn của quái, đã tính cả cơn giận. */
+/** Quái đang dính hiệu ứng này không. */
+export function hasEffect(state: BattleState, kind: EffectKind): boolean {
+  return state.enemyStatus.some((e) => e.kind === kind && e.turnsLeft > 0)
+}
+
+/**
+ * TRÓI cắt đòn của quái còn một nửa.
+ *
+ * Một nửa chứ không phải về 0: một con quái bị trói mà đánh không đau chút nào
+ * thì lượt của nó biến mất, và trẻ chỉ còn ngồi bấm đáp án - đúng cái tẻ nhạt
+ * mà cơ chế hai lượt sinh ra để chữa. Nửa đòn thì vẫn đau, chỉ là đỡ được.
+ */
+export const BIND_ATTACK_SCALE = 0.5
+
+/** Sát thương một đòn của quái, đã tính cả cơn giận và dây trói. */
 export function enemyAttackOf(state: BattleState): number {
   const scale = state.enraged ? (state.enemy.enrageAttackScale ?? 1) : 1
-  return Math.max(1, Math.round(state.enemy.attack * scale))
+  const bound = hasEffect(state, 'bind') ? BIND_ATTACK_SCALE : 1
+  return Math.max(1, Math.round(state.enemy.attack * scale * bound))
 }
 
 /**
@@ -411,7 +460,7 @@ export function createBattle(
   firstQuestion: Question,
   now: number,
 ): BattleState {
-  const team = config.team.map(toBattlePet)
+  const pet = toBattlePet(config.pet)
   return {
     /*
       Mở màn ở 'ready', KHÔNG phải ở câu hỏi đầu tiên.
@@ -428,9 +477,10 @@ export function createBattle(
     enemyElement: config.enemy.element,
     enraged: false,
     player: config.player,
-    playerHp: teamHp(team).hp,
-    team,
-    activeIndex: 0,
+    playerHp: pet.hp,
+    pet,
+    enemyStatus: [],
+    ultimateCooldown: 0,
     question: firstQuestion,
     questionShownAt: now,
     hintUsed: false,
@@ -448,7 +498,10 @@ export function createBattle(
     maxQuestions: config.maxQuestions ?? DEFAULT_MAX_QUESTIONS,
     timeLimitMs: config.timeLimitMs ?? null,
     defendLimitMs: config.defendLimitMs ?? DEFAULT_DEFEND_MS,
-    log: [`${config.enemy.emoji} ${config.enemy.name} xuất hiện!`],
+    log: [
+      `${config.enemy.emoji} ${config.enemy.name} xuất hiện!`,
+      `✨ ${pet.pet.name} bước ra sân!`,
+    ],
   }
 }
 
@@ -550,9 +603,14 @@ export function timeUp(state: BattleState, now: number): BattleState {
   }
 }
 
-/** Con thú đang ra trận. */
+/**
+ * Con thú đang ra trận.
+ *
+ * Vẫn trả về được `null` dù giờ luôn có đúng một con, và đó là để giao diện
+ * không phải sửa: mọi chỗ gọi đã quen kiểm tra null rồi.
+ */
 export function activePet(state: BattleState): BattlePet | null {
-  return state.team[state.activeIndex] ?? null
+  return state.pet
 }
 
 /** Bấm gợi ý: trả lời đúng vẫn được tính, nhưng sát thương giảm. */
@@ -722,24 +780,72 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
 function applyEnemyAttack(
   state: BattleState,
   damage: number,
-): Pick<BattleState, 'team' | 'activeIndex' | 'playerHp' | 'lastDamage' | 'log'> {
-  const team = state.team.map((p, i) =>
-    i === state.activeIndex ? { ...p, hp: Math.max(0, p.hp - damage) } : p,
-  )
+): Pick<BattleState, 'pet' | 'playerHp' | 'lastDamage' | 'log'> {
+  const pet = { ...state.pet, hp: Math.max(0, state.pet.hp - damage) }
   const log = [...state.log, `💥 ${state.enemy.name} đánh trả ${damage} sát thương.`]
 
-  let activeIndex = state.activeIndex
-  const fainted = team[state.activeIndex]!.hp <= 0
-  if (fainted) {
-    log.push(`😵 ${team[state.activeIndex]!.pet.name} đã kiệt sức.`)
-    const next = nextAlive(team, state.activeIndex)
-    if (next >= 0) {
-      activeIndex = next
-      log.push(`🔄 ${team[next]!.pet.name} bước ra thay!`)
+  // Không còn "con sau bước ra thay" - đi một con thì con ấy gục là xong. Dòng
+  // báo nằm ở đây, còn việc chuyển sang pha rút lui là của `advance`.
+  if (pet.hp <= 0) log.push(`😵 ${pet.pet.name} đã kiệt sức.`)
+
+  return { pet, playerHp: pet.hp, lastDamage: { toEnemy: 0, toPlayer: damage }, log }
+}
+
+/**
+ * Hiệu ứng ăn một nhịp: cháy và hút trừ máu, mọi hiệu ứng rút ngắn một lượt.
+ *
+ * Gọi đúng MỘT LẦN mỗi vòng, ở cuối lượt ra đòn của con - nên con số sát thương
+ * do cháy bật ra ngay dưới con số sát thương trẻ vừa đánh, đọc liền một mạch.
+ *
+ * HÚT hồi máu cho con thú, và đây là hiệu ứng dễ thấy nhất trong bốn: thanh máu
+ * của chính mình dài ra. Không hồi quá máu tối đa - một thanh máu trồi lên trên
+ * vạch đầy là một thanh máu nói dối, đúng lý do đã viết ở `regenAfterMiss`.
+ */
+function tickEffects(
+  state: BattleState,
+): Pick<BattleState, 'enemyHp' | 'pet' | 'playerHp' | 'enemyStatus' | 'log'> {
+  if (state.enemyStatus.length === 0) {
+    return {
+      enemyHp: state.enemyHp,
+      pet: state.pet,
+      playerHp: state.playerHp,
+      enemyStatus: state.enemyStatus,
+      log: state.log,
     }
   }
 
-  return { team, activeIndex, playerHp: teamHp(team).hp, lastDamage: { toEnemy: 0, toPlayer: damage }, log }
+  const log = [...state.log]
+  let enemyHp = state.enemyHp
+  let healed = 0
+
+  for (const effect of state.enemyStatus) {
+    if (effect.turnsLeft <= 0 || effect.perTurn <= 0) continue
+    const bite = Math.min(enemyHp, effect.perTurn)
+    if (bite <= 0) continue
+    enemyHp -= bite
+    if (effect.kind === 'burn') log.push(`🔥 Vết cháy thiêu ${state.enemy.name} mất ${bite} máu.`)
+    else if (effect.kind === 'drain') {
+      healed += bite
+      log.push(`🌀 Hố đen hút ${bite} máu của ${state.enemy.name} về cho con.`)
+    }
+  }
+
+  const pet =
+    healed > 0 ? { ...state.pet, hp: Math.min(state.pet.pet.maxHp, state.pet.hp + healed) } : state.pet
+  const gained = pet.hp - state.pet.hp
+  if (gained > 0) log.push(`💚 ${pet.pet.name} hồi ${gained} máu.`)
+
+  const enemyStatus = state.enemyStatus
+    .map((e) => ({ ...e, turnsLeft: e.turnsLeft - 1 }))
+    .filter((e) => e.turnsLeft > 0)
+
+  for (const gone of state.enemyStatus) {
+    if (gone.turnsLeft - 1 > 0) continue
+    if (gone.kind === 'bind') log.push(`🪢 Dây trói đứt - ${state.enemy.name} cử động lại được.`)
+    else if (gone.kind === 'burn') log.push('🔥 Vết cháy đã tắt.')
+  }
+
+  return { enemyHp, pet, playerHp: pet.hp, enemyStatus, log }
 }
 
 /**
@@ -748,36 +854,24 @@ function applyEnemyAttack(
  * Nhận cả đối tượng `Spell` chứ không nhận id: engine phải sạch dữ liệu, bộ
  * phép nằm bên `content/pets.ts`.
  *
- * `casterIndex` cho phép gọi MỘT CON KHÁC trong đội ra tung phép. Đây không
- * phải tính năng phụ: thú chỉ biết phép cùng hệ của mình, nên nếu chỉ được dùng
- * con đang đứng thì gặp quái khắc hệ là cả ba lựa chọn đều "bị khắc" - trẻ có
- * ba nút bấm nhưng không có lựa chọn nào. Đổi con chính là nước đi đúng.
+ * CHIÊU CUỐI CÒN HỒI THÌ KHÔNG TUNG ĐƯỢC, và chặn ngay ở đây chứ không chỉ làm
+ * mờ cái nút. Bảng chọn chiêu là giao diện; luật chơi thì phải sống trong
+ * engine, nếu không thì một cú bấm hai lần thật nhanh cũng lách qua được.
  */
-export function castSpell(
-  state: BattleState,
-  spell: Spell,
-  now: number,
-  casterIndex?: number,
-): BattleState {
+export function castSpell(state: BattleState, spell: Spell, now: number): BattleState {
   if (state.phase !== 'spell' || state.pendingDamage === null) return state
+  if (spell.tier === 4 && state.ultimateCooldown > 0) return state
 
-  const swap =
-    casterIndex !== undefined &&
-    casterIndex !== state.activeIndex &&
-    state.team[casterIndex] !== undefined &&
-    state.team[casterIndex]!.hp > 0
-  const active = swap ? casterIndex! : state.activeIndex
-  const pet = state.team[active] ?? null
+  const pet = state.pet
   const multiplier = elementMultiplier(spell.element, state.enemyElement)
-  const raw = Math.round(state.pendingDamage * spell.power * multiplier * (pet?.pet.power ?? 1))
+  const raw = Math.round(state.pendingDamage * spell.power * multiplier * pet.pet.power)
   // Giáp trừ SAU khi đã nhân mọi hệ số, nên nó ăn gần trọn một đòn sai hệ mà chỉ
   // sứt một góc đòn khắc chế. Vẫn để lại 1 - không đòn nào của trẻ là vô ích.
   const damage = Math.max(1, raw - (state.enemy.armor ?? 0))
   const matchup = matchupLabel(spell.element, state.enemyElement)
 
   const log = [...state.log]
-  if (swap) log.push(`🔄 ${pet?.pet.name} bước ra tung phép!`)
-  log.push(`⚔️ ${pet?.pet.name ?? 'Thú'} ${spell.flavour} - ${damage} sát thương!`)
+  log.push(`⚔️ ${pet.pet.name} ${spell.flavour} - ${damage} sát thương!`)
   if (matchup === 'strong') log.push('🔥 Khắc chế! Sát thương tăng mạnh.')
   else if (matchup === 'weak') log.push('🪨 Bị khắc. Lần sau thử phép hệ khác xem sao.')
   if (matchup !== 'strong' && raw - damage > 0) {
@@ -786,6 +880,31 @@ export function castSpell(
   if (state.combo >= 3) log.push(`✨ Chuỗi ${state.combo} câu đúng liên tiếp!`)
 
   const enemyHp = Math.max(0, state.enemyHp - damage)
+
+  /*
+    ---- CHIÊU CUỐI GẮN HIỆU ỨNG LÊN QUÁI ----
+
+    Gắn kể cả khi cú đánh này vừa hạ gục nó. Nghe thừa, nhưng `advance` mới là
+    chỗ tuyên bố thắng, và bắt chỗ này đoán trước kết cục là mở ra hai đường
+    khác nhau cho cùng một chiêu - đường ít đi qua sẽ là đường sai.
+
+    Máu mất mỗi lượt chốt ngay tại đây từ cú đánh vừa rồi (xem `ActiveEffect`).
+    Sàn 1: một vết cháy 0 sát thương vẫn vẽ ngọn lửa trên đầu quái mà chẳng làm
+    gì - trẻ sẽ tưởng hiệu ứng hỏng.
+  */
+  const effect = spell.effect ?? null
+  const enemyStatus = effect
+    ? [
+        ...state.enemyStatus.filter((e) => e.kind !== effect.kind),
+        {
+          kind: effect.kind,
+          turnsLeft: effect.turns,
+          perTurn: effect.tickPercent ? Math.max(1, Math.round(damage * effect.tickPercent)) : 0,
+        },
+      ]
+    : state.enemyStatus
+
+  if (effect) log.push(EFFECT_LOG[effect.kind](state.enemy.name))
 
   // Nổi giận ngay tại đòn làm máu tụt qua ngưỡng, để dòng báo nằm sát dòng sát
   // thương vừa gây ra - đọc là hiểu ngay vì sao nó nổi giận.
@@ -801,7 +920,6 @@ export function castSpell(
     ...state,
     phase: 'feedback',
     blocked: false,
-    activeIndex: active,
     enemyHp,
     enraged,
     // Cơn giận rút đồng hồ đi một phần tư. Đây là chỗ DUY NHẤT `timeLimitMs` đổi
@@ -814,12 +932,25 @@ export function castSpell(
     // chỉ đúng một nửa: quái nổi giận mà cú đánh của nó vẫn cho trẻ đúng ngần
     // ấy giây để đỡ, tức là nửa đáng sợ nhất của cơn giận không xảy ra.
     defendLimitMs: justEnraged ? Math.round(state.defendLimitMs * 0.75) : state.defendLimitMs,
+    enemyStatus,
+    // Đặt hồi chiêu NGAY, chứ không đợi sang lượt sau. `advance` trừ đi một ở
+    // cuối lượt này, nên đặt đúng `ULTIMATE_COOLDOWN` ở đây thì trẻ nghỉ đủ
+    // bấy nhiêu lượt - đặt +1 để "bù" là tự tay kéo dài hồi chiêu thêm một lượt.
+    ultimateCooldown: spell.tier === 4 ? ULTIMATE_COOLDOWN : state.ultimateCooldown,
     lastDamage: { toEnemy: damage, toPlayer: 0 },
-    lastSpell: { spell, damage, matchup },
+    lastSpell: { spell, damage, matchup, effect: effect?.kind ?? null },
     pendingDamage: null,
     questionShownAt: now,
     log,
   }
+}
+
+/** Câu báo khi một hiệu ứng vừa bám vào. Trẻ phải đọc ra NÓ SẼ LÀM GÌ. */
+const EFFECT_LOG: Record<EffectKind, (name: string) => string> = {
+  burn: (name) => `🔥 ${name} bốc cháy! Nó sẽ mất máu thêm mấy lượt nữa.`,
+  freeze: (name) => `🧊 ${name} bị đóng băng! Nó mất lượt đánh tới.`,
+  bind: (name) => `🪢 ${name} bị trói! Đòn của nó yếu hẳn đi.`,
+  drain: (name) => `🌀 Hố đen mở ra! Máu của ${name} chảy ngược về phía con.`,
 }
 
 /**
@@ -828,94 +959,31 @@ export function castSpell(
  * Gọi với `nextQuestion = null` khi bộ chọn câu đã cạn - trận kết thúc như
  * trường hợp hết lượt.
  */
-export function advance(
+/**
+ * Con quái đã gục - dọn phần thưởng và đóng trận.
+ *
+ * Tách ra vì giờ có HAI đường dẫn tới chiến thắng: cú đánh của trẻ, và vết cháy
+ * ăn nốt điểm máu cuối ở đầu lượt sau. Hai đường mà chép hai lần thì sẽ có một
+ * đường quên cộng vàng.
+ */
+function toVictory(state: BattleState): BattleState {
+  return {
+    ...state,
+    phase: 'victory',
+    question: null,
+    goldEarned: state.goldEarned + state.enemy.goldReward,
+    xpEarned: state.xpEarned + state.enemy.xpReward,
+    log: [...state.log, `🏆 Con đã thắng ${state.enemy.name}!`],
+  }
+}
+
+/** Mở một vòng mới: câu hỏi của con, và quái đổi hệ nếu tới lúc. */
+function openRound(
   state: BattleState,
-  nextQuestion: Question | null,
+  nextQuestion: Question,
   now: number,
+  extraLog: string[],
 ): BattleState {
-  if (state.phase !== 'feedback') return state
-
-  if (state.enemyHp <= 0) {
-    return {
-      ...state,
-      phase: 'victory',
-      question: null,
-      goldEarned: state.goldEarned + state.enemy.goldReward,
-      xpEarned: state.xpEarned + state.enemy.xpReward,
-      log: [...state.log, `🏆 Con đã thắng ${state.enemy.name}!`],
-    }
-  }
-
-  if (teamAlive(state.team) === 0) {
-    return {
-      ...state,
-      phase: 'retreat',
-      question: null,
-      log: [
-        ...state.log,
-        '🏡 Cả đội thú về làng nghỉ ngơi. Toàn bộ vàng và kinh nghiệm vẫn được giữ.',
-      ],
-    }
-  }
-
-  const outOfQuestions = !nextQuestion || state.questionsAsked >= state.maxQuestions
-
-  /*
-    ---- VỪA XONG LƯỢT CỦA CON → TỚI LƯỢT QUÁI ----
-
-    Quái GỒNG LÊN trước, rồi mới ra đòn.
-
-    Câu hỏi đỡ đòn KHÔNG hiện ra ngay ở đây: pha 'warning' chen vào giữa, đủ
-    lâu để trẻ đọc được một dòng "quái sắp tấn công". Không có nhịp ấy thì đòn
-    của quái tới như một câu hỏi nữa - trẻ vừa bấm "Tiếp tục" xong đã thấy đề
-    bài mới, không kịp hiểu rằng thế trận vừa đổi chủ, và lượt của quái mất
-    hẳn cái sức nặng mà cả cơ chế hai lượt được dựng ra để có.
-
-    Đồng hồ chưa chạy ở pha này - nó bắt đầu ở `beginDefend`.
-
-    HẾT CÂU THÌ KẾT THÚC TRẬN, KHÔNG quay về pha chờ.
-
-    Bản đầu của nhánh này trả về 'ready' để "bỏ qua lượt của quái cho tử tế", và
-    nó TREO trận đấu: `questionsAsked` chỉ tăng ở nhánh dưới, nên một ngân hàng
-    câu hỏi cạn đưa trận vào vòng chờ → hỏi → phản hồi → chờ mãi mãi, không bao
-    giờ chạm tới điều kiện hết lượt. Test vòng lặp trận đấu bắt được đúng cái
-    đó: đánh mãi mà không bao giờ có màn tổng kết.
-
-    Rơi xuống nhánh dưới thì `outOfQuestions` nhận ra ngay và cho trẻ về làng
-    với toàn bộ phần thưởng - y như bản trước khi có hai lượt.
-  */
-  if (state.stance === 'attack' && nextQuestion) {
-    return {
-      ...state,
-      phase: 'warning',
-      stance: 'defend',
-      blocked: false,
-      question: nextQuestion,
-      questionShownAt: now,
-      hintUsed: false,
-      lastJudgement: null,
-      lastDamage: null,
-      lastSpell: null,
-      log: [...state.log, `⚔️ ${state.enemy.name} gồng lên! Nó sắp ra đòn.`],
-    }
-  }
-
-  /*
-    ---- VỪA XONG LƯỢT QUÁI → VỀ ĐẦU VÒNG, TỚI LƯỢT CON ----
-
-    `questionsAsked` chỉ đếm LƯỢT RA ĐÒN CỦA CON, không đếm lượt đỡ. Nhờ vậy
-    `maxQuestions` vẫn giữ đúng nghĩa cũ - số lần con được ra đòn trong một trận
-    - và mọi con số cân bằng (máu quái, sát thương) không phải tính lại.
-  */
-  if (outOfQuestions) {
-    return {
-      ...state,
-      phase: 'retreat',
-      question: null,
-      log: [...state.log, '🏡 Hết lượt rồi. Con mang theo toàn bộ phần thưởng về làng.'],
-    }
-  }
-
   // Đổi hệ TRƯỚC khi câu hỏi mới hiện ra, để trẻ thấy hệ mới cùng lúc với câu
   // hỏi mới chứ không phải sau khi đã trả lời xong và không sửa được nữa.
   const questionsAsked = state.questionsAsked + 1
@@ -937,9 +1005,137 @@ export function advance(
     questionsAsked,
     enemyElement,
     log: shifting
-      ? [...state.log, `🌀 ${state.enemy.name} đổi sang hệ ${ELEMENT_NAME[enemyElement]}!`]
-      : state.log,
+      ? [...state.log, ...extraLog, `🌀 ${state.enemy.name} đổi sang hệ ${ELEMENT_NAME[enemyElement]}!`]
+      : [...state.log, ...extraLog],
   }
+}
+
+export function advance(
+  state: BattleState,
+  nextQuestion: Question | null,
+  now: number,
+): BattleState {
+  if (state.phase !== 'feedback') return state
+
+  if (state.enemyHp <= 0) return toVictory(state)
+
+  if (state.pet.hp <= 0) {
+    return {
+      ...state,
+      phase: 'retreat',
+      question: null,
+      log: [
+        ...state.log,
+        `🏡 ${state.pet.pet.name} về làng nghỉ ngơi. Toàn bộ vàng và kinh nghiệm vẫn được giữ.`,
+      ],
+    }
+  }
+
+  const outOfQuestions = !nextQuestion || state.questionsAsked >= state.maxQuestions
+
+  /*
+    ---- VỪA XONG LƯỢT CỦA CON → TÍNH HIỆU ỨNG, RỒI TỚI LƯỢT QUÁI ----
+
+    Hiệu ứng ăn một nhịp Ở ĐÂY, ngay sau cú đánh vừa rồi: con số do vết cháy
+    gây ra nằm liền ngay dưới con số trẻ vừa đánh ra, nên đọc một mạch là hiểu
+    "cái này là do chiêu cuối lượt trước". Đẩy xuống đầu vòng sau thì nó tách
+    khỏi nguyên nhân, và thành một con số từ đâu rơi xuống.
+
+    Hồi chiêu cũng nhích ở đây, và chỉ ở đây - một lượt của con là một bước.
+  */
+  if (state.stance === 'attack') {
+    const ticked = tickEffects(state)
+    const after: BattleState = {
+      ...state,
+      ...ticked,
+      ultimateCooldown: Math.max(0, state.ultimateCooldown - 1),
+    }
+
+    // Vết cháy vừa ăn nốt điểm máu cuối. Trận xong, quái không được đánh nữa.
+    if (after.enemyHp <= 0) return toVictory(after)
+
+    /*
+      ĐÓNG BĂNG: quái mất nguyên lượt đánh.
+
+      Đọc cờ băng trên trạng thái CŨ, vì `tickEffects` vừa trừ một lượt của nó.
+      Đọc trên trạng thái mới thì một hiệu ứng đóng băng dài đúng một lượt đã
+      tan mất trước khi kịp chặn cái gì - và chiêu cuối của hệ Thanh Âm trở
+      thành một cú đánh mạnh không hơn.
+
+      Bỏ thẳng sang vòng sau, không đi qua pha gồng lên: quái đang đứng sững thì
+      không có gì để gồng.
+    */
+    if (hasEffect(state, 'freeze')) {
+      if (outOfQuestions) {
+        return {
+          ...after,
+          phase: 'retreat',
+          question: null,
+          log: [...after.log, '🏡 Hết lượt rồi. Con mang theo toàn bộ phần thưởng về làng.'],
+        }
+      }
+      return openRound(after, nextQuestion!, now, [
+        `🧊 ${state.enemy.name} còn cứng đờ trong băng - nó mất lượt đánh!`,
+      ])
+    }
+
+    /*
+      Quái GỒNG LÊN trước, rồi mới ra đòn.
+
+      Câu hỏi đỡ đòn KHÔNG hiện ra ngay ở đây: pha 'warning' chen vào giữa, đủ
+      lâu để trẻ đọc được một dòng "quái sắp tấn công". Không có nhịp ấy thì đòn
+      của quái tới như một câu hỏi nữa - trẻ vừa bấm "Tiếp tục" xong đã thấy đề
+      bài mới, không kịp hiểu rằng thế trận vừa đổi chủ, và lượt của quái mất
+      hẳn cái sức nặng mà cả cơ chế hai lượt được dựng ra để có.
+
+      Đồng hồ chưa chạy ở pha này - nó bắt đầu ở `beginDefend`.
+
+      HẾT CÂU THÌ KẾT THÚC TRẬN, KHÔNG quay về pha chờ. Bản đầu trả về 'ready'
+      để "bỏ qua lượt của quái cho tử tế", và nó TREO trận đấu: `questionsAsked`
+      chỉ tăng ở nhánh dưới, nên một ngân hàng câu hỏi cạn đưa trận vào vòng
+      chờ → hỏi → phản hồi → chờ mãi mãi.
+    */
+    if (nextQuestion) {
+      return {
+        ...after,
+        phase: 'warning',
+        stance: 'defend',
+        blocked: false,
+        question: nextQuestion,
+        questionShownAt: now,
+        hintUsed: false,
+        lastJudgement: null,
+        lastDamage: null,
+        lastSpell: null,
+        log: [...after.log, `⚔️ ${state.enemy.name} gồng lên! Nó sắp ra đòn.`],
+      }
+    }
+
+    return {
+      ...after,
+      phase: 'retreat',
+      question: null,
+      log: [...after.log, '🏡 Hết lượt rồi. Con mang theo toàn bộ phần thưởng về làng.'],
+    }
+  }
+
+  /*
+    ---- VỪA XONG LƯỢT QUÁI → VỀ ĐẦU VÒNG, TỚI LƯỢT CON ----
+
+    `questionsAsked` chỉ đếm LƯỢT RA ĐÒN CỦA CON, không đếm lượt đỡ. Nhờ vậy
+    `maxQuestions` vẫn giữ đúng nghĩa cũ - số lần con được ra đòn trong một trận
+    - và mọi con số cân bằng (máu quái, sát thương) không phải tính lại.
+  */
+  if (outOfQuestions) {
+    return {
+      ...state,
+      phase: 'retreat',
+      question: null,
+      log: [...state.log, '🏡 Hết lượt rồi. Con mang theo toàn bộ phần thưởng về làng.'],
+    }
+  }
+
+  return openRound(state, nextQuestion!, now, [])
 }
 
 export function isOver(state: BattleState): boolean {

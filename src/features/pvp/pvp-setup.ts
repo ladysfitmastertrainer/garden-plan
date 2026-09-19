@@ -5,7 +5,8 @@
  * người nhận lời chỉ khai chỉ số - và vì hai việc này không đụng gì tới React.
  */
 
-import { buildTeam } from '../../content/pets'
+import { companionOf } from '../../content/pets'
+import { equippedSpells } from '../../engine/loadout'
 import { contentSource } from '../../content/registry'
 import type { Grade, Question, Subject } from '../../content/types'
 import { levelFromTotalXp, statsForLevel, findLootItem } from '../../engine/rewards'
@@ -78,18 +79,23 @@ export function buildPvpQuestions(
 }
 
 /**
- * Máu và sức đánh mang vào trận, lấy từ đội thú đang có.
+ * Máu, sức đánh và BỘ CHIÊU mang vào đấu trường - đúng con thú đi theo trẻ.
  *
- * Đội thú CÓ được tính, nếu không thì cả việc thu phục và nuôi thú chẳng có
- * nghĩa gì ở đấu trường. Nhưng nó chỉ là một hệ số nhân - người quyết định vẫn
- * là người bấm đúng trước. Xem `pvpDamage` ở `server/pvp.ts`.
+ * Đấu trường giờ chạy y hệt trận đánh quái: hai con thú đánh lẫn nhau, trả lời
+ * đúng thì được chọn chiêu để tung. Nên những con số khai ở đây phải là con số
+ * của CÙNG con thú ấy, dựng bằng CÙNG những hàm ấy - lệch một chỗ là cùng một
+ * con thú đánh ở hai nơi ra hai kiểu.
+ *
+ * Bộ chiêu khai lên cả hai id, vì máy bên kia cần vẽ ra chiêu mà bạn mình vừa
+ * tung. Máy chủ vẫn kiểm lại từng id (xem `server/pvp.ts`): một chuỗi bất kỳ
+ * gửi lên từ trình duyệt đã sửa không được phép thành một cú đánh.
  */
 export function pvpStats(
   student: StudentProfile,
   progress: StudentProgress,
   subject: Subject,
 ): PvpSideStats {
-  const team = buildTeam(progress.pets ?? [], subject, 3, progress.petXp ?? {})
+  const pet = companionOf(progress.pets, progress.companion, subject, progress.petXp ?? {})
   const bonus = student.equippedItemIds.reduce(
     (acc, id) => {
       const item = findLootItem(id)
@@ -103,20 +109,14 @@ export function pvpStats(
 
   const level = levelFromTotalXp(student.totalXp).level
   const hero = statsForLevel(level, bonus)
-  const teamHp = team.reduce((sum, pet) => sum + pet.maxHp, 0)
-  const teamPower = team.reduce((sum, pet) => sum + pet.power, 0) / Math.max(1, team.length)
+  const spells = equippedSpells(pet, progress.petXp?.[pet.id] ?? 0, progress.petLoadout?.[pet.id])
 
   return {
-    // Máu cả đội cộng lại, y như trận đánh quái - thanh máu trong PVP phải đọc
-    // ra cùng một con số mà trẻ vẫn quen nhìn.
-    maxHp: Math.max(1, Math.round(teamHp)),
-    power: Math.round(hero.power * teamPower * 100) / 100,
-    /*
-      Con đứng đầu đội là con RA SÂN.
-
-      `buildTeam` xếp con cùng hệ với môn lên đầu, nên ở đảo Toán thì con thú
-      hệ Số Học của trẻ bước ra - đúng con đang khoẻ nhất trong trận này.
-    */
-    pet: team[0]?.id ?? null,
+    // Máu của đúng con thú ấy, y như trận đánh quái - thanh máu trong đấu
+    // trường phải đọc ra cùng một con số mà trẻ vẫn quen nhìn.
+    maxHp: Math.max(1, Math.round(pet.maxHp)),
+    power: Math.round(hero.power * pet.power * 100) / 100,
+    pet: pet.id,
+    spells: spells.map((spell) => spell.id),
   }
 }

@@ -6,10 +6,22 @@
  * chỗ trống mới là thứ kéo trẻ quay lại, chứ không phải chỗ đã có.
  *
  * Con chưa thu phục vẫn hiện hình nhưng tô xám, kèm gợi ý bắt được ở đâu.
+ *
+ * VÀ ĐÂY LÀ CHỖ CHỌN CON ĐI THEO. Ra trận chỉ một con, nên câu hỏi "con nào đi
+ * với mình" là quyết định lớn nhất trẻ đưa ra ngoài trận đấu - nó phải nằm ngay
+ * cạnh chỉ số và bộ chiêu của từng con, chứ không phải trong một màn hình riêng
+ * mà trẻ phải nhớ số để so.
  */
 
-import { PETS, SPELLS } from '../../content/pets'
-import { evolutionStage, nextEvolution, petLevel, resolvePet, xpToNextLevel } from '../../engine/pets'
+import { PETS, SPELLS, borrowedElement } from '../../content/pets'
+import {
+  evolutionStage,
+  nextEvolution,
+  petLevel,
+  resolvePet,
+  unlockedSpellCount,
+  xpToNextLevel,
+} from '../../engine/pets'
 import { SUBJECT_ELEMENT, SUBJECT_LABEL, SUBJECTS, type Subject } from '../../content/types'
 import { ALL_SPRITES, recolor } from '../pixel/creatures'
 import { PixelSprite } from '../pixel/sprite'
@@ -46,9 +58,14 @@ export function petSpriteFor(spriteId: string, element: Subject, owned = true) {
 export function PetCollection({
   ownedIds,
   petXp = {},
+  companionId,
+  onChoose,
 }: {
   ownedIds: string[]
   petXp?: Record<string, number>
+  /** Con đang đi theo trẻ. Không có thì chưa ai được chọn. */
+  companionId?: string
+  onChoose: (petId: string) => void
 }) {
   const owned = new Set(ownedIds)
 
@@ -64,7 +81,13 @@ export function PetCollection({
       <p className="text-base opacity-70">
         Thú thu phục được khi thắng quái hoang gặp trong cỏ cao. Mỗi môn học một hệ thú riêng.
         Đánh trận là thú lên cấp, và mỗi con tiến hoá <strong>ba lần</strong> - ở cấp 5, cấp 10
-        và cấp 20. Nấc cuối học thêm phép tối thượng của hệ mình.
+        và cấp 20.
+      </p>
+      <p className="text-base opacity-70">
+        Chọn <strong>một con đi theo</strong> - chỉ con đó ra trận, và chỉ con đó được chia kinh
+        nghiệm. Mỗi con có <strong>bốn chiêu riêng</strong>: hai chiêu có sẵn, chiêu thứ ba mở ở
+        lần tiến hoá đầu (mượn sức một môn khác để đánh được cả những con quái khắc hệ mình), và
+        chiêu cuối mở ở lần tiến hoá thứ hai.
       </p>
 
       {SUBJECTS.map((element) => {
@@ -84,13 +107,20 @@ export function PetCollection({
                 const stage = evolutionStage(pet, xp)
                 const upcoming = nextEvolution(pet, xp)
                 const next = xpToNextLevel(xp)
+                const mine = have && pet.id === companionId
+                const open = unlockedSpellCount(pet, xp)
                 return (
                   <div
                     key={pet.id}
                     className="card flex items-center gap-2"
                     style={{
                       padding: 10,
+                      // Con đang đi theo được viền dày hẳn: trong một lưới mười
+                      // hai ô, một khác biệt nhỏ thì trẻ phải dò từng ô mới
+                      // thấy con của mình đâu.
                       borderColor: have ? ELEMENT_COLOR[element] : undefined,
+                      borderWidth: mine ? 5 : undefined,
+                      background: mine ? '#fff3c4' : undefined,
                       opacity: have ? 1 : 0.65,
                     }}
                   >
@@ -125,9 +155,37 @@ export function PetCollection({
                         </div>
                       )}
 
+                      {/*
+                        Bốn chiêu bày cả ra, hai chiêu chưa mở để mờ và gạch
+                        ngang. Giấu chúng đi thì trẻ không biết có gì đang chờ
+                        mình ở nấc sau; bày ra thì lần tiến hoá kế tiếp có một
+                        khuôn mặt cụ thể để mà trông tới.
+                      */}
                       {have && (
+                        <p className="text-sm leading-tight">
+                          {pet.spellIds.map((id, at) => {
+                            const spell = SPELLS[id]
+                            if (!spell) return null
+                            const locked = at >= open
+                            return (
+                              <span
+                                key={id}
+                                style={{
+                                  opacity: locked ? 0.45 : 0.8,
+                                  textDecoration: locked ? 'line-through' : undefined,
+                                }}
+                              >
+                                {at > 0 && ', '}
+                                {spell.tier === 4 && '⚡'}
+                                {spell.name}
+                              </span>
+                            )
+                          })}
+                        </p>
+                      )}
+                      {have && open < 4 && (
                         <p className="text-sm leading-tight opacity-70">
-                          {shown.spellIds.map((id) => SPELLS[id]?.name).filter(Boolean).join(', ')}
+                          Tiến hoá để học {SUBJECT_ELEMENT[borrowedElement(pet)]} và chiêu cuối.
                         </p>
                       )}
                       {have && upcoming && (
@@ -139,6 +197,18 @@ export function PetCollection({
                         <p className="text-sm leading-tight" style={{ color: ELEMENT_COLOR[element] }}>
                           Đã tới hình thái cuối cùng.
                         </p>
+                      )}
+
+                      {have && (
+                        <button
+                          type="button"
+                          onClick={() => onChoose(pet.id)}
+                          disabled={mine}
+                          className={`btn mt-1 w-full text-sm ${mine ? 'btn-ghost' : 'btn-primary'}`}
+                          style={{ padding: '4px 8px' }}
+                        >
+                          {mine ? '✓ Đang đi theo con' : 'Cho đi theo'}
+                        </button>
                       )}
                     </div>
                   </div>

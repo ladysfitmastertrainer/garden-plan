@@ -1,26 +1,28 @@
 /**
- * Sắp bộ chiêu mang ra trận.
+ * Sắp hai chiêu mang ra trận, cho CON ĐANG ĐI THEO.
  *
- * Số ô nở theo cấp: 2 ô lúc mới vào, 3 ô ở cấp 5, 4 ô ở cấp 10. Ít ô không phải
- * để làm khó - hai lựa chọn là đủ để có một quyết định thật (đánh khắc hệ hay
- * đánh mạnh), còn chín cái nút thì trẻ lớp 1 bấm bừa cái gần nhất.
+ * Con thú có bốn chiêu, trẻ cầm được hai. Đó là cả quyết định: hai chiêu nhà
+ * cho chắc ăn, hay bỏ một chiêu nhà để cầm chiêu mượn hệ - thứ chỉ đáng giá khi
+ * gặp đúng con quái khắc mình - hay dồn một ô cho chiêu cuối, vốn mạnh gấp đôi
+ * nhưng phải nghỉ ba lượt sau mỗi lần tung.
  *
- * Danh sách phép BIẾT được thì lớn dần theo đường khác: thu phục thêm thú, và
- * thú tiến hoá ở cấp 5 học thêm phép mới.
+ * Màn hình này CHỈ nói về một con thú. Trước đây nó gom chiêu của cả bốn môn và
+ * mở dần theo cấp của trẻ, vì ra trận là cả một đội ba con. Giờ đi một con, nên
+ * gom chiêu của mười hai con lại rồi bắt trẻ tự lọc là bày ra một danh sách mà
+ * ba phần tư không dùng được.
+ *
+ * Đổi con đi theo ở ngay trên, trong bộ sưu tập thú - và khi đổi thì bảng này
+ * đổi theo, vì bộ chiêu lưu riêng cho từng con.
  */
 
-import { buildTeam } from '../../content/pets'
-import { SUBJECTS, SUBJECT_ELEMENT, SUBJECT_LABEL, type Subject } from '../../content/types'
-import {
-  MAX_SLOTS,
-  knownSpells,
-  nextSpellLevel,
-  nextSlotLevel,
-  resolveLoadout,
-  usableSlots,
-} from '../../engine/loadout'
-import { levelFromTotalXp } from '../../engine/rewards'
+import { SUBJECT_ELEMENT, type Subject } from '../../content/types'
+import { companionOf } from '../../content/pets'
+import { EQUIPPED_SLOTS, allSpellsOf, resolvePetLoadout, spellLockOf, unlockedSpells } from '../../engine/loadout'
+import { petLevel } from '../../engine/pets'
 import { useGame } from '../../store/game'
+import { EFFECT_UI } from '../battle/effects'
+import { petSpriteFor } from './PetCollection'
+import { PixelSprite } from '../pixel/sprite'
 
 const ELEMENT_COLOR: Record<Subject, string> = {
   math: '#f59e0b',
@@ -36,158 +38,117 @@ export function SpellLoadout() {
 
   if (!student) return null
 
-  const { level } = levelFromTotalXp(student.totalXp)
+  /*
+    Con thú dựng qua ĐÚNG hàm mà trận đấu dùng.
+
+    Kho đồ không biết sắp tới trẻ sẽ đánh vùng nào, nên truyền tạm môn của lớp
+    đang học. Điều đó chỉ đổi kết quả khi trẻ CHƯA từng chọn con nào - và lúc
+    ấy bảng này bày ra con mà `companionOf` sẽ phát, tức vẫn đúng con sẽ ra
+    trận ở vùng ấy.
+  */
+  const pet = companionOf(progress.pets, progress.companion, 'math', progress.petXp ?? {})
+  const xp = progress.petXp?.[pet.id] ?? 0
+  const all = allSpellsOf(pet)
+  const unlocked = unlockedSpells(pet, xp)
+  const picked = resolvePetLoadout(progress.petLoadout?.[pet.id], unlocked)
 
   /**
-   * Gom phép của CẢ BỐN MÔN.
+   * Bấm vào một chiêu là CHỌN nó, luôn luôn.
    *
-   * Đội ra trận được dựng theo môn đang đánh, nên chỉ nhìn một môn là danh sách
-   * thiếu hẳn ba phần tư. Trẻ sắp chiêu ở kho đồ, lúc đó chưa biết sắp tới sẽ
-   * đánh vùng nào.
-   */
-  const known = knownSpells(
-    SUBJECTS.flatMap((subject) => buildTeam(progress.pets ?? [], subject, 3, progress.petXp ?? {})),
-    level,
-  )
-
-  const slots = usableSlots(level, known.length)
-  const nextSlot = nextSlotLevel(level)
-  const nextSpell = nextSpellLevel(level)
-  const picked = resolveLoadout(progress.loadout, known, slots)
-
-  /**
-   * Bấm vào một chiêu là chọn nó, LUÔN LUÔN.
+   * Đủ hai ô rồi thì chiêu cũ nhất bị đẩy ra, chứ không phải báo "hết chỗ" rồi
+   * bắt trẻ đi bỏ chọn một cái. Trẻ bảy tuổi bấm vào thứ mình muốn và mong nó
+   * xảy ra; một thông báo từ chối ở đây là một bức tường.
    *
-   * Khi đã đủ ô thì chiêu mới đẩy chiêu CŨ NHẤT ra chứ không khoá nút lại. Với
-   * trẻ 6-10 tuổi, một nút bấm không ăn thua là một nút hỏng - trẻ bấm lại vài
-   * lần rồi bỏ đi, chứ không suy ra rằng mình phải gỡ bớt một cái ở chỗ khác.
+   * Bấm vào chiêu đang cầm thì bỏ nó ra - nhưng không bao giờ xuống dưới một
+   * chiêu, vì một ô trống nghĩa là vào trận có lúc không còn nút nào để bấm.
    */
-  const toggle = (id: string) => {
-    if (picked.includes(id)) {
-      // Trừ đúng một chỗ: gỡ cái cuối cùng là ra trận không có nút nào để bấm.
-      if (picked.length <= 1) return
-      setLoadout(picked.filter((item) => item !== id))
-      return
-    }
-    const room = picked.length >= slots ? picked.slice(1) : picked
-    setLoadout([...room, id])
+  const toggle = (spellId: string) => {
+    const has = picked.includes(spellId)
+    const next = has
+      ? picked.length > 1
+        ? picked.filter((id) => id !== spellId)
+        : picked
+      : [...picked, spellId].slice(-EQUIPPED_SLOTS)
+    setLoadout(pet.id, next)
   }
 
   return (
-    <section className="card grid gap-3">
-      <div>
-        <h2 className="text-xl font-extrabold">✨ Bộ chiêu</h2>
-        {/* Hai câu, hai chuyện khác nhau: HỌC thêm chiêu, và MANG thêm chiêu.
-            Gộp làm một là trẻ tưởng lên cấp thì tự dưng đánh mạnh hơn. */}
+    <section className="grid gap-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-xl font-extrabold">✨ Chiêu mang ra trận</h2>
         <p className="text-base opacity-70">
-          Con đã học {known.length} chiêu.{' '}
-          {nextSpell === null
-            ? 'Con đã học hết bảng chiêu rồi!'
-            : `Lên cấp ${nextSpell} con học thêm một chiêu nữa.`}
-        </p>
-        <p className="text-base opacity-70">
-          Mỗi trận mang được {slots} chiêu.{' '}
-          {nextSlot === null
-            ? `Đã mở hết ${MAX_SLOTS} ô.`
-            : `Lên cấp ${nextSlot} sẽ mở thêm một ô.`}
+          {picked.length}/{EQUIPPED_SLOTS} ô
         </p>
       </div>
 
-      {/* Các ô đã sắp, đọc từ trái sang - đúng thứ tự sẽ hiện trong trận. */}
-      <div className="flex flex-wrap gap-2">
-        {Array.from({ length: slots }, (_, index) => {
-          const id = picked[index]
-          const spell = known.find((item) => item.id === id)
+      <div className="card flex items-center gap-2" style={{ padding: 10 }}>
+        <PixelSprite sprite={petSpriteFor(pet.sprite, pet.element)} scale={2} />
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-bold leading-tight">{pet.name}</p>
+          <p className="text-sm opacity-70">
+            Cấp {petLevel(xp)} · đã mở {unlocked.length}/{all.length} chiêu
+          </p>
+        </div>
+      </div>
+
+      <p className="text-base opacity-70">
+        Bấm để chọn. Đủ hai chiêu rồi mà bấm thêm thì chiêu cũ nhất được thay ra.
+      </p>
+
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+        {all.map((spell) => {
+          const lock = spellLockOf(pet, xp, spell.id)
+          const on = picked.includes(spell.id)
+          const ui = spell.effect ? EFFECT_UI[spell.effect.kind] : null
+          const borrowed = spell.element !== pet.element
+
           return (
-            <div
-              key={index}
-              className="flex flex-1 items-center justify-center px-3 py-2 text-center"
+            <button
+              key={spell.id}
+              type="button"
+              onClick={() => toggle(spell.id)}
+              disabled={lock.locked}
+              className="card text-left"
               style={{
-                minWidth: 130,
-                minHeight: 56,
-                borderRadius: 10,
-                border: `4px dashed ${spell ? ELEMENT_COLOR[spell.element] : 'color-mix(in srgb, var(--color-ink) 20%, transparent)'}`,
-                background: spell ? 'var(--color-paper)' : 'var(--color-paper-sunk)',
+                padding: 10,
+                borderColor: lock.locked ? undefined : ELEMENT_COLOR[spell.element],
+                borderWidth: on ? 5 : undefined,
+                background: lock.locked ? '#eef1f5' : on ? '#fff3c4' : undefined,
+                opacity: lock.locked ? 0.6 : 1,
               }}
             >
-              {spell ? (
-                <span>
-                  <span className="block text-base font-extrabold leading-tight">{spell.name}</span>
-                  <span
-                    className="pixel-font block text-sm leading-tight"
-                    style={{ color: ELEMENT_COLOR[spell.element] }}
-                  >
-                    {SUBJECT_ELEMENT[spell.element]}
-                  </span>
-                </span>
-              ) : (
-                <span className="text-base opacity-50">ô trống</span>
+              <p className="text-base font-bold leading-tight">
+                {spell.tier === 4 && '⚡ '}
+                {spell.name}
+                {on && ' ✓'}
+              </p>
+              <p
+                className="text-sm leading-tight"
+                style={{ color: lock.locked ? undefined : ELEMENT_COLOR[spell.element] }}
+              >
+                {SUBJECT_ELEMENT[spell.element]} · {Math.round(spell.power * 100)}% sát thương
+              </p>
+
+              {/* Chiêu mượn hệ phải NÓI RÕ nó để làm gì, nếu không thì nhìn nó
+                  chỉ là một chiêu lạc hệ và trẻ sẽ không bao giờ cầm. */}
+              {borrowed && !lock.locked && (
+                <p className="text-sm leading-tight opacity-70">
+                  Mượn hệ khác - đánh được cả quái khắc {SUBJECT_ELEMENT[pet.element]}
+                </p>
               )}
-            </div>
+              {ui && !lock.locked && (
+                <p className="text-sm leading-tight" style={{ color: ui.color }}>
+                  {ui.icon} {ui.hint} · nghỉ 3 lượt
+                </p>
+              )}
+              {lock.locked && (
+                <p className="text-sm leading-tight opacity-80">
+                  🔒 {lock.atLevel ? `Tiến hoá ở cấp ${lock.atLevel} mới học được` : 'Chưa mở'}
+                </p>
+              )}
+            </button>
           )
         })}
-      </div>
-
-      <div className="grid gap-2">
-        <h3 className="text-lg font-extrabold">Chiêu đã học ({known.length})</h3>
-
-        {known.length === 0 && (
-          <p className="text-base opacity-70">
-            Chưa có thú nào trong đội. Thu phục thú ở màn đi cảnh để học chiêu nhé!
-          </p>
-        )}
-
-        {known.length <= slots && known.length > 0 && (
-          <p className="text-base opacity-70">
-            Con mang được cả {known.length} chiêu ra trận, chưa cần bỏ chiêu nào.
-          </p>
-        )}
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          {known.map((spell) => {
-            const inUse = picked.includes(spell.id)
-            // Chỉ khoá đúng một trường hợp: chiêu duy nhất còn lại trong bộ.
-            const locked = inUse && picked.length <= 1
-            return (
-              <button
-                key={spell.id}
-                type="button"
-                onClick={() => toggle(spell.id)}
-                disabled={locked}
-                aria-pressed={inUse}
-                className="flex items-center gap-3 px-3 py-2 text-left"
-                style={{
-                  borderRadius: 10,
-                  border: `4px solid ${inUse ? ELEMENT_COLOR[spell.element] : 'color-mix(in srgb, var(--color-ink) 12%, transparent)'}`,
-                  background: inUse ? 'var(--color-brand-soft)' : 'var(--color-paper)',
-                  minHeight: 60,
-                }}
-              >
-                <span className="flex-1">
-                  <span className="block text-base font-extrabold leading-tight">{spell.name}</span>
-                  <span className="block text-sm leading-snug opacity-70">{spell.flavour}</span>
-                </span>
-                <span className="shrink-0 text-right">
-                  <span
-                    className="pixel-font block text-sm"
-                    style={{ color: ELEMENT_COLOR[spell.element] }}
-                  >
-                    {SUBJECT_LABEL[spell.element]}
-                  </span>
-                  <span className="pixel-font block text-base">
-                    {Math.round(spell.power * 100)}%
-                  </span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
-
-        {picked.length >= slots && known.length > slots && (
-          <p className="text-base opacity-70">
-            Đã đủ {slots} ô. Chọn chiêu khác thì chiêu cũ nhất sẽ nhường chỗ.
-          </p>
-        )}
       </div>
     </section>
   )

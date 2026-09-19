@@ -10,8 +10,9 @@
  * của việc "trận PVP nhìn giống trận đánh quái" là để trẻ KHÔNG phải học lại.
  */
 
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import type { Subject } from '../../content/types'
+import type { EffectKind } from '../../engine/pets'
 import { PixelSprite } from '../pixel/sprite'
 import { heroSprite } from '../pixel/heroes'
 
@@ -73,6 +74,7 @@ export function Combatant({
   scale = 7,
   enterFrom,
   idleDelay,
+  overlay,
 }: {
   sprite: Parameters<typeof PixelSprite>[0]['sprite']
   scene: { platform: string; platformEdge: string }
@@ -89,6 +91,15 @@ export function Combatant({
   enterFrom: number
   /** Lệch pha nhịp nhún, để hai bên không nhún cùng lúc như hai con rối. */
   idleDelay: string
+  /**
+   * Lớp vẽ đè lên sprite - dấu hiệu ứng đang bám (xem `StatusAura`).
+   *
+   * Nhận vào đây chứ không để chỗ gọi tự đặt một khối tuyệt đối bên ngoài: bên
+   * ngoài thì phải tự tính lại bội số phóng và toạ độ, mà hai con số ấy đã sống
+   * sẵn trong này rồi. Và quan trọng hơn - đặt trong này thì dấu RUNG THEO
+   * sprite lúc trúng đòn, chứ không đứng yên trong khi con quái giật nảy lên.
+   */
+  overlay?: React.ReactNode
 }) {
   const spriteWidth = 16 * scale
 
@@ -127,6 +138,7 @@ export function Combatant({
       }
     >
       <div className="relative" style={{ width: spriteWidth }}>
+        {overlay}
         {/* Bệ elip nằm dưới chân, vẽ trước nên luôn ở phía sau nhân vật. */}
         <div
           className="absolute left-1/2 -translate-x-1/2"
@@ -302,5 +314,177 @@ export function Trainer({
     >
       <PixelSprite sprite={heroSprite(avatar, name)} scale={scale} />
     </motion.div>
+  )
+}
+
+/* ===========================================================================
+   HOẠT HOẠ HIỆU ỨNG CHIÊU CUỐI
+
+   Một hiệu ứng mà trẻ không NHÌN THẤY thì bằng không có. "Quái mất máu mỗi
+   lượt" nếu chỉ là một dòng chữ trong khung diễn biến thì đứa bé sáu tuổi đang
+   dán mắt vào sân đấu sẽ không bao giờ đọc, và chiêu cuối - thứ đắt nhất của cả
+   bản này - hoá ra chỉ là một cú đánh mạnh.
+
+   Nên mỗi hiệu ứng được kể HAI LẦN, bằng hai thứ khác nhau:
+
+     CÚ NỔ   - một lần, to, giữa sân, ngay lúc chiêu chạm vào. Có tên hiệu ứng
+               viết thẳng ra bằng chữ. Đây là lúc trẻ HỌC nó là cái gì.
+     DẤU BÁM - nhỏ, lặng, bám trên mình con quái suốt mấy lượt sau. Đây là lúc
+               trẻ NHỚ rằng nó vẫn đang có tác dụng.
+
+   Thiếu cú nổ thì dấu bám là một hình lạ không ai biết từ đâu ra. Thiếu dấu bám
+   thì cú nổ chớp qua rồi thôi, và lượt sau quái mất máu mà không rõ vì sao.
+   =========================================================================== */
+
+/**
+ * Dấu hiệu ứng BÁM trên mình con quái, vẽ đè lên sprite.
+ *
+ * Vẽ bằng khối màu phẳng chứ không dùng emoji: cả sân đấu là pixel art, một
+ * emoji bóng loáng của hệ điều hành dán lên đó là thứ duy nhất trên màn hình
+ * trông như đến từ một trò chơi khác.
+ *
+ * Nằm đè lên đúng ô của sprite (`inset: 0`) nên nó co giãn theo bội số phóng mà
+ * không phải tính lại gì - khung trận to nhỏ thế nào thì dấu cũng vừa bấy nhiêu.
+ */
+export function StatusAura({
+  kinds,
+  reduceMotion,
+}: {
+  kinds: EffectKind[]
+  reduceMotion: boolean
+}) {
+  if (kinds.length === 0) return null
+
+  return (
+    <div className="pointer-events-none absolute inset-0" style={{ zIndex: 3 }} aria-hidden="true">
+      {/* CHÁY: lưỡi lửa liếm lên từ chân, so le nhau cho ra nhịp bập bùng. */}
+      {kinds.includes('burn') &&
+        [12, 38, 64, 84].map((left, i) => (
+          <motion.div
+            key={`burn-${left}`}
+            className="absolute"
+            style={{
+              left: `${left}%`,
+              bottom: '6%',
+              width: 6,
+              height: 14,
+              background: i % 2 === 0 ? '#ff9d3c' : '#e2584d',
+              borderRadius: '3px 3px 0 0',
+            }}
+            animate={reduceMotion ? {} : { scaleY: [1, 1.7, 0.8, 1.4, 1], opacity: [0.95, 1, 0.8, 1] }}
+            transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.12, ease: 'linear' }}
+          />
+        ))}
+
+      {/* ĐÓNG BĂNG: khối băng phủ kín, hơi trong để còn thấy con quái bên dưới -
+          phủ đục thì quái biến mất và trẻ tưởng nó chạy rồi. */}
+      {kinds.includes('freeze') && (
+        <motion.div
+          className="absolute inset-0"
+          style={{ background: 'rgb(140 215 245 / 0.5)', border: '3px solid #cdeaf7', borderRadius: 4 }}
+          animate={reduceMotion ? {} : { opacity: [0.75, 1, 0.75] }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+        />
+      )}
+
+      {/* TRÓI: ba vòng dây vắt ngang. Nghiêng nhẹ cho ra dáng quấn quanh thân,
+          chứ ba vạch thẳng băng thì trông như song sắt. */}
+      {kinds.includes('bind') &&
+        [26, 48, 70].map((top, i) => (
+          <motion.div
+            key={`bind-${top}`}
+            className="absolute"
+            style={{
+              left: '-6%',
+              top: `${top}%`,
+              width: '112%',
+              height: 6,
+              background: '#8a5a2b',
+              border: '2px solid #5d3a18',
+              transform: `rotate(${i % 2 === 0 ? -6 : 5}deg)`,
+            }}
+            animate={reduceMotion ? {} : { x: [0, 2, -2, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, delay: i * 0.2, ease: 'linear' }}
+          />
+        ))}
+
+      {/* HÚT: những chấm máu bay NGANG, về phía bên mình. Hướng bay chính là
+          chỗ nói ra "máu đang chảy về phía con" - bay lung tung thì nó chỉ là
+          một đám bụi tím. */}
+      {kinds.includes('drain') &&
+        [20, 46, 72].map((top, i) => (
+          <motion.div
+            key={`drain-${top}`}
+            className="absolute"
+            style={{ top: `${top}%`, left: '10%', width: 7, height: 7, background: '#a78bfa', borderRadius: 2 }}
+            animate={reduceMotion ? {} : { x: [0, -46], opacity: [0, 1, 0] }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.3, ease: 'linear' }}
+          />
+        ))}
+    </div>
+  )
+}
+
+/**
+ * CÚ NỔ khi chiêu cuối chạm vào: tên hiệu ứng viết thẳng ra giữa sân.
+ *
+ * Viết BẰNG CHỮ, không chỉ bằng hình. Một khối băng hiện ra rồi tan đi thì trẻ
+ * thấy đẹp nhưng không đọc ra luật; chữ "ĐÓNG BĂNG" nảy lên giữa sân đúng lúc
+ * ấy thì lần sau nhìn cái dấu băng nhỏ trên mình quái là nhớ ra ngay.
+ *
+ * `turnKey` để `AnimatePresence` biết đây là một cú nổ MỚI: thiếu nó thì hai
+ * lần tung cùng một chiêu cách nhau ba lượt chỉ diễn hoạt đúng lần đầu.
+ */
+export function EffectBurst({
+  kind,
+  label,
+  icon,
+  color,
+  turnKey,
+  reduceMotion,
+}: {
+  kind: EffectKind | null
+  label: string
+  icon: string
+  color: string
+  turnKey: number
+  reduceMotion: boolean
+}) {
+  return (
+    <AnimatePresence>
+      {kind && (
+        <motion.div
+          key={`${turnKey}-${kind}`}
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          style={{ zIndex: 6 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          aria-hidden="true"
+        >
+          <motion.div
+            className="flex flex-col items-center"
+            initial={reduceMotion ? false : { scale: 0.3, y: 14 }}
+            animate={{ scale: [0.3, 1.25, 1], y: 0 }}
+            exit={{ scale: 1.4, opacity: 0 }}
+            transition={{ duration: 0.55, delay: 0.3 }}
+          >
+            <span style={{ fontSize: 46, lineHeight: 1 }}>{icon}</span>
+            <span
+              className="pixel-font"
+              style={{
+                fontSize: 26,
+                lineHeight: 1,
+                color,
+                textShadow:
+                  '2px 0 0 #1b2432, -2px 0 0 #1b2432, 0 2px 0 #1b2432, 0 -2px 0 #1b2432',
+              }}
+            >
+              {label.toUpperCase()}!
+            </span>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

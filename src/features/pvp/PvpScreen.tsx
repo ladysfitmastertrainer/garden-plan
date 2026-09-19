@@ -23,6 +23,7 @@ import {
   pvpTimeLimitMs,
   sidesOf,
   type PvpEvent,
+  type PvpHit,
   type PvpMatch,
   type PvpSide,
 } from '../../data/pvp-types'
@@ -31,7 +32,10 @@ import { usePvp } from '../../store/pvp'
 import { useGame } from '../../store/game'
 import { QuestionView } from '../question/QuestionView'
 import { PvpArena } from './PvpArena'
+import { PvpSpellPicker } from './PvpSpellPicker'
 import { getPet } from '../../content/pets'
+import { SPELLS } from '../../content/pets'
+import { equippedSpells } from '../../engine/loadout'
 import { petSpriteFor } from '../inventory/PetCollection'
 import { PixelSprite } from '../pixel/sprite'
 import { playEffect } from '../../audio/synth'
@@ -77,6 +81,39 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
   useEffect(() => setSubmitted(null), [match.round])
 
   /*
+    ---- TRẢ LỜI ĐÚNG RỒI, GIỜ CHỌN CHIÊU ----
+
+    Đấu trường chạy y hệt trận đánh quái: đúng thì được tung chiêu, và chiêu nào
+    là quyết định của trẻ. Nên giữa "bấm đáp án" và "gửi lên máy chủ" giờ có một
+    nhịp nữa, và `pending` là nhịp ấy.
+
+    Lượt bấm CHỈ gửi đi khi đã chọn xong chiêu, vì máy chủ cần biết tung chiêu gì
+    mới tính được sát thương. Trả lời sai thì gửi ngay - sai thì không có chiêu
+    nào để chọn.
+
+    ĐỒNG HỒ VẪN CHẠY trong lúc chọn: máy chủ đo từ lúc vòng bắt đầu tới lúc lượt
+    bấm tới nơi, nên nghĩ lâu ở bước này cũng mất thưởng tốc độ y như nghĩ lâu ở
+    bước đọc đề. Điều đó công bằng cho cả hai bên và không cần giải thích thêm.
+  */
+  const [pending, setPending] = useState(false)
+  useEffect(() => setPending(false), [match.round])
+
+  // Hai chiêu con thú của mình đang mang. Lấy từ hồ sơ chứ không từ trận: trận
+  // chỉ giữ id, mà bảng chọn cần cả tên, hệ và hiệu ứng.
+  const progress = useGame((s) => s.progress)
+  const myPet = sides.me.pet ? getPet(sides.me.pet) : null
+  const foePet = sides.foe.pet ? getPet(sides.foe.pet) : null
+  const mySpells = useMemo(() => {
+    const declared = (sides.me.spells ?? []).map((id) => SPELLS[id]).filter(Boolean)
+    if (declared.length > 0) return declared as NonNullable<(typeof declared)[number]>[]
+    // Trận tạo từ trước migration 0012 không khai chiêu nào. Rơi về hai chiêu
+    // nền của con thú thì sân đấu vẫn đánh được, thay vì đứng hình.
+    return myPet
+      ? equippedSpells(myPet, progress.petXp?.[myPet.id] ?? 0, progress.petLoadout?.[myPet.id])
+      : []
+  }, [sides.me.spells, myPet, progress.petXp, progress.petLoadout])
+
+  /*
     Chớp kết quả của vòng vừa xong.
 
     Không có nó thì màn hình nhảy thẳng sang câu tiếp theo, và trẻ không bao giờ
@@ -89,22 +126,41 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
   useEffect(() => {
     if (!lastEvent) return
     setFlash(lastEvent)
-    playEffect(lastEvent.attackerId === studentId ? 'correct' : 'wrong')
+    playEffect(hitsOf(lastEvent).some((h) => h.studentId === studentId && h.damage > 0) ? 'correct' : 'wrong')
     const timer = window.setTimeout(() => setFlash(null), 1_400)
     return () => window.clearTimeout(timer)
   }, [match.events.length, lastEvent, studentId])
 
-  const send = (correct: boolean) => {
-    if (!answered) void buzz(studentId, correct)
+  const send = (correct: boolean, spellId: string | null) => {
+    setPending(false)
+    if (!answered) void buzz(studentId, correct, spellId)
   }
 
   const onAnswer = (input: AnswerInput) => {
-    if (!question || answered) return
+    if (!question || answered || pending) return
     setSubmitted(input)
     // Chấm NGAY trên máy này rồi chỉ gửi lên đúng/sai. Gửi cả đáp án để máy chủ
-    // chấm thì mỗi lượt bấm phải chờ thêm một vòng mạng trước khi thứ tự được
-    // chốt - mà thứ tự chính là thứ đang tranh nhau.
-    send(judge(question, input).correct)
+    // chấm thì mỗi lượt bấm phải chờ thêm một vòng mạng trước khi kết quả được
+    // chốt - mà tốc độ chính là thứ đang tranh nhau.
+    const correct = judge(question, input).correct
+    if (!correct || mySpells.length === 0) {
+      send(false, null)
+      return
+    }
+    setPending(true)
+  }
+
+  /*
+    Hết giờ mà chưa chọn xong chiêu: TỰ TUNG chiêu đầu tiên.
+
+    Trả lời đúng rồi mà mất trắng lượt đánh vì mải chọn là một hình phạt không ai
+    hiểu nổi - nhất là khi bạn kia đang ngồi đợi mình. Tự tung một chiêu tử tế
+    thì tệ nhất cũng chỉ là đánh không đúng hệ.
+  */
+  const onExpire = () => {
+    if (answered) return
+    if (pending) send(true, mySpells[0]?.id ?? null)
+    else send(false, null)
   }
 
   return (
@@ -121,6 +177,27 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
             flash={flash}
             studentId={studentId}
           />
+
+          {/* Trả lời đúng rồi: chọn chiêu. Đè lên sân đấu, cùng chỗ với hai
+              lớp phủ dưới đây - cả ba đều là "chuyện đang xảy ra trên sân". */}
+          <AnimatePresence>
+            {pending && (
+              <motion.div
+                className="absolute inset-0 flex items-center justify-center p-2"
+                style={{ background: 'rgb(12 16 24 / 0.45)', zIndex: 7 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <PvpSpellPicker
+                  spells={mySpells}
+                  foeElement={foePet?.element ?? null}
+                  cooldown={sides.me.cooldown ?? 0}
+                  onCast={(spellId) => send(true, spellId)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Đã bấm xong nhưng bạn kia chưa. Đè lên SÂN ĐẤU chứ không đè lên
               khung hỏi: khung hỏi ở dưới đã khoá hết đáp án rồi, còn chỗ trẻ
@@ -182,14 +259,17 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
         khung hỏi nổi giữa màn hình che kín sân đấu SUỐT CẢ TRẬN - đo trên máy
         844×390 thì hai nhân vật không hề nhìn thấy được lần nào.
 
-        Mốc tương đương ở đây là `answered`: từ lúc trẻ bấm xong, đáp án đã khoá
+        Mốc tương đương ở đây là `answered` VÀ `pending`: từ lúc trẻ bấm xong,
+        đáp án đã khoá
         hết, và thứ duy nhất còn đáng nhìn là hai con thú đang đánh nhau - lúc
         chờ bạn kia lẫn lúc xem ai nhanh hơn đều đã có lớp phủ riêng trên sân
         đấu. Sang câu mới thì `answered` về false và khung hỏi hiện lại.
 
         Chỉ khi nằm ngang; màn hình dọc thì tên lớp này không có luật nào.
       */}
-      <div className={`pixel-panel battle-ask relative${answered ? ' battle-ask-hidden' : ''}`}>
+      <div
+        className={`pixel-panel battle-ask relative${answered || pending ? ' battle-ask-hidden' : ''}`}
+      >
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="pixel-font text-lg uppercase" style={{ color: accent }}>
             ⚔️ {SUBJECT_LABEL[match.subject]} lớp {match.grade}
@@ -203,7 +283,7 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
           startedAt={match.roundStartedAt}
           limitMs={pvpTimeLimitMs(match.grade)}
           running={!answered}
-          onExpire={() => send(false)}
+          onExpire={onExpire}
           color={accent}
         />
 
@@ -215,7 +295,7 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
             <QuestionView
               question={question}
               onAnswer={onAnswer}
-              disabled={answered}
+              disabled={answered || pending}
               submitted={submitted}
             />
           </>
@@ -236,22 +316,55 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
   )
 }
 
+/**
+ * Đọc một vòng đã xong, chịu được CẢ HAI dạng dữ liệu.
+ *
+ * Trận mới ghi mọi cú đánh vào `hits`; trận đánh dở từ trước bản này chỉ có
+ * `attackerId` với `damage`. Dựng lại dạng cũ thành một phần tử `hits` ngay ở
+ * đây, để mọi chỗ bên dưới chỉ phải biết một dạng duy nhất.
+ */
+function hitsOf(event: PvpEvent): PvpHit[] {
+  if (event.hits) return event.hits
+  if (!event.attackerId) return []
+  return [{ studentId: event.attackerId, damage: event.damage, spellId: null, effect: null }]
+}
+
 function flashTitle(event: PvpEvent, studentId: string): string {
-  if (!event.attackerId) return '😬 Cả hai cùng trượt!'
-  return event.attackerId === studentId ? '⚡ Con nhanh hơn!' : '💥 Bạn ấy nhanh hơn!'
+  const hits = hitsOf(event).filter((h) => h.damage > 0)
+  if (hits.length === 0) return '😬 Cả hai cùng trượt!'
+  if (hits.length === 2) return '⚔️ Cả hai cùng đánh!'
+  return hits[0]!.studentId === studentId ? '⚡ Con ra đòn!' : '💥 Bạn ấy ra đòn!'
 }
 
 function flashLine(event: PvpEvent, studentId: string, foeName: string): string {
-  if (!event.attackerId) {
-    return 'Không ai trả lời đúng, nên lượt này không ai mất máu.'
+  const hits = hitsOf(event)
+  const mine = hits.find((h) => h.studentId === studentId) ?? null
+  const theirs = hits.find((h) => h.studentId !== studentId) ?? null
+
+  // Đóng băng ghi lại một cú đánh 0 sát thương. Nói thẳng ra, nếu không thì trẻ
+  // trả lời đúng mà không thấy máu bạn kia tụt và tưởng máy hỏng.
+  if (mine && mine.damage === 0 && mine.spellId === null) {
+    return 'Con bị đóng băng nên không tung được chiêu nào lượt này!'
   }
-  const mine = event.attackerId === studentId
-  // Trường hợp đáng nói nhất: người bấm trước lại là người bấm sai. Nói ra thì
-  // trẻ học được rằng nhanh mà ẩu thì mất lượt - bài học chính của chế độ này.
-  const stolen = event.firstId !== null && event.firstId !== event.attackerId
-  const who = mine ? 'Con' : foeName
-  const damage = `${who} tung một đòn ${event.damage} sát thương!`
-  return stolen ? `Người bấm trước trả lời sai. ${damage}` : damage
+
+  const say = (who: string, hit: PvpHit) => {
+    const spell = hit.spellId ? SPELLS[hit.spellId] : null
+    return spell
+      ? `${who} tung ${spell.name} - ${hit.damage} sát thương!`
+      : `${who} đánh ${hit.damage} sát thương!`
+  }
+
+  const lines: string[] = []
+  if (mine && mine.damage > 0) lines.push(say('Con', mine))
+  if (theirs && theirs.damage > 0) lines.push(say(foeName, theirs))
+
+  // Máu mất vì vết cháy hay hố đen từ vòng trước. Nói riêng ra, vì nó KHÔNG
+  // đến từ câu trả lời vừa rồi - gộp chung thì trẻ tưởng mình bị trừ oan.
+  const tick = event.ticks?.[studentId] ?? 0
+  if (tick > 0) lines.push(`Con mất thêm ${tick} máu vì hiệu ứng.`)
+
+  if (lines.length === 0) return 'Không ai trả lời đúng, nên lượt này không ai mất máu vì đòn đánh.'
+  return lines.join(' ')
 }
 
 // --- Dải đội thú ------------------------------------------------------------

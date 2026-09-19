@@ -13,7 +13,7 @@ import { createEnemy } from '../content/bestiary'
 import { useUi } from './ui'
 import type { Enemy } from '../engine/battle'
 import { getSkill } from '../content/curriculum'
-import { PETS, SPELLS, buildTeam, getPet } from '../content/pets'
+import { PETS, SPELLS, companionOf, getPet } from '../content/pets'
 import { currentEvolution, evolutionStage, justEvolved } from '../engine/pets'
 import { contentSource } from '../content/registry'
 import { getTuning } from '../content/tuning'
@@ -257,10 +257,11 @@ interface GameState {
   /** Hết giờ một câu ở trận trùm / trận đầu đàn. Tính như trả lời sai. */
   timeUp: () => void
   /** Tung phép sau khi trả lời đúng. Chỉ có tác dụng ở pha chọn phép. */
-  cast: (spellId: string, casterIndex?: number) => void
+  cast: (spellId: string) => void
   useHint: () => void
   /** Sắp lại bộ chiêu mang ra trận. */
-  setLoadout: (spellIds: string[]) => void
+  setLoadout: (petId: string, spellIds: string[]) => void
+  setCompanion: (petId: string) => void
   next: () => void
   closeBattle: () => Promise<void>
   /** Đánh lại đúng con quái vừa thua, không phải đi bộ ngược về. */
@@ -481,7 +482,7 @@ export const useGame = create<GameState>((set, get) => ({
         {
           enemy,
           player: statsForLevel(level, bonus),
-          team: buildTeam(progress.pets ?? [], subject, 3, progress.petXp ?? {}),
+          pet: companionOf(progress.pets, progress.companion, subject, progress.petXp ?? {}),
           maxQuestions: queue.length,
           timeLimitMs: node.kind === 'boss' ? timeLimitFor('boss', target) : null,
           // Lượt ĐỠ ĐÒN luôn có đồng hồ, kể cả trận thường - xem defendLimitFor.
@@ -556,7 +557,7 @@ export const useGame = create<GameState>((set, get) => ({
         {
           enemy: enemyFor(kind, enemy),
           player: statsForLevel(level, bonus),
-          team: buildTeam(progress.pets ?? [], subject, 3, progress.petXp ?? {}),
+          pet: companionOf(progress.pets, progress.companion, subject, progress.petXp ?? {}),
           maxQuestions: queue.length,
           timeLimitMs: kind === 'wild' ? null : timeLimitFor('mini', target),
           defendLimitMs: defendLimitFor(kind === 'wild' ? 'normal' : 'mini', target),
@@ -641,10 +642,20 @@ export const useGame = create<GameState>((set, get) => ({
         {
           enemy: createTowerBoss(subject, target),
           player: statsForLevel(level, bonus),
-          // Đội thú ĐẦY ĐỦ bốn con, không phải ba như trận thường: quái đổi qua
-          // cả bốn hệ, mà đội ba con thì luôn có một hệ không ai gánh được - lúc
-          // ấy trẻ có bấm gì cũng sai, và đó không còn là quyết định nữa.
-          team: buildTeam(progress.pets ?? [], subject, 4, progress.petXp ?? {}),
+          /*
+            Vẫn đúng con thú ấy, không có ngoại lệ nào cho tháp.
+
+            Chỗ này từng xin ĐỘI BỐN CON thay vì ba, vì trùm tháp xoay qua cả
+            bốn hệ và một đội ba con luôn có một hệ không ai gánh nổi. Ngoại lệ
+            ấy mất nghĩa khi ra trận chỉ còn một con: giờ hai hệ trong tay là
+            của chính con thú (chiêu nhà và chiêu mượn), và đó là thứ trẻ mang
+            theo ở mọi trận, tháp hay không.
+
+            Trùm tháp vì vậy khó đúng theo cách nó định khó: có lượt trẻ không
+            có chiêu nào khắc được hệ nó vừa đổi sang, và phải chọn giữa đánh
+            yếu hay dồn chiêu cuối.
+          */
+          pet: companionOf(progress.pets, progress.companion, subject, progress.petXp ?? {}),
           maxQuestions: queue.length,
           timeLimitMs: timeLimitFor('tower', target),
           defendLimitMs: defendLimitFor('tower', target),
@@ -685,7 +696,12 @@ export const useGame = create<GameState>((set, get) => ({
             hạ con slime trong một đòn và mất luôn lượt đỡ đòn.
           */
           player: statsForLevel(1),
-          team: buildTeam(progress.pets ?? [], TUTORIAL_SUBJECT, 3, progress.petXp ?? {}),
+          pet: companionOf(
+            progress.pets,
+            progress.companion,
+            TUTORIAL_SUBJECT,
+            progress.petXp ?? {},
+          ),
           maxQuestions: TUTORIAL_MAX_QUESTIONS,
           // Lượt ra đòn KHÔNG đếm giờ, y như mọi trận thường: trẻ đang học, và
           // ở bàn này em còn đang vừa học vừa đọc lời người dẫn.
@@ -757,20 +773,39 @@ export const useGame = create<GameState>((set, get) => ({
     commitBattleStep(timeUpAction(battle, now), battle.question, now, set, get)
   },
 
-  setLoadout(spellIds) {
+  setLoadout(petId, spellIds) {
     const { student, progress } = get()
     if (!student) return
 
-    const updated: StudentProgress = { ...progress, loadout: spellIds }
+    const updated: StudentProgress = {
+      ...progress,
+      petLoadout: { ...(progress.petLoadout ?? {}), [petId]: spellIds },
+    }
     set({ progress: updated })
     void repository.saveProgress(student.id, updated)
   },
 
-  cast(spellId, casterIndex) {
+  setCompanion(petId) {
+    const { student, progress } = get()
+    if (!student) return
+
+    const updated: StudentProgress = { ...progress, companion: petId }
+    set({ progress: updated })
+    void repository.saveProgress(student.id, updated)
+  },
+
+  cast(spellId) {
     const { battle } = get()
     const spell = SPELLS[spellId]
     if (!battle || !spell) return
-    set({ battle: castSpell(battle, spell, Date.now(), casterIndex) })
+
+    const next = castSpell(battle, spell, Date.now())
+    // `castSpell` trả về NGUYÊN trạng thái cũ khi chiêu cuối còn hồi. Không so
+    // sánh thì một cú bấm vào nút đang khoá vẫn kêu tiếng "đúng rồi" và trẻ
+    // tưởng mình vừa tung được chiêu.
+    if (next === battle) return
+
+    set({ battle: next })
     playEffect('correct')
   },
 
@@ -951,15 +986,23 @@ export const useGame = create<GameState>((set, get) => ({
         ? [...new Set([...(progress.towerCleared ?? []), towerKey])]
         : (progress.towerCleared ?? [])
 
-    // Kinh nghiệm cho thú: chia đều cho cả đội, kể cả con chưa phải ra đánh.
-    // Con dự bị vẫn theo trẻ suốt trận, và bắt trẻ phải "cho từng con ra đánh
-    // đủ lượt" thì việc chọn phép biến thành việc chia ca, không còn là chiến
-    // thuật nữa.
+    /*
+      Kinh nghiệm cho thú: TRỌN VẸN cho đúng con vừa ra trận.
+
+      Trước đây chia đều cho cả đội ba con, kể cả con ngồi dự bị - vì cả ba
+      cùng theo trẻ suốt trận và bắt trẻ "cho từng con ra đánh đủ lượt" thì
+      chọn phép biến thành chia ca. Giờ chỉ một con ra trận, nên không còn ai
+      để chia, và cũng không nên chia: nuôi một con tới nấc tiến hoá thứ hai
+      là cả một chặng đường, mà rải kinh nghiệm cho mười một con đứng ngoài
+      thì chặng ấy dài gấp mười hai lần.
+
+      Đổi con đi theo vì vậy là một quyết định có giá - đúng như nó nên thế.
+    */
     const petXpGained = Math.max(1, Math.round(battle.xpEarned / 2))
     const petXp = { ...(progress.petXp ?? {}) }
     const petsEvolved: BattleSummary['petsEvolved'] = []
 
-    for (const member of battle.team) {
+    for (const member of [battle.pet]) {
       const id = member.pet.id
       const before = petXp[id] ?? 0
       const after = before + petXpGained

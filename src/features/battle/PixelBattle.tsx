@@ -24,12 +24,15 @@ import { monsterSpriteFor, towerSpriteFor } from '../pixel/creatures'
 import {
   Combatant,
   ENEMY_SCALE,
+  EffectBurst,
   HERO_SCALE,
   HpBox,
   SCENE_BY_SUBJECT,
+  StatusAura,
   Trainer,
   arenaScales,
 } from './arena'
+import { EFFECT_UI } from './effects'
 import { petSpriteFor } from '../inventory/PetCollection'
 
 /**
@@ -260,8 +263,8 @@ export function PixelBattle({
         }
       : null
 
-  /** Con thú đang đứng ra trận - chính con sẽ ăn đòn tiếp theo. */
-  const activePet = battle.team[battle.activeIndex] ?? null
+  /** Con thú ra trận - chính con sẽ ăn đòn tiếp theo. */
+  const activePet = battle.pet
   const live = turn.key === answerCount ? turn.kind : null
   const damage = battle.lastDamage
   const heroHurt = live === 'enemy-attacks'
@@ -324,6 +327,27 @@ export function PixelBattle({
         // Quái lao vào từ mép phải, trẻ từ mép trái - hai bên gặp nhau giữa sân.
         enterFrom={220}
         idleDelay="0.4s"
+        overlay={
+          <StatusAura
+            kinds={battle.enemyStatus.map((effect) => effect.kind)}
+            reduceMotion={reduceMotion}
+          />
+        }
+      />
+
+      {/*
+        Cú nổ của chiêu cuối, giữa sân.
+
+        Đọc từ `lastSpell` - trường này chỉ khác null ở pha phản hồi ngay sau cú
+        đánh, nên cú nổ tự tắt khi sang câu mới mà không cần đồng hồ nào.
+      */}
+      <EffectBurst
+        kind={battle.lastSpell?.effect ?? null}
+        label={battle.lastSpell?.effect ? EFFECT_UI[battle.lastSpell.effect].label : ''}
+        icon={battle.lastSpell?.effect ? EFFECT_UI[battle.lastSpell.effect].icon : ''}
+        color={battle.lastSpell?.effect ? EFFECT_UI[battle.lastSpell.effect].color : '#fff'}
+        turnKey={turn.key}
+        reduceMotion={reduceMotion}
       />
 
       {/*
@@ -415,10 +439,10 @@ export function PixelBattle({
           name="Con"
           level={heroLevel}
           hp={battle.playerHp}
-          // Máu hiển thị là máu CẢ ĐỘI, nên mức tối đa cũng phải cộng cả đội.
-          // Lấy player.maxHp (máu của riêng nhân vật thời chưa có thú) sẽ ra
-          // những con số vô lý kiểu "108/50".
-          maxHp={battle.team.reduce((sum, p) => sum + p.pet.maxHp, 0)}
+          // Máu hiển thị là máu CON THÚ đang đánh, nên mức tối đa cũng phải là
+          // của nó. Lấy player.maxHp (máu của riêng nhân vật thời chưa có thú)
+          // sẽ ra những con số vô lý kiểu "108/50".
+          maxHp={battle.pet.pet.maxHp}
           showNumbers
         />
       </motion.div>

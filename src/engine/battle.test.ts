@@ -19,7 +19,8 @@ import {
   type BattleConfig,
   type BattleState,
 } from './battle'
-import type { Element, Pet, Spell } from './pets'
+import { BIND_ATTACK_SCALE, hasEffect } from './battle'
+import { ULTIMATE_COOLDOWN, type EffectKind, type Element, type Pet, type Spell } from './pets'
 import { mcQuestion, numericQuestion, scenarioQuestion } from './test-fixtures'
 
 const NOW = 1_700_000_000_000
@@ -42,6 +43,7 @@ const NEUTRAL: Spell = {
   name: 'Trung Tính',
   element: 'math',
   power: 1,
+  tier: 1,
   flavour: 'tung một đòn thường',
 }
 /** Ánh Sáng khắc Số Học. */
@@ -63,7 +65,7 @@ const config = (overrides: Partial<BattleConfig> = {}): BattleConfig => ({
     isBoss: false,
   },
   player: { maxHp: 50, power: 1 },
-  team: [pet('mot', 'math', 50)],
+  pet: pet('mot', 'math', 50),
   ...overrides,
 })
 
@@ -109,6 +111,20 @@ const rightAndCast = (state: BattleState, ms = 6_000, spell: Spell = NEUTRAL) =>
 const answerWrong = (state: BattleState, ms = 6_000) =>
   submitAnswer(state, { kind: 'numeric', value: 99 }, state.questionShownAt + ms)
 
+/**
+ * Đi trọn MỘT VÒNG rồi về lại lượt của con.
+ *
+ * Đi qua đúng đường mà trận thật đi - tung phép, quái ra đòn, trẻ đỡ hụt - chứ
+ * không nặn trạng thái bằng tay. Dùng cho mọi test về hiệu ứng và hồi chiêu,
+ * vốn đều đo theo số LƯỢT trôi qua.
+ */
+const advanceRound = (state: BattleState): BattleState => {
+  const next = advance(state, numericQuestion, NOW)
+  // Quái bị đóng băng thì `advance` bỏ thẳng sang vòng sau - không có lượt đỡ.
+  if (next.phase === 'ready') return beginAttack(next, NOW)
+  return beginAttack(advance(answerWrong(beginDefend(next, NOW)), numericQuestion, NOW), NOW)
+}
+
 describe('createBattle', () => {
   it('bắt đầu ở PHA CHỜ, không nhảy thẳng vào câu hỏi', () => {
     /*
@@ -138,10 +154,9 @@ describe('createBattle', () => {
     expect(beginAttack(s, NOW)).toBe(s)
   })
 
-  it('máu của trẻ là máu CẢ ĐỘI cộng lại', () => {
-    const s = start({ team: [pet('a', 'math', 30), pet('b', 'music', 25)] })
-    expect(s.playerHp).toBe(55)
-    expect(s.team).toHaveLength(2)
+  it('máu của trẻ là máu CON THÚ đi theo mình', () => {
+    const s = start({ pet: pet('a', 'math', 30) })
+    expect(s.playerHp).toBe(30)
     expect(activePet(s)!.pet.id).toBe('a')
   })
 })
@@ -190,8 +205,8 @@ describe('trả lời đúng rồi tung phép', () => {
   })
 
   it('sức mạnh riêng của thú ảnh hưởng tới sát thương', () => {
-    const weakPet = rightAndCast(start({ team: [pet('yeu', 'math', 50, 0.8)] }))
-    const strongPet = rightAndCast(start({ team: [pet('manh', 'math', 50, 1.3)] }))
+    const weakPet = rightAndCast(start({ pet: pet('yeu', 'math', 50, 0.8) }))
+    const strongPet = rightAndCast(start({ pet: pet('manh', 'math', 50, 1.3) }))
     expect(strongPet.lastDamage!.toEnemy).toBeGreaterThan(weakPet.lastDamage!.toEnemy)
   })
 
@@ -231,21 +246,15 @@ describe('trả lời đúng rồi tung phép', () => {
     expect(damages[3]!).toBeGreaterThan(damages[0]!)
   })
 
-  it('gọi con khác trong đội ra tung phép thì con đó thành con đang đứng', () => {
-    // Thú chỉ biết phép cùng hệ của mình. Không cho đổi con thì gặp quái khắc
-    // hệ là mọi lựa chọn đều "bị khắc" - ba cái nút mà không có quyết định nào.
-    const s = start({ team: [pet('a', 'math', 40), pet('b', 'ethics', 40)] })
-    const cast = castSpell(answerRight(s), STRONG, NOW, 1)
-    expect(cast.activeIndex).toBe(1)
+  it('chiêu mượn hệ vẫn khắc chế được, dù con thú không cùng hệ với nó', () => {
+    /*
+      Đây là cả lý do chiêu thứ ba tồn tại. Con thú hệ Số Học gặp quái hệ Số
+      Học thì hai chiêu nhà chỉ ra 1,0; chiêu mượn hệ Ánh Sáng mới xuyên qua
+      được. Sát thương tính theo HỆ CỦA CHIÊU, không theo hệ của con thú.
+    */
+    const s = start({ pet: pet('a', 'math', 40) })
+    const cast = castSpell(answerRight(s), STRONG, NOW)
     expect(cast.lastSpell!.matchup).toBe('strong')
-    expect(cast.log.some((line) => line.includes('bước ra tung phép'))).toBe(true)
-  })
-
-  it('không gọi được con đã gục ra tung phép', () => {
-    const s = start({ team: [pet('a', 'math', 40), pet('b', 'ethics', 40)] })
-    const downed = { ...s, team: [s.team[0]!, { ...s.team[1]!, hp: 0 }] }
-    const cast = castSpell(answerRight(downed), STRONG, NOW, 1)
-    expect(cast.activeIndex).toBe(0)
   })
 
   it('không cho tung phép khi chưa trả lời đúng', () => {
@@ -292,36 +301,25 @@ describe('submitAnswer - trả lời sai', () => {
   })
 })
 
-describe('đội thú thay nhau ra trận', () => {
+describe('một con thú đi một mình', () => {
   // Sát thương giờ chỉ tới từ LƯỢT CỦA QUÁI, nên mọi test ở đây đi qua đó.
-  const twoPets = () => enemyTurn(start({ team: [pet('a', 'math', 12), pet('b', 'music', 40)] }))
 
-  it('sát thương rơi vào con đang ra trận, không chia đều cả đội', () => {
-    const s = answerWrong(twoPets())
-    expect(s.team[0]!.hp).toBe(0)
-    expect(s.team[1]!.hp).toBe(40)
+  it('sát thương rơi thẳng vào con thú', () => {
+    const s = answerWrong(enemyTurn(start({ pet: pet('a', 'math', 40) })))
+    expect(s.pet.hp).toBe(28)
+    expect(s.playerHp).toBe(28)
   })
 
-  it('con gục thì con sau tự bước ra', () => {
-    const s = answerWrong(twoPets())
-    expect(s.activeIndex).toBe(1)
-    expect(activePet(s)!.pet.id).toBe('b')
-    expect(s.log.some((line) => line.includes('bước ra thay'))).toBe(true)
-  })
-
-  it('còn thú là trận còn tiếp, không kết thúc sớm', () => {
-    let s = answerWrong(twoPets())
+  it('còn máu là trận còn tiếp', () => {
+    let s = answerWrong(enemyTurn(start({ pet: pet('a', 'math', 40) })))
     s = advance(s, numericQuestion, NOW)
     expect(s.phase).toBe('ready')
   })
 
-  it('hết cả đội mới về làng', () => {
-    let s = enemyTurn(start({ team: [pet('a', 'math', 10), pet('b', 'music', 10)] }))
-    s = answerWrong(s)
-    s = advance(s, numericQuestion, NOW)
-    s = enemyTurn(beginAttack(s, NOW))
-    s = answerWrong(s)
+  it('con thú gục là về làng ngay - không còn ai bước ra thay', () => {
+    let s = answerWrong(enemyTurn(start({ pet: pet('a', 'math', 10) })))
     expect(s.playerHp).toBe(0)
+    expect(s.log.some((line) => line.includes('kiệt sức'))).toBe(true)
     s = advance(s, numericQuestion, NOW)
     expect(s.phase).toBe('retreat')
   })
@@ -502,7 +500,7 @@ describe('advance - kết thúc trận', () => {
   })
 
   it('hết máu là RÚT LUI, không phải thua - giữ nguyên vàng và kinh nghiệm', () => {
-    let s = start({ team: [pet('mot', 'math', 12)] })
+    let s = start({ pet: pet('mot', 'math', 12) })
     s = rightAndCast(s)
     const goldEarned = s.goldEarned
     const xpEarned = s.xpEarned
@@ -563,7 +561,7 @@ describe('advance - kết thúc trận', () => {
   it('ưu tiên thắng khi cả hai cùng về 0 máu', () => {
     let s = start({
       enemy: { ...config().enemy, maxHp: 5, attack: 999 },
-      team: [pet('mot', 'math', 10)],
+      pet: pet('mot', 'math', 10),
     })
     s = rightAndCast(s)
     s = advance(s, numericQuestion, NOW)
@@ -681,5 +679,195 @@ describe('đếm giờ ở trận trùm', () => {
     const s = answerRight(timed())
     expect(s.phase).toBe('spell')
     expect(timeUp(s, NOW)).toBe(s)
+  })
+})
+
+describe('chiêu cuối: hiệu ứng và hồi chiêu', () => {
+  /** Bốn chiêu cuối giả lập, mỗi cái một kiểu hiệu ứng. Hệ Toán = trung tính. */
+  const ult = (kind: EffectKind, turns: number, tickPercent?: number): Spell => ({
+    ...NEUTRAL,
+    id: `ult-${kind}`,
+    name: `Chiêu ${kind}`,
+    power: 2,
+    tier: 4,
+    effect: { kind, turns, tickPercent },
+  })
+
+  const BURN = ult('burn', 3, 0.3)
+  const DRAIN = ult('drain', 3, 0.25)
+  const BIND = ult('bind', 2)
+  const FREEZE = ult('freeze', 1)
+
+  describe('hồi chiêu', () => {
+    it('trận mở màn thì chiêu cuối đã sẵn sàng', () => {
+      expect(fresh().ultimateCooldown).toBe(0)
+    })
+
+    it('tung chiêu cuối là hồi chiêu bật lên ngay', () => {
+      expect(rightAndCast(start(), 6_000, BURN).ultimateCooldown).toBe(ULTIMATE_COOLDOWN)
+    })
+
+    it('chiêu thường KHÔNG đụng tới hồi chiêu', () => {
+      expect(rightAndCast(start(), 6_000, NEUTRAL).ultimateCooldown).toBe(0)
+    })
+
+    it('còn hồi chiêu thì engine TỪ CHỐI, không chỉ làm mờ cái nút', () => {
+      // Luật chơi phải sống trong engine. Chỉ khoá ở giao diện thì một cú bấm
+      // hai lần thật nhanh cũng lách qua được.
+      const cooling = rightAndCast(start(), 6_000, BURN)
+      const next = answerRight(advanceRound(cooling))
+      expect(castSpell(next, BURN, NOW)).toBe(next)
+    })
+
+    it('vẫn tung được chiêu thường trong lúc chiêu cuối đang nghỉ', () => {
+      const cooling = rightAndCast(start(), 6_000, BURN)
+      const next = answerRight(advanceRound(cooling))
+      expect(castSpell(next, NEUTRAL, NOW).phase).toBe('feedback')
+    })
+
+    it('mỗi lượt của con nhích một bước, rồi sẵn sàng trở lại', () => {
+      let s = rightAndCast(start(), 6_000, BURN)
+      expect(s.ultimateCooldown).toBe(3)
+      s = advanceRound(s)
+      expect(s.ultimateCooldown).toBe(2)
+      s = rightAndCast(s)
+      s = advanceRound(s)
+      expect(s.ultimateCooldown).toBe(1)
+      s = rightAndCast(s)
+      s = advanceRound(s)
+      expect(s.ultimateCooldown).toBe(0)
+    })
+  })
+
+  describe('hiệu ứng bám lên quái', () => {
+    it('chiêu cuối gắn hiệu ứng, chiêu thường thì không', () => {
+      expect(rightAndCast(start(), 6_000, BURN).enemyStatus.map((e) => e.kind)).toEqual(['burn'])
+      expect(rightAndCast(start(), 6_000, NEUTRAL).enemyStatus).toEqual([])
+    })
+
+    it('máu mất mỗi lượt chốt theo CÚ ĐÁNH đã tung ra', () => {
+      const s = rightAndCast(start(), 6_000, BURN)
+      expect(s.enemyStatus[0]!.perTurn).toBe(Math.round(s.lastDamage!.toEnemy * 0.3))
+    })
+
+    it('giao diện đọc được hiệu ứng vừa gắn từ `lastSpell`', () => {
+      expect(rightAndCast(start(), 6_000, BURN).lastSpell!.effect).toBe('burn')
+      expect(rightAndCast(start(), 6_000, NEUTRAL).lastSpell!.effect).toBeNull()
+    })
+
+    it('hai hiệu ứng khác loại CÙNG SỐNG, không cái nào xoá cái nào', () => {
+      // Gỡ hồi chiêu bằng tay: trong trận thật phải chờ ba lượt giữa hai chiêu
+      // cuối, mà ba lượt ấy lại làm vết trói đầu tiên tan mất trước khi đo.
+      let s = rightAndCast(start(), 6_000, BIND)
+      s = { ...advanceRound(s), ultimateCooldown: 0 }
+      s = rightAndCast(s, 6_000, BURN)
+      expect(s.enemyStatus.map((e) => e.kind).sort()).toEqual(['bind', 'burn'])
+    })
+
+    it('tung lại cùng một hiệu ứng thì làm mới, không chồng hai lớp', () => {
+      let s = rightAndCast(start(), 6_000, BURN)
+      s = { ...advanceRound(s), ultimateCooldown: 0 }
+      s = rightAndCast(s, 6_000, BURN)
+      expect(s.enemyStatus.filter((e) => e.kind === 'burn')).toHaveLength(1)
+    })
+  })
+
+  describe('CHÁY - quái mất máu mỗi lượt', () => {
+    it('trừ máu ở cuối lượt của con, và đếm ngược', () => {
+      let s = rightAndCast(start(), 6_000, BURN)
+      const perTurn = s.enemyStatus[0]!.perTurn
+      const afterCast = s.enemyHp
+
+      s = advance(s, numericQuestion, NOW)
+      expect(s.enemyHp).toBe(afterCast - perTurn)
+      expect(s.enemyStatus[0]!.turnsLeft).toBe(2)
+      expect(s.log.some((line) => line.includes('Vết cháy'))).toBe(true)
+    })
+
+    it('cháy tới lượt thứ ba thì tắt', () => {
+      // Mỗi vòng phải có một lượt ra đòn thật, nếu không thì trận đứng yên ở
+      // pha chờ và hiệu ứng không ăn nhịp nào - xem advanceRound.
+      let s = rightAndCast(start(), 6_000, BURN)
+      s = advanceRound(s)
+      expect(s.enemyStatus[0]!.turnsLeft).toBe(2)
+      s = advanceRound(rightAndCast(s))
+      expect(s.enemyStatus[0]!.turnsLeft).toBe(1)
+      s = advanceRound(rightAndCast(s))
+      expect(s.enemyStatus).toHaveLength(0)
+    })
+
+    it('vết cháy ăn nốt máu cuối thì THẮNG, và vẫn cộng đủ phần thưởng', () => {
+      const s = rightAndCast(start({ enemy: { ...config().enemy, maxHp: 26 } }), 6_000, BURN)
+      const won = advance(s, numericQuestion, NOW)
+      expect(won.enemyHp).toBe(0)
+      expect(won.phase).toBe('victory')
+      expect(won.goldEarned).toBeGreaterThanOrEqual(config().enemy.goldReward)
+    })
+  })
+
+  describe('HÚT - quái mất máu, con thú hồi lại bấy nhiêu', () => {
+    it('thanh máu của mình DÀI RA, đó là chỗ trẻ nhìn thấy hiệu ứng', () => {
+      const hurt = rightAndCast(start(), 6_000, DRAIN)
+      const wounded = { ...hurt, pet: { ...hurt.pet, hp: 20 }, playerHp: 20 }
+      const s = advance(wounded, numericQuestion, NOW)
+      expect(s.playerHp).toBeGreaterThan(20)
+      expect(s.pet.hp).toBe(s.playerHp)
+    })
+
+    it('không hồi quá máu tối đa - thanh máu không được phép nói dối', () => {
+      const full = rightAndCast(start(), 6_000, DRAIN)
+      const s = advance(full, numericQuestion, NOW)
+      expect(s.playerHp).toBe(s.pet.pet.maxHp)
+    })
+  })
+
+  describe('TRÓI - đòn của quái yếu đi một nửa', () => {
+    it('quái đang bị trói thì đánh nhẹ hẳn', () => {
+      const free = answerWrong(enemyTurn(start()))
+      const boundState = rightAndCast(start(), 6_000, BIND)
+      const bound = answerWrong(beginDefend(advance(boundState, numericQuestion, NOW), NOW))
+
+      const freeHit = free.lastDamage!.toPlayer
+      const boundHit = bound.lastDamage!.toPlayer
+      expect(boundHit).toBeLessThan(freeHit)
+      expect(boundHit).toBe(Math.round(freeHit * BIND_ATTACK_SCALE))
+    })
+
+    it('dây trói đứt sau hai lượt', () => {
+      let s = rightAndCast(start(), 6_000, BIND)
+      s = advanceRound(s)
+      s = advanceRound(rightAndCast(s))
+      expect(hasEffect(s, 'bind')).toBe(false)
+      expect(s.log.some((line) => line.includes('Dây trói đứt'))).toBe(true)
+    })
+  })
+
+  describe('ĐÓNG BĂNG - quái mất nguyên lượt đánh', () => {
+    it('bỏ thẳng sang vòng sau, không đi qua pha gồng lên', () => {
+      // Quái đang đứng sững thì không có gì để gồng.
+      const s = advance(rightAndCast(start(), 6_000, FREEZE), numericQuestion, NOW)
+      expect(s.phase).toBe('ready')
+      expect(s.stance).toBe('attack')
+      expect(s.log.some((line) => line.includes('mất lượt đánh'))).toBe(true)
+    })
+
+    it('trẻ KHÔNG mất máu ở lượt bị bỏ qua ấy', () => {
+      const s = advance(rightAndCast(start(), 6_000, FREEZE), numericQuestion, NOW)
+      expect(s.playerHp).toBe(s.pet.pet.maxHp)
+    })
+
+    it('chỉ bỏ ĐÚNG MỘT lượt - lượt sau quái đánh lại bình thường', () => {
+      let s = advance(rightAndCast(start(), 6_000, FREEZE), numericQuestion, NOW)
+      expect(hasEffect(s, 'freeze')).toBe(false)
+      s = rightAndCast(beginAttack(s, NOW))
+      s = advance(s, numericQuestion, NOW)
+      expect(s.phase).toBe('warning')
+    })
+
+    it('vẫn đếm là một vòng đã đánh, không cho đánh thêm lượt miễn phí', () => {
+      const before = rightAndCast(start(), 6_000, FREEZE)
+      const after = advance(before, numericQuestion, NOW)
+      expect(after.questionsAsked).toBe(before.questionsAsked + 1)
+    })
   })
 })

@@ -15,7 +15,7 @@ import { Overworld } from '../world/Overworld'
 import { DialogueBox } from '../../ui/DialogueBox'
 import { heroSprite } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
-import { PETS, buildTeam } from '../../content/pets'
+import { PETS, companionOf } from '../../content/pets'
 import { petSpriteFor } from '../inventory/PetCollection'
 import { biomeFor, gradeLight } from '../world/biome'
 import { SkillTreeScreen } from '../world/SkillTreeScreen'
@@ -662,7 +662,9 @@ function SubjectMap({
   // PHẢI truyền kinh nghiệm vào: thiếu nó thì con đã tiến hoá vẫn đi theo trẻ
   // bằng hình cũ, trong khi vào trận lại ra hình mới - hai nơi lệch nhau.
   const petXp = useGame((s) => s.progress.petXp)
-  const leader = buildTeam(ownedPets ?? [], subject, 3, petXp ?? {})[0]
+  // Con đi theo trên bản đồ PHẢI là đúng con sẽ ra trận, nên cùng một hàm.
+  const companion = useGame((s) => s.progress.companion)
+  const leader = companionOf(ownedPets, companion, subject, petXp ?? {})
 
   // Chỗ đứng trong vùng này, nhớ qua cả trận đấu.
   const posKey = regionKey({ subject, grade })
@@ -672,7 +674,7 @@ function SubjectMap({
     (pos: { x: number; y: number }) => rememberPos(posKey, pos),
     [posKey, rememberPos],
   )
-  // Nhớ theo GIÁ TRỊ (tên sprite + hệ), không theo object `leader`: `buildTeam`
+  // Nhớ theo GIÁ TRỊ (tên sprite + hệ), không theo object `leader`: `companionOf`
   // trả về đội hình mới mỗi lần render, còn `petSpriteFor` tô lại màu ra sprite
   // mới - hai cái cộng lại là con thú vẽ lại canvas ở mọi lần render.
   const follower = useMemo(

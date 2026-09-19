@@ -1,225 +1,163 @@
+/**
+ * Bốn chiêu mở dần theo tiến hoá, và hai ô mang ra trận.
+ *
+ * Tệp này viết lại hoàn toàn khi bộ chiêu chuyển từ "gom cả đội, mở theo cấp
+ * của TRẺ" sang "riêng từng con thú, mở theo NẤC TIẾN HOÁ của nó". Những gì
+ * kiểm ở đây là luật mới, và luật cũ không còn chỗ nào trong game nữa.
+ */
+
 import { describe, expect, it } from 'vitest'
-import { SPELLS } from '../content/pets'
+
+import { PETS, SPELLS, getPet } from '../content/pets'
 import {
-  MAX_SLOTS,
-  MIN_KNOWN,
-  filterByLoadout,
-  knownSpells,
-  learnOrder,
-  nextSlotLevel,
-  nextSpellLevel,
-  resolveLoadout,
-  slotsForLevel,
-  spellsKnownAt,
-  usableSlots,
+  EQUIPPED_SLOTS,
+  allSpellsOf,
+  equippedSpells,
+  hasAllSpells,
+  nextUnlockLevel,
+  resolvePetLoadout,
+  spellLockOf,
+  unlockedSpells,
 } from './loadout'
-import type { Spell } from './pets'
+import { xpForLevel } from './pets'
 
-const spell = (id: string): Spell => {
-  const found = SPELLS[id]
-  if (!found) throw new Error(`Không có phép ${id}`)
-  return found
-}
+/** Kinh nghiệm vừa đủ chạm một cấp. Xem `xpForLevel`. */
+const at = (level: number) => xpForLevel(level)
 
-const MATH = ['tia-so', 'mua-con-so', 'bua-phep-tinh']
+const cu = getPet('cu-chu')!
 
-/** Một đội ba con, mỗi con một hệ - đúng hình dạng đội thật trong trận. */
-const TEAM = [
-  { spellIds: ['tia-so', 'mua-con-so', 'bua-phep-tinh'] },
-  { spellIds: ['gio-chu', 'bao-chu', 'but-than'] },
-  { spellIds: ['tia-sang', 'vong-sang', 'binh-minh'] },
-]
-
-describe('số chiêu đã học theo cấp', () => {
-  it('mới vào đúng HAI chiêu, không hơn', () => {
-    // Đây là điều kiện sống còn của màn chơi đầu: chín nút thì trẻ lớp 1 bấm
-    // bừa cái gần nhất chứ không chọn.
-    expect(spellsKnownAt(1)).toBe(2)
-    expect(spellsKnownAt(2)).toBe(2)
-  })
-
-  it('cấp 3 học chiêu thứ ba, cấp 5 chiêu thứ tư', () => {
-    expect(spellsKnownAt(3)).toBe(3)
-    expect(spellsKnownAt(4)).toBe(3)
-    expect(spellsKnownAt(5)).toBe(4)
-  })
-
-  it('lớn dần chứ không bao giờ tụt', () => {
-    let last = 0
-    for (let level = 1; level <= 50; level++) {
-      const now = spellsKnownAt(level)
-      expect(now).toBeGreaterThanOrEqual(last)
-      last = now
+describe('bốn chiêu của một con thú', () => {
+  it('con nào cũng khai đúng bốn chiêu, và cả bốn đều có thật', () => {
+    for (const pet of PETS) {
+      expect(pet.spellIds).toHaveLength(4)
+      for (const id of pet.spellIds) expect(SPELLS[id], `${pet.id} → ${id}`).toBeDefined()
     }
   })
 
-  it('cấp 0 hay cấp âm vẫn còn hai chiêu chứ không về không', () => {
-    expect(spellsKnownAt(0)).toBe(MIN_KNOWN)
-    expect(spellsKnownAt(-5)).toBe(MIN_KNOWN)
-  })
-
-  it('báo đúng cấp kế tiếp được học thêm', () => {
-    expect(nextSpellLevel(1)).toBe(3)
-    expect(nextSpellLevel(3)).toBe(5)
-    expect(nextSpellLevel(50)).toBeNull()
-  })
-})
-
-describe('số ô mang ra trận theo cấp', () => {
-  it('mới vào chỉ có 2 ô', () => {
-    expect(slotsForLevel(1)).toBe(2)
-    expect(slotsForLevel(4)).toBe(2)
-  })
-
-  it('cấp 5 mở ô thứ ba, cấp 10 mở ô thứ tư', () => {
-    expect(slotsForLevel(5)).toBe(3)
-    expect(slotsForLevel(9)).toBe(3)
-    expect(slotsForLevel(10)).toBe(4)
-  })
-
-  it('không bao giờ vượt quá 4 ô, kể cả cấp rất cao', () => {
-    expect(slotsForLevel(99)).toBe(MAX_SLOTS)
-  })
-
-  it('cấp 0 hay cấp âm vẫn còn 2 ô chứ không về 0', () => {
-    expect(slotsForLevel(0)).toBe(2)
-    expect(slotsForLevel(-3)).toBe(2)
-  })
-
-  it('chỉ đúng mốc kế tiếp mới được báo, hết mốc thì báo null', () => {
-    expect(nextSlotLevel(1)).toBe(5)
-    expect(nextSlotLevel(5)).toBe(10)
-    expect(nextSlotLevel(10)).toBeNull()
-  })
-
-  it('số ô không bao giờ vượt số chiêu đã học', () => {
-    // Bày ra một ô trống vĩnh viễn chỉ tổ làm trẻ tưởng mình đang thiếu gì đó.
-    expect(usableSlots(10, 3)).toBe(3)
-    expect(usableSlots(10, 9)).toBe(4)
-    expect(usableSlots(1, 9)).toBe(2)
-  })
-
-  it('luôn còn ít nhất một ô, kể cả khi đội chưa biết chiêu nào', () => {
-    expect(usableSlots(1, 0)).toBe(1)
-  })
-})
-
-describe('thứ tự học chiêu', () => {
-  it('vòng qua từng con một chiêu, rồi mới quay lại chiêu thứ hai', () => {
-    expect(learnOrder(TEAM).map((s) => s.id)).toEqual([
-      'tia-so', 'gio-chu', 'tia-sang',
-      'mua-con-so', 'bao-chu', 'vong-sang',
-      'bua-phep-tinh', 'but-than', 'binh-minh',
-    ])
-  })
-
-  it('HAI chiêu đầu tiên thuộc HAI hệ khác nhau', () => {
-    // Nếu hai chiêu đầu cùng hệ thì trận nào cũng chỉ có một nước đi đúng, và
-    // câu hỏi "đánh bằng chiêu nào" thành ra không có câu trả lời.
-    const first = knownSpells(TEAM, 1)
-    expect(first).toHaveLength(2)
-    expect(first[0]!.element).not.toBe(first[1]!.element)
-  })
-
-  it('bỏ trùng, giữ thứ tự gặp đầu tiên', () => {
-    const order = learnOrder([{ spellIds: ['tia-so', 'mua-con-so'] }, { spellIds: ['tia-so', 'gio-chu'] }])
-    expect(order.map((s) => s.id)).toEqual(['tia-so', 'gio-chu', 'mua-con-so'])
-  })
-
-  it('bỏ qua mã phép không tồn tại thay vì trả về lỗ hổng', () => {
-    expect(learnOrder([{ spellIds: ['tia-so', 'phep-khong-co-that'] }]).map((s) => s.id)).toEqual(['tia-so'])
-  })
-
-  it('đội rỗng thì không có chiêu nào', () => {
-    expect(learnOrder([])).toEqual([])
-    expect(knownSpells([], 9)).toEqual([])
-  })
-
-  it('cấp cao mới lấy hết chín chiêu của đội', () => {
-    expect(knownSpells(TEAM, 1)).toHaveLength(2)
-    expect(knownSpells(TEAM, 5)).toHaveLength(4)
-    expect(knownSpells(TEAM, 50)).toHaveLength(9)
-  })
-
-  it('đội biết ít chiêu hơn mức của cấp thì chỉ trả về đúng số đang có', () => {
-    expect(knownSpells([{ spellIds: ['tia-so'] }], 50)).toHaveLength(1)
-  })
-})
-
-describe('chốt bộ chiêu ra trận', () => {
-  const known = MATH.map(spell)
-
-  it('giữ đúng những gì trẻ đã sắp, theo đúng thứ tự', () => {
-    expect(resolveLoadout(['mua-con-so', 'tia-so'], known, 2)).toEqual(['mua-con-so', 'tia-so'])
-  })
-
-  it('cắt phần thừa khi bộ đã lưu dài hơn số ô hiện có', () => {
-    // Bộ cũ KHÔNG bị xoá - chỉ cắt lúc ra trận, để tụt cấp/đổi máy vẫn còn.
-    expect(resolveLoadout(MATH, known, 2)).toEqual(['tia-so', 'mua-con-so'])
-  })
-
-  it('lấp đầy ô trống khi trẻ mới sắp có một chiêu', () => {
-    expect(resolveLoadout(['bua-phep-tinh'], known, 2)).toEqual(['bua-phep-tinh', 'tia-so'])
-  })
-
-  it('bỏ chiêu con CHƯA HỌC rồi lấp lại bằng chiêu đã học', () => {
-    // Bộ đã lưu từ lúc cấp cao vẫn còn nguyên, nhưng ra trận thì chỉ dùng được
-    // những gì cấp hiện tại cho phép.
-    expect(resolveLoadout(['bua-phep-tinh', 'mua-con-so'], knownSpells(TEAM, 1), 2)).toEqual([
-      'tia-so',
-      'gio-chu',
-    ])
-  })
-
-  it('KHÔNG BAO GIỜ rỗng khi đội còn biết chiêu', () => {
-    for (const saved of [undefined, [], ['phep-ma'], ['gio-chu']]) {
-      expect(resolveLoadout(saved, known, 2).length).toBeGreaterThan(0)
+  it('xếp đúng thứ tự bậc: hai chiêu nền, chiêu mượn hệ, rồi chiêu cuối', () => {
+    for (const pet of PETS) {
+      const tiers = allSpellsOf(pet).map((spell) => spell.tier)
+      expect(tiers[2], pet.id).toBe(3)
+      expect(tiers[3], pet.id).toBe(4)
+      expect(tiers[0], pet.id).toBeLessThan(3)
+      expect(tiers[1], pet.id).toBeLessThan(3)
     }
   })
 
-  it('không nhân bản một chiêu để lấp cho đủ ô', () => {
-    const result = resolveLoadout(['tia-so'], known, 3)
-    expect(new Set(result).size).toBe(result.length)
+  it('hai chiêu nền và chiêu cuối cùng hệ với con thú', () => {
+    for (const pet of PETS) {
+      const spells = allSpellsOf(pet)
+      expect(spells[0]!.element, pet.id).toBe(pet.element)
+      expect(spells[1]!.element, pet.id).toBe(pet.element)
+      expect(spells[3]!.element, pet.id).toBe(pet.element)
+    }
+  })
+
+  it('chiêu thứ ba MƯỢN hệ khác - đó là đường ra khi gặp quái khắc mình', () => {
+    for (const pet of PETS) {
+      expect(allSpellsOf(pet)[2]!.element, pet.id).not.toBe(pet.element)
+    }
+  })
+
+  it('chỉ chiêu cuối mới mang hiệu ứng', () => {
+    for (const pet of PETS) {
+      for (const spell of allSpellsOf(pet)) {
+        if (spell.tier === 4) expect(spell.effect, spell.id).toBeDefined()
+        else expect(spell.effect, spell.id).toBeUndefined()
+      }
+    }
+  })
+
+  it('mỗi con một bộ chiêu nền RIÊNG - ba con cùng hệ không đánh giống nhau', () => {
+    const pairs = PETS.map((pet) => pet.spellIds.slice(0, 2).join('+'))
+    expect(new Set(pairs).size).toBe(PETS.length)
   })
 })
 
-describe('lọc lựa chọn trong trận', () => {
-  const options = MATH.map((id) => ({ spell: spell(id) }))
-
-  it('chỉ giữ những chiêu nằm trong bộ đã sắp', () => {
-    const kept = filterByLoadout(options, ['tia-so', 'bua-phep-tinh'], 2)
-    expect(kept.map((o) => o.spell.id)).toEqual(['tia-so', 'bua-phep-tinh'])
+describe('chiêu mở theo nấc tiến hoá của chính con thú', () => {
+  it('mới bắt được thì có hai chiêu', () => {
+    expect(unlockedSpells(cu, 0)).toHaveLength(2)
   })
 
-  it('MỖI CHIÊU ĐÚNG MỘT NÚT dù hai con trong đội cùng biết chiêu đó', () => {
-    // Đây là chỗ sinh ra cái nút thứ năm trong khi chỉ có bốn ô.
-    const doubled = [
-      { spell: spell('tia-so'), pet: 'soc' },
-      { spell: spell('mua-con-so'), pet: 'soc' },
-      { spell: spell('tia-so'), pet: 'rong' },
-    ]
-    const kept = filterByLoadout(doubled, ['tia-so', 'mua-con-so'], 2)
-    expect(kept.map((o) => o.spell.id)).toEqual(['tia-so', 'mua-con-so'])
-    expect(kept[0]!.pet).toBe('soc')
+  it('nấc tiến hoá thứ nhất mở chiêu mượn hệ', () => {
+    const open = unlockedSpells(cu, at(5))
+    expect(open).toHaveLength(3)
+    expect(open[2]!.tier).toBe(3)
   })
 
-  it('không bao giờ hiện nhiều nút hơn số ô', () => {
-    expect(filterByLoadout(options, MATH, 2)).toHaveLength(2)
+  it('nấc thứ hai mở chiêu cuối', () => {
+    const open = unlockedSpells(cu, at(10))
+    expect(open).toHaveLength(4)
+    expect(open[3]!.tier).toBe(4)
   })
 
-  it('con giữ cả bộ chiêu ngã xuống thì vẫn chỉ hiện đúng số ô', () => {
-    // Trước đây trường hợp này đổ HẾT phép của những con còn sống ra - hai nút
-    // thành bốn, đúng lúc trẻ đang cuống nhất.
-    const kept = filterByLoadout(options, ['gio-chu', 'bao-chu'], 2)
-    expect(kept).toHaveLength(2)
-    expect(kept.map((o) => o.spell.id)).toEqual(['tia-so', 'mua-con-so'])
+  it('nấc thứ ba KHÔNG thêm chiêu nào - nó đổi hình và cộng chỉ số', () => {
+    expect(unlockedSpells(cu, at(20))).toHaveLength(4)
+    expect(hasAllSpells(cu, at(20))).toBe(true)
   })
 
-  it('bộ chiêu rỗng cũng không đổ hết bảng ra', () => {
-    expect(filterByLoadout(options, [], 2)).toHaveLength(2)
+  it('nói trước nấc nào mở chiêu tiếp theo, và im khi đã đủ bốn', () => {
+    expect(nextUnlockLevel(cu, 0)).toBe(5)
+    expect(nextUnlockLevel(cu, at(5))).toBe(10)
+    expect(nextUnlockLevel(cu, at(10))).toBeNull()
+    expect(nextUnlockLevel(cu, at(20))).toBeNull()
   })
 
-  it('luôn còn ít nhất một nút để bấm', () => {
-    expect(filterByLoadout(options, [], 0).length).toBeGreaterThan(0)
+  it('chiêu chưa mở thì khoá, và nói rõ phải lên tới cấp nào', () => {
+    const ultimate = cu.spellIds[3]!
+    expect(spellLockOf(cu, 0, ultimate)).toEqual({ locked: true, atLevel: 10 })
+    expect(spellLockOf(cu, at(10), ultimate)).toEqual({ locked: false, atLevel: 10 })
+  })
+
+  it('hai chiêu nền không bao giờ khoá', () => {
+    expect(spellLockOf(cu, 0, cu.spellIds[0]!).locked).toBe(false)
+    expect(spellLockOf(cu, 0, cu.spellIds[1]!).locked).toBe(false)
+  })
+})
+
+describe('hai ô mang ra trận', () => {
+  const open = () => unlockedSpells(cu, at(10))
+
+  it('luôn đúng hai chiêu, dù đã mở bốn', () => {
+    expect(resolvePetLoadout(undefined, open())).toHaveLength(EQUIPPED_SLOTS)
+  })
+
+  it('chưa sắp bao giờ thì phát hai chiêu nền - luôn dùng được', () => {
+    expect(resolvePetLoadout(undefined, open())).toEqual(cu.spellIds.slice(0, 2))
+  })
+
+  it('giữ đúng thứ tự trẻ đã chọn', () => {
+    const picked = [cu.spellIds[3]!, cu.spellIds[0]!]
+    expect(resolvePetLoadout(picked, open())).toEqual(picked)
+  })
+
+  it('bỏ chiêu con thú CHƯA mở tới, rồi lấp cho đủ hai', () => {
+    // Hồ sơ lưu lúc con thú đã tiến hoá, giờ đọc lại ở một con chưa tiến hoá.
+    const saved = [cu.spellIds[3]!, cu.spellIds[2]!]
+    const out = resolvePetLoadout(saved, unlockedSpells(cu, 0))
+    expect(out).toEqual(cu.spellIds.slice(0, 2))
+  })
+
+  it('bỏ qua id lạ mà không vỡ', () => {
+    const out = resolvePetLoadout(['khong-co-that', cu.spellIds[1]!], open())
+    expect(out).toHaveLength(2)
+    expect(out).toContain(cu.spellIds[1]!)
+  })
+
+  it('cắt bớt khi hồ sơ cũ lưu nhiều hơn hai chiêu', () => {
+    // Bộ chiêu thời còn bốn ô. Xem `StudentProgress.loadout`.
+    expect(resolvePetLoadout(cu.spellIds, open())).toHaveLength(2)
+  })
+
+  it('KHÔNG BAO GIỜ rỗng - rỗng là trẻ kẹt cứng giữa trận', () => {
+    expect(resolvePetLoadout([], open()).length).toBeGreaterThan(0)
+    expect(resolvePetLoadout(['rac'], unlockedSpells(cu, 0)).length).toBeGreaterThan(0)
+  })
+
+  it('dựng thẳng từ con thú thì ra đúng những chiêu ấy', () => {
+    const spells = equippedSpells(cu, at(10), [cu.spellIds[3]!])
+    expect(spells).toHaveLength(2)
+    expect(spells[0]!.id).toBe(cu.spellIds[3]!)
+    expect(spells.every((spell) => SPELLS[spell.id])).toBe(true)
   })
 })

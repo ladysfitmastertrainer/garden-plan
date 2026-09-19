@@ -1,24 +1,28 @@
 /**
- * Bảng chọn phép và dải đội thú.
+ * Bảng chọn chiêu và dải con thú.
  *
- * Đây là bước mới quan trọng nhất của trận đấu: trả lời đúng xong, trẻ được
- * chọn tung phép nào. Bảng này phải nói rõ phép nào khắc chế được con quái
- * trước mặt - nếu trẻ phải tự nhớ vòng khắc chế thì quyết định biến thành đoán
- * mò, mà đoán mò thì chán y như không có lựa chọn.
+ * Đây là bước quan trọng nhất của trận đấu: trả lời đúng xong, trẻ được chọn
+ * tung chiêu nào. Bảng này phải nói rõ chiêu nào khắc chế được con quái trước
+ * mặt - nếu trẻ phải tự nhớ vòng khắc chế thì quyết định biến thành đoán mò, mà
+ * đoán mò thì chán y như không có lựa chọn.
+ *
+ * ĐÚNG HAI NÚT, vì con thú mang ra trận đúng hai chiêu (xem `engine/loadout`).
+ * Trước đây bảng này gom chiêu của cả đội ba con và cho đổi con giữa trận; giờ
+ * ra trận một con, nên việc "cầm chiêu nào" đã quyết xong từ kho đồ, và ở đây
+ * chỉ còn đúng một câu hỏi: trong hai chiêu đang cầm, chiêu nào hợp lúc này.
  *
  * Bảng ĐÈ LÊN khung trận chứ không nằm dưới đáy trang. Đặt ở dưới thì trên màn
  * hình dọc nó rơi khỏi tầm mắt, trẻ vừa trả lời đúng xong lại phải cúi xuống
- * tìm - mất đúng cái khoảnh khắc đáng lẽ phải sướng nhất. Hai cột cho gọn, quá
- * nhiều phép thì cuộn trong bảng.
+ * tìm - mất đúng cái khoảnh khắc đáng lẽ phải sướng nhất.
  */
 
 import { SUBJECT_ELEMENT, SUBJECT_LABEL, type Subject } from '../../content/types'
 import { SPELLS } from '../../content/pets'
-import { filterByLoadout } from '../../engine/loadout'
-import { matchupLabel, teamAlive, type BattlePet } from '../../engine/pets'
+import { matchupLabel, type BattlePet } from '../../engine/pets'
 import type { BattleState } from '../../engine/battle'
 import { ALL_SPRITES, recolor } from '../pixel/creatures'
 import { PixelSprite } from '../pixel/sprite'
+import { EFFECT_UI } from './effects'
 
 /** Màu nhận diện của bốn nguyên tố, trùng màu môn học ở mọi nơi khác. */
 const ELEMENT_COLOR: Record<Subject, string> = {
@@ -46,38 +50,22 @@ export function SpellPicker({
   onCast,
 }: {
   battle: BattleState
-  /** Bộ chiêu trẻ đã sắp. Chỉ những phép trong đây mới hiện ra. */
+  /** Hai chiêu trẻ đã sắp cho con thú này. Chỉ những chiêu trong đây mới hiện ra. */
   loadout: string[]
-  onCast: (spellId: string, casterIndex: number) => void
+  onCast: (spellId: string) => void
 }) {
   const enemyElement = battle.enemyElement
+  const pet = battle.pet
 
-  // Liệt kê phép của MỌI con còn sống, không chỉ con đang đứng.
-  //
-  // Thú chỉ biết phép cùng hệ của mình. Nếu chỉ được dùng con đang đứng thì gặp
-  // quái khắc hệ là cả ba nút đều "bị khắc" - trẻ có ba lựa chọn nhưng không có
-  // quyết định nào. Cho đổi con chính là nước đi đúng, và đó cũng là cách
-  // Prodigy làm.
-  const all = battle.team.flatMap((p, index) =>
-    p.hp <= 0
-      ? []
-      : p.pet.spellIds
-          .map((id) => SPELLS[id])
-          .filter((spell): spell is NonNullable<typeof spell> => Boolean(spell))
-          .map((spell) => ({ spell, pet: p, index })),
-  )
-  // Chỉ hiện những phép trẻ đã sắp vào bộ, mỗi phép đúng một nút, và không bao
-  // giờ nhiều hơn số ô. Bày hết ra thì trẻ lớp 1 bấm bừa cái gần nhất.
-  const options = filterByLoadout(all, loadout, loadout.length)
+  const options = loadout
+    .map((id) => SPELLS[id])
+    .filter((spell): spell is NonNullable<typeof spell> => Boolean(spell))
   if (options.length === 0) return null
 
-  // Phép khắc chế xếp lên đầu để trẻ nhỏ không phải dò cả danh sách.
-  options.sort((a, b) => {
+  // Chiêu khắc chế xếp lên đầu để trẻ nhỏ không phải dò cả danh sách.
+  const sorted = [...options].sort((a, b) => {
     const rank = (m: string) => (m === 'strong' ? 0 : m === 'neutral' ? 1 : 2)
-    return (
-      rank(matchupLabel(a.spell.element, enemyElement)) -
-      rank(matchupLabel(b.spell.element, enemyElement))
-    )
+    return rank(matchupLabel(a.element, enemyElement)) - rank(matchupLabel(b.element, enemyElement))
   })
 
   return (
@@ -88,8 +76,8 @@ export function SpellPicker({
         borderColor: '#b8860b',
         padding: '14px 16px',
         // Chiếm hết bề ngang khung trận để xếp được hai cột. Để bảng tự co theo
-        // nội dung thì nó thành một cột hẹp và lựa chọn thứ tư trở đi bị khuất
-        // dưới mép - trẻ không biết là còn phép nữa để chọn.
+        // nội dung thì nó thành một cột hẹp và lựa chọn thứ hai bị khuất dưới
+        // mép - trẻ không biết là còn chiêu nữa để chọn.
         width: '100%',
         maxWidth: 680,
         maxHeight: '100%',
@@ -97,9 +85,9 @@ export function SpellPicker({
         flexDirection: 'column',
       }}
     >
-      {/* Chỉ còn "CHỌN PHÉP": lời khen đã có nhãn riêng treo ngay trên khung trận,
-          nói hai lần trong một màn hình là thừa. */}
-      <p className="pixel-font text-center text-2xl leading-none">CHỌN PHÉP</p>
+      {/* Chỉ còn "CHỌN CHIÊU": lời khen đã có nhãn riêng treo ngay trên khung
+          trận, nói hai lần trong một màn hình là thừa. */}
+      <p className="pixel-font text-center text-2xl leading-none">CHỌN CHIÊU</p>
       <p className="mb-2 text-center text-sm opacity-75">
         Quái hệ{' '}
         <strong style={{ color: ELEMENT_COLOR[enemyElement] }}>
@@ -110,41 +98,62 @@ export function SpellPicker({
       <div
         className="grid gap-2"
         style={{
-          // 280px chứ không phải 210px: ở 210 thì tên phép dài như "Búa Phép Tính"
+          // 280px chứ không phải 210px: ở 210 thì tên chiêu dài như "Búa Phép Tính"
           // đụng vào nhãn "KHẮC" bên phải, và cả hai đè lên rìa nút.
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
           overflowY: 'auto',
           minHeight: 0,
         }}
       >
-        {options.map(({ spell, pet, index }) => {
+        {sorted.map((spell) => {
           const matchup = matchupLabel(spell.element, enemyElement)
+          const ui = spell.effect ? EFFECT_UI[spell.effect.kind] : null
+          /*
+            Chiêu cuối đang nghỉ thì nút KHOÁ LẠI CHỨ KHÔNG BIẾN MẤT.
+
+            Giấu nó đi thì bảng chọn tự dưng còn một nút, và trẻ tưởng mình vừa
+            mất chiêu. Để nó nằm đó kèm con số đếm ngược thì cái hồi chiêu trở
+            thành một thứ trẻ ĐỌC ĐƯỢC và trông tới - "còn 2 lượt nữa".
+          */
+          const cooling = spell.tier === 4 && battle.ultimateCooldown > 0
           return (
             <button
-              key={`${index}-${spell.id}`}
+              key={spell.id}
               type="button"
-              onClick={() => onCast(spell.id, index)}
+              onClick={() => onCast(spell.id)}
+              disabled={cooling}
               className="pixel-panel flex items-center gap-3 text-left"
               style={{
                 // Đệm rộng hẳn ra: ở mức 4px thì hình thú và nhãn "KHẮC" chạm sát
                 // rìa nút, nhìn như tràn ra ngoài.
                 padding: '8px 12px',
-                borderColor: ELEMENT_COLOR[spell.element],
-                background: matchup === 'strong' ? '#ffe9b8' : '#f8f8f0',
+                borderColor: cooling ? '#8a94a6' : ELEMENT_COLOR[spell.element],
+                background: cooling ? '#dfe4ea' : matchup === 'strong' ? '#ffe9b8' : '#f8f8f0',
                 minHeight: 60,
+                opacity: cooling ? 0.7 : 1,
               }}
             >
               <PixelSprite sprite={petSprite(pet.pet.sprite, pet.pet.element)} scale={2} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-lg font-bold leading-tight">{spell.name}</span>
+                <span className="block truncate text-lg font-bold leading-tight">
+                  {spell.tier === 4 && '⚡ '}
+                  {spell.name}
+                </span>
                 <span
                   className="pixel-font block text-base leading-tight"
-                  style={{ color: ELEMENT_COLOR[spell.element] }}
+                  style={{ color: cooling ? '#5a6472' : ELEMENT_COLOR[spell.element] }}
                 >
-                  {SUBJECT_ELEMENT[spell.element]} · {Math.round(spell.power * 100)}%
+                  {cooling
+                    ? `Nghỉ ${battle.ultimateCooldown} lượt nữa`
+                    : `${SUBJECT_ELEMENT[spell.element]} · ${Math.round(spell.power * 100)}%`}
                 </span>
+                {ui && !cooling && (
+                  <span className="block truncate text-sm leading-tight" style={{ color: ui.color }}>
+                    {ui.icon} {ui.hint}
+                  </span>
+                )}
               </span>
-              {matchup === 'strong' && (
+              {!cooling && matchup === 'strong' && (
                 <span
                   className="pixel-font shrink-0 px-2 text-base"
                   style={{ color: '#b4521f', background: '#ffd9a8', borderRadius: 4 }}
@@ -152,58 +161,107 @@ export function SpellPicker({
                   🔥 KHẮC
                 </span>
               )}
-              {matchup === 'weak' && <span className="shrink-0 text-lg opacity-60">🪨</span>}
+              {!cooling && matchup === 'weak' && (
+                <span className="shrink-0 text-lg opacity-60">🪨</span>
+              )}
             </button>
           )
         })}
       </div>
-
     </div>
   )
 }
 
 /**
- * Dải đội thú dưới khung trận: con nào đang ra trận, con nào còn máu.
- * Trái tim đếm số thú còn đứng được - đúng cách Prodigy cho biết còn mấy mạng.
+ * Dải dưới khung trận: con thú đang đánh, và những gì đang bám trên con quái.
+ *
+ * Chỗ này từng là dải ĐỘI THÚ - mấy trái tim đếm số con còn đứng được, và một ô
+ * cho mỗi con. Đi một con thì không còn gì để đếm, nên bề ngang ấy được trả cho
+ * hai thứ trẻ thật sự cần liếc giữa trận:
+ *
+ *   HỒI CHIÊU - còn mấy lượt nữa thì chiêu cuối dùng lại được. Không có nó thì
+ *               trẻ phải nhớ, mà giữa trận thì không ai nhớ.
+ *   HIỆU ỨNG  - quái đang cháy hay đang bị trói, và còn mấy lượt. Đây là bằng
+ *               chứng cho thấy chiêu cuối vừa rồi CÒN ĐANG làm việc; thiếu nó
+ *               thì hiệu ứng chỉ là một hoạt cảnh chớp qua rồi thôi.
  */
-export function TeamStrip({ team, activeIndex }: { team: BattlePet[]; activeIndex: number }) {
-  const alive = teamAlive(team)
+export function PetStrip({
+  pet,
+  ultimateCooldown,
+  status,
+}: {
+  pet: BattlePet
+  ultimateCooldown: number
+  status: BattleState['enemyStatus']
+}) {
+  const ratio = pet.pet.maxHp === 0 ? 0 : Math.max(0, pet.hp) / pet.pet.maxHp
 
   return (
     <div className="pixel-panel team-strip flex items-center gap-2" style={{ padding: '6px 10px' }}>
-      <span className="pixel-font shrink-0 text-xl" aria-label={`Còn ${alive} thú`}>
-        {'❤️'.repeat(alive)}
-        {'🖤'.repeat(team.length - alive)}
+      <PixelSprite sprite={petSprite(pet.pet.sprite, pet.pet.element)} scale={2} />
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-base font-bold leading-tight">{pet.pet.name}</span>
+          <span className="pixel-font shrink-0 text-base opacity-70">
+            {Math.max(0, pet.hp)}/{pet.pet.maxHp}
+          </span>
+        </span>
+        <span
+          className="mt-1 block h-3 overflow-hidden"
+          style={{ background: '#5a6472', border: '2px solid #1b2432', borderRadius: 3 }}
+        >
+          <span
+            className="block h-full"
+            style={{
+              width: `${ratio * 100}%`,
+              background: ratio > 0.5 ? '#4caf50' : ratio > 0.2 ? '#f0c419' : '#e2584d',
+              transition: 'width 0.3s',
+            }}
+          />
+        </span>
       </span>
 
-      <div className="flex flex-1 flex-wrap gap-2">
-        {team.map((p, index) => {
-          const down = p.hp <= 0
-          const active = index === activeIndex && !down
-          return (
-            <span
-              key={p.pet.id}
-              className="flex items-center gap-1"
-              style={{
-                padding: '2px 6px',
-                border: `3px solid ${active ? '#b8860b' : '#1b2432'}`,
-                background: active ? '#fff3c4' : down ? '#c3ccd8' : '#f8f8f0',
-                borderRadius: 4,
-                opacity: down ? 0.55 : 1,
-              }}
-              title={`${p.pet.name} - ${p.hp}/${p.pet.maxHp} máu`}
-            >
-              <PixelSprite sprite={petSprite(p.pet.sprite, p.pet.element)} scale={1} />
-              <span className="pixel-font text-lg leading-none">
-                {p.hp}/{p.pet.maxHp}
-              </span>
-            </span>
-          )
-        })}
-      </div>
+      {/* Hiệu ứng đang bám trên quái, kèm số lượt còn lại. */}
+      {status.map((effect) => {
+        const ui = EFFECT_UI[effect.kind]
+        return (
+          <span
+            key={effect.kind}
+            className="pixel-font shrink-0 px-1 text-base leading-none"
+            style={{ background: ui.tint, color: ui.color, borderRadius: 4, padding: '3px 5px' }}
+            title={`${ui.label} - còn ${effect.turnsLeft} lượt`}
+          >
+            {ui.icon}
+            {effect.turnsLeft}
+          </span>
+        )
+      })}
 
-      <span className="pixel-font shrink-0 text-lg opacity-60">
-        {SUBJECT_LABEL[team[activeIndex]?.pet.element ?? 'math']}
+      <span
+        className="pixel-font shrink-0 text-base leading-none"
+        style={{
+          background: ultimateCooldown > 0 ? '#dfe4ea' : '#fff3c4',
+          color: ultimateCooldown > 0 ? '#5a6472' : '#b4521f',
+          border: '2px solid #1b2432',
+          borderRadius: 4,
+          padding: '3px 5px',
+        }}
+        title={ultimateCooldown > 0 ? `Chiêu cuối nghỉ ${ultimateCooldown} lượt` : 'Chiêu cuối sẵn sàng'}
+      >
+        ⚡{ultimateCooldown > 0 ? ultimateCooldown : '✓'}
+      </span>
+
+      {/*
+        Tên môn ẩn đi trên màn hình hẹp.
+
+        Nó là thứ ĐÁNG BỎ NHẤT trong dải này: hình con thú đã tô theo hệ rồi,
+        và khung hỏi ngay dưới còn in tên môn bằng chữ to. Trong khi thứ nó đang
+        chiếm chỗ của - TÊN CON THÚ - thì không nói ở đâu khác, và đo trên máy
+        390px thì "Cú Bác Học" bị cắt còn "C...".
+      */}
+      <span className="pixel-font hidden shrink-0 text-lg opacity-60 sm:inline">
+        {SUBJECT_LABEL[pet.pet.element]}
       </span>
     </div>
   )

@@ -10,10 +10,11 @@ import {
   EVOLUTION_LEVELS,
   PETS,
   SPELLS,
-  buildTeam,
+  borrowedElement,
+  companionOf,
+  defaultCompanion,
   getPet,
   petsOfElement,
-  starterTeam,
 } from '../content/pets'
 import { ALL_SPRITES } from '../features/pixel/creatures'
 import {
@@ -32,10 +33,9 @@ import {
   elementMultiplier,
   isAlive,
   matchupLabel,
-  nextAlive,
-  teamAlive,
-  teamHp,
+  oppositeElement,
   toBattlePet,
+  unlockedSpellIds,
 } from './pets'
 
 describe('khắc chế nguyên tố', () => {
@@ -120,109 +120,106 @@ describe('bộ thú và bộ phép', () => {
   })
 })
 
-describe('đội hình', () => {
-  it('đội mặc định luôn đủ ba thú và đủ ba nguyên tố KHÁC nhau', () => {
-    // Ba hệ khác nhau nghĩa là gặp quái hệ nào trẻ cũng có đường khắc chế.
-    for (const subject of SUBJECTS) {
-      const team = starterTeam(subject)
-      expect(team).toHaveLength(3)
-      expect(new Set(team.map((p) => p.element)).size).toBe(3)
+describe('hệ đối diện - đường ra của một con thú đi một mình', () => {
+  it('đi HAI bước trong vòng khắc chế, nên đối diện của đối diện là chính nó', () => {
+    for (const element of SUBJECTS) {
+      expect(oppositeElement(oppositeElement(element)), element).toBe(element)
+      expect(oppositeElement(element), element).not.toBe(element)
     }
   })
 
-  it('đội hình LUÔN có con khắc chế được quái của vùng đó', () => {
-    // Đây là điều kiện để bảng chọn phép có ít nhất một lựa chọn tốt. Thiếu nó
-    // thì trẻ bấm nút nào cũng "bị khắc", và quyết định thành giả.
-    for (const subject of SUBJECTS) {
-      const counter = counterElement(subject)
+  it('hệ mượn BỊT ĐÚNG lỗ hổng: nó khắc được cái hệ đang khắc con thú', () => {
+    /*
+      Đây là cả lý do chiêu thứ ba tồn tại, và cũng là chỗ rất dễ làm sai.
+
+      Con thú hệ Ngôn Từ sợ nhất quái hệ Số Học. Phản xạ đầu tiên là phát cho nó
+      một chiêu Số Học - nhưng Số Học đánh Số Học chỉ ra 1,0, chẳng gỡ được gì.
+      Thứ nó cần là hệ KHẮC ĐƯỢC Số Học.
+    */
+    for (const element of SUBJECTS) {
+      const bully = counterElement(element)
       expect(
-        starterTeam(subject).some((p) => p.element === counter),
-        `${subject}: đội mặc định không có con khắc chế`,
-      ).toBe(true)
-
-      // Kể cả khi trẻ đã thu phục ba con cùng một hệ khác.
-      const hoarded = petsOfElement(subject).map((p) => p.id)
-      expect(
-        buildTeam(hoarded, subject).some((p) => p.element === counter),
-        `${subject}: đội dựng từ thú đã thu phục mất con khắc chế`,
-      ).toBe(true)
+        elementMultiplier(oppositeElement(element), bully),
+        `${element}: hệ mượn không khắc được kẻ đang khắc mình`,
+      ).toBe(STRONG_MULTIPLIER)
     }
   })
 
-  it('đội mặc định mở đầu bằng thú cùng nguyên tố với môn đang học', () => {
-    for (const subject of SUBJECTS) {
-      expect(starterTeam(subject)[0]!.element).toBe(subject)
-    }
-  })
-
-  it('thú đã thu phục được xếp trước, thú cùng hệ với môn đứng đầu', () => {
-    const team = buildTeam(['gau-dem', 'cu-chu'], 'vietnamese')
-    expect(team[0]!.id).toBe('cu-chu')
-    expect(team.map((p) => p.id)).toContain('gau-dem')
-    expect(team).toHaveLength(3)
-  })
-
-  it('id lạ trong danh sách đã thu phục thì bỏ qua, vẫn đủ đội', () => {
-    const team = buildTeam(['khong-ton-tai', 'rong-so'], 'math')
-    expect(team).toHaveLength(3)
-    expect(team.map((p) => p.id)).toContain('rong-so')
-  })
-
-  it('không có thú nào thì vẫn ra đội mặc định', () => {
-    expect(buildTeam([], 'music')).toHaveLength(3)
-  })
-
-  it('đội không bao giờ có hai thú trùng nhau', () => {
-    for (const subject of SUBJECTS) {
-      const team = buildTeam([starterTeam(subject)[0]!.id], subject)
-      expect(new Set(team.map((p) => p.id)).size).toBe(team.length)
+  it('mọi con thú đều khai đúng hệ mượn ấy ở chiêu thứ ba', () => {
+    for (const pet of PETS) {
+      expect(borrowedElement(pet), pet.id).toBe(oppositeElement(pet.element))
+      expect(SPELLS[pet.spellIds[2]!]!.element, pet.id).toBe(oppositeElement(pet.element))
     }
   })
 })
 
-describe('đội hình trong trận', () => {
-  const team = () => starterTeam('math').map(toBattlePet)
-
-  it('mới vào trận thì thú nào cũng đầy máu', () => {
-    for (const p of team()) {
-      expect(p.hp).toBe(p.pet.maxHp)
-      expect(isAlive(p)).toBe(true)
+describe('con thú đi theo trẻ', () => {
+  it('con mặc định của mỗi môn cùng hệ với môn đó', () => {
+    for (const subject of SUBJECTS) {
+      expect(defaultCompanion(subject).element).toBe(subject)
     }
   })
 
-  it('gọi thú tiếp theo còn sống', () => {
-    const t = team()
-    t[1]!.hp = 0
-    expect(nextAlive(t, 0)).toBe(2)
+  it('trẻ chọn con nào thì con ấy ra trận', () => {
+    expect(companionOf(['cu-chu', 'rong-so'], 'rong-so', 'vietnamese').id).toBe('rong-so')
   })
 
-  it('QUAY VÒNG về đầu đội chứ không chỉ tiến về sau', () => {
-    // Thú số 1 gục trước, rồi thú số 3 gục: thú số 2 vẫn phải được gọi ra.
-    const t = team()
-    t[0]!.hp = 0
-    expect(nextAlive(t, 2)).toBe(1)
+  it('chưa chọn bao giờ thì phát con CÙNG HỆ với môn, trong số con đang có', () => {
+    expect(companionOf(['gau-dem', 'cu-chu'], undefined, 'vietnamese').id).toBe('cu-chu')
   })
 
-  it('cả đội gục thì trả -1', () => {
-    const t = team()
-    for (const p of t) p.hp = 0
-    expect(nextAlive(t, 0)).toBe(-1)
-    expect(teamAlive(t)).toBe(0)
+  it('chọn một con chưa thu phục thì rơi về con hợp môn nhất đang có', () => {
+    expect(companionOf(['gau-dem'], 'rong-so', 'math').id).toBe('gau-dem')
   })
 
-  it('đếm đúng số thú còn đứng được', () => {
-    const t = team()
-    t[0]!.hp = 0
-    expect(teamAlive(t)).toBe(2)
+  it('id lạ trong danh sách đã thu phục thì bỏ qua', () => {
+    expect(companionOf(['khong-ton-tai', 'rong-so'], undefined, 'math').id).toBe('rong-so')
   })
 
-  it('máu cả đội cộng dồn đúng', () => {
-    const t = team()
-    const full = teamHp(t)
-    expect(full.hp).toBe(full.maxHp)
-    t[0]!.hp -= 10
-    expect(teamHp(t).hp).toBe(full.hp - 10)
-    expect(teamHp(t).maxHp).toBe(full.maxHp)
+  it('tay trắng thì vẫn có một con ra trận - không bao giờ trả về rỗng', () => {
+    for (const subject of SUBJECTS) {
+      expect(companionOf([], undefined, subject).id).toBe(defaultCompanion(subject).id)
+      expect(companionOf(undefined, undefined, subject)).toBeTruthy()
+    }
+  })
+
+  it('con ra trận đã cộng cấp và đã tiến hoá, không phải dữ liệu gốc', () => {
+    const raw = getPet('cu-chu')!
+    const grown = companionOf(['cu-chu'], 'cu-chu', 'vietnamese', { 'cu-chu': xpForLevel(10) })
+    expect(grown.maxHp).toBeGreaterThan(raw.maxHp)
+    expect(grown.name).not.toBe(raw.name)
+    expect(grown.spellIds).toHaveLength(4)
+  })
+
+  it('con chưa tiến hoá ra trận với ĐÚNG hai chiêu, không cầm sẵn chiêu cuối', () => {
+    const fresh = companionOf(['cu-chu'], 'cu-chu', 'vietnamese')
+    expect(fresh.spellIds).toHaveLength(2)
+  })
+})
+
+describe('một con thú trong trận', () => {
+  it('mới vào trận thì đầy máu và còn đứng được', () => {
+    for (const subject of SUBJECTS) {
+      const fighter = toBattlePet(defaultCompanion(subject))
+      expect(fighter.hp).toBe(fighter.pet.maxHp)
+      expect(isAlive(fighter)).toBe(true)
+    }
+  })
+
+  it('hết máu là không còn đứng được', () => {
+    const fighter = toBattlePet(defaultCompanion('math'))
+    expect(isAlive({ ...fighter, hp: 0 })).toBe(false)
+  })
+
+  it('máu đủ dày để một con đi một mình chịu được cả trận', () => {
+    /*
+      Con số này từng là máu của BA con cộng lại. Bỏ đội mà quên nhân máu lên
+      thì trẻ vào trận đầu tiên với 34 máu trước con quái đánh mỗi đòn tám
+      điểm - bốn đòn là về làng, và không ai hiểu vì sao trận đấu ngắn thế.
+    */
+    for (const subject of SUBJECTS) {
+      expect(defaultCompanion(subject).maxHp, subject).toBeGreaterThanOrEqual(80)
+    }
   })
 })
 
@@ -296,42 +293,21 @@ describe('cấp độ và tiến hoá', () => {
     }
   })
 
-  it('tiến hoá học THÊM phép chứ không mất phép cũ, kể cả khi nhảy hai nấc một lúc', () => {
-    for (const pet of PETS) {
-      const top = resolvePet(pet, xpForLevel(MAX_PET_LEVEL))
-      for (const id of pet.spellIds) {
-        expect(top.spellIds, `${pet.id} mất phép gốc ${id}`).toContain(id)
-      }
-      // Nhảy thẳng từ cấp 1 lên kịch cấp: phép của những nấc đi ngang qua cũng
-      // phải theo về, không chỉ phép của nấc cuối.
-      for (const evolution of pet.evolutions) {
-        for (const id of evolution.spellIds) {
-          expect(top.spellIds, `${pet.id} thiếu phép nấc ${evolution.atLevel}`).toContain(id)
-        }
-      }
-    }
-  })
-
-  it('tới nấc cuối thú biết ĐỦ CẢ BỐN phép của hệ mình', () => {
-    // Nuôi tới cấp 20 mà bảng phép vẫn thiếu thì phần thưởng của nấc cuối chỉ là
+  it('tới kịch cấp thì con thú mở ĐỦ CẢ BỐN chiêu của mình', () => {
+    // Nuôi tới cấp 20 mà vẫn thiếu chiêu thì phần thưởng của nấc cuối chỉ là
     // vài điểm máu - không đáng cả trăm trận.
     for (const pet of PETS) {
       const top = resolvePet(pet, xpForLevel(MAX_PET_LEVEL))
-      const ofElement = Object.values(SPELLS).filter((s) => s.element === pet.element)
-      for (const spell of ofElement) {
-        expect(top.spellIds, `${pet.id} thiếu phép ${spell.id}`).toContain(spell.id)
-      }
+      expect(top.spellIds, pet.id).toEqual(pet.spellIds)
     }
   })
 
-  it('phép học thêm khi tiến hoá đều là phép có thật và cùng hệ', () => {
+  it('chiêu mở theo NẤC TIẾN HOÁ, không theo cấp của trẻ', () => {
     for (const pet of PETS) {
-      for (const evolution of pet.evolutions) {
-        for (const id of evolution.spellIds) {
-          expect(SPELLS[id], `${pet.id}: phép tiến hoá không tồn tại`).toBeDefined()
-          expect(SPELLS[id]!.element, `${pet.id}: phép tiến hoá khác hệ`).toBe(pet.element)
-        }
-      }
+      expect(unlockedSpellIds(pet, 0), pet.id).toHaveLength(2)
+      expect(unlockedSpellIds(pet, xpForLevel(5)), pet.id).toHaveLength(3)
+      expect(unlockedSpellIds(pet, xpForLevel(10)), pet.id).toHaveLength(4)
+      expect(unlockedSpellIds(pet, xpForLevel(20)), pet.id).toHaveLength(4)
     }
   })
 
@@ -392,10 +368,10 @@ describe('cấp độ và tiến hoá', () => {
     expect(crossed?.name).toBe(pet.evolutions[1]!.name)
   })
 
-  it('đội hình dùng thú ĐÃ tiến hoá khi đủ cấp', () => {
-    const id = starterTeam('math')[0]!.id
-    const base = buildTeam([id], 'math')[0]!
-    const grown = buildTeam([id], 'math', 3, { [id]: xpForLevel(9) })[0]!
+  it('con ra trận dùng hình ĐÃ tiến hoá khi đủ cấp', () => {
+    const id = defaultCompanion('math').id
+    const base = companionOf([id], id, 'math')
+    const grown = companionOf([id], id, 'math', { [id]: xpForLevel(9) })
     expect(grown.maxHp).toBeGreaterThan(base.maxHp)
     expect(grown.name).not.toBe(base.name)
   })

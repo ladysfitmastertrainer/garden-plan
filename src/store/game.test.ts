@@ -126,8 +126,7 @@ async function playBattle(mode: 'win' | 'lose'): Promise<void> {
       else answerWrongly(state.battle.question)
     } else if (state.battle.phase === 'spell') {
       // Trả lời đúng xong phải chọn phép thì đòn mới thật sự tung ra.
-      const pet = state.battle.team[state.battle.activeIndex]!
-      state.cast(pet.pet.spellIds[0]!)
+      state.cast(state.battle.pet.pet.spellIds[0]!)
     } else if (state.battle.phase === 'feedback') {
       state.next()
     } else {
@@ -252,7 +251,7 @@ describe('màn tổng kết hiện ngay, không đợi lưu xong', () => {
       if (battle.phase === 'warning') state.defend()
       else if (battle.phase === 'ready') state.attack()
       else if (battle.phase === 'question' && battle.question) answerCorrectly(battle.question)
-      else if (battle.phase === 'spell') state.cast(battle.team[battle.activeIndex]!.pet.spellIds[0]!)
+      else if (battle.phase === 'spell') state.cast(battle.pet.pet.spellIds[0]!)
       else if (battle.phase === 'feedback') state.next()
     }
     expect(useGame.getState().battle?.phase).toBe('victory')
@@ -528,19 +527,23 @@ describe('chơi được cả 4 môn ở mọi lớp', () => {
 })
 
 describe('nuôi thú và tiến hoá', () => {
-  it('đánh xong trận là cả đội được cộng kinh nghiệm', async () => {
+  it('đánh xong trận thì ĐÚNG con ra trận được cộng kinh nghiệm', async () => {
+    /*
+      Trọn vẹn cho một con, chứ không rải cho cả bộ sưu tập. Nuôi một con tới
+      nấc tiến hoá thứ hai đã là cả một chặng; chia cho mười hai con đứng ngoài
+      thì chặng ấy dài gấp mười hai lần, và không ai tới đích.
+    */
     await newStudent(1)
     const map = useGame.getState().worldMap('math')
     useGame.getState().startBattle('math', map.nodes[0]!)
-    const team = useGame.getState().battle!.team.map((p) => p.pet.id)
+    const fighter = useGame.getState().battle!.pet.pet.id
 
     await playBattle('win')
 
     const { progress, summary } = useGame.getState()
     expect(summary!.petXpGained).toBeGreaterThan(0)
-    for (const id of team) {
-      expect(progress.petXp?.[id], `${id} chưa được cộng kinh nghiệm`).toBe(summary!.petXpGained)
-    }
+    expect(progress.petXp?.[fighter]).toBe(summary!.petXpGained)
+    expect(Object.keys(progress.petXp ?? {})).toEqual([fighter])
   })
 
   it('đủ kinh nghiệm thì thú tiến hoá và màn tổng kết báo tin', async () => {
@@ -549,7 +552,7 @@ describe('nuôi thú và tiến hoá', () => {
 
     // Đặt một con sát mốc tiến hoá rồi đánh một trận cho nó vượt qua.
     useGame.getState().startBattle('math', map.nodes[0]!)
-    const leader = useGame.getState().battle!.team[0]!.pet.id
+    const leader = useGame.getState().battle!.pet.pet.id
     useGame.setState({ battle: null })
     useGame.setState((s) => ({
       progress: { ...s.progress, petXp: { [leader]: xpForLevel(5) - 1 } },
@@ -569,7 +572,7 @@ describe('nuôi thú và tiến hoá', () => {
     await newStudent(1)
     const map = useGame.getState().worldMap('math')
     useGame.getState().startBattle('math', map.nodes[0]!)
-    const leader = useGame.getState().battle!.team[0]!.pet.id
+    const leader = useGame.getState().battle!.pet.pet.id
     useGame.setState({ battle: null })
     useGame.setState((s) => ({
       progress: { ...s.progress, petXp: { [leader]: xpForLevel(6) } },
@@ -585,7 +588,7 @@ describe('nuôi thú và tiến hoá', () => {
     const map = useGame.getState().worldMap('math')
 
     useGame.getState().startBattle('math', map.nodes[0]!)
-    const before = useGame.getState().battle!.team[0]!
+    const before = useGame.getState().battle!.pet
     const leader = before.pet.id
     useGame.setState({ battle: null })
     useGame.setState((s) => ({
@@ -593,7 +596,8 @@ describe('nuôi thú và tiến hoá', () => {
     }))
 
     useGame.getState().startBattle('math', map.nodes[0]!)
-    const after = useGame.getState().battle!.team.find((p) => p.pet.id === leader)!
+    const after = useGame.getState().battle!.pet
+    expect(after.pet.id).toBe(leader)
     expect(after.pet.maxHp).toBeGreaterThan(before.pet.maxHp)
     expect(after.pet.name).not.toBe(before.pet.name)
   })

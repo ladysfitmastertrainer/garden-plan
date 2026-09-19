@@ -51,6 +51,7 @@ const pet = (id: string, element: Subject, maxHp = 60, power = 1): Pet => ({
 const spell = (element: Subject): Spell => ({
   id: `p-${element}`,
   name: element,
+  tier: 1,
   element,
   power: 1,
   flavour: 'tung một đòn',
@@ -69,7 +70,7 @@ function towerBattle(subject: Subject = 'math', grade: Grade = 3, overrides: Par
     {
       enemy: createTowerBoss(subject, grade),
       player: { maxHp: 60, power: 1 },
-      team: SUBJECTS.map((e) => pet(`pet-${e}`, e)),
+      pet: pet('pet-math', 'math'),
       maxQuestions: TOWER_QUESTIONS,
       timeLimitMs: 13_000,
       ...overrides,
@@ -306,7 +307,7 @@ describe('nổi giận: nửa sau của trận không giống nửa đầu', () 
       rng: createRng('thuong'),
     })
     const s = createBattle(
-      { enemy: { ...plain, maxHp: 10 }, player: { maxHp: 60, power: 1 }, team: [pet('a', 'math')] },
+      { enemy: { ...plain, maxHp: 10 }, player: { maxHp: 60, power: 1 }, pet: pet('a', 'math') },
       numericQuestion,
       NOW,
     )

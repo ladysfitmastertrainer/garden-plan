@@ -4,7 +4,7 @@ import { requireWriteStudent } from '@/server/guard'
 import { badRequest, readJson, route } from '@/server/http'
 import { challenge, type PvpQuestion } from '@/server/pvp'
 import { SUBJECTS, type Grade, type Subject } from '@/content/types'
-import { getPet } from '@/content/pets'
+import { SPELLS, getPet } from '@/content/pets'
 
 interface Body {
   studentId?: string
@@ -15,7 +15,23 @@ interface Body {
   maxHp?: number
   power?: number
   pet?: unknown
+  spells?: unknown
 }
+
+/**
+ * Lọc bộ chiêu khai lên: chỉ giữ id có thật, nhiều nhất hai.
+ *
+ * Cùng lẽ với id con thú và mã câu nói - kiểm ngay tại cửa. Một chuỗi lạ lọt
+ * vào đây rồi sẽ được máy bên kia tra ra tên chiêu và hình, tra hụt thì cú đánh
+ * hiện ra không tên. Và quan trọng hơn: chính danh sách này là thứ máy chủ dựa
+ * vào để từ chối những cú đánh bằng chiêu không phải của mình (xem `spellFor`),
+ * nên nó mà bẩn thì cái chốt ấy hỏng theo.
+ */
+function cleanSpells(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((id): id is string => typeof id === 'string' && Boolean(SPELLS[id])).slice(0, 2)
+}
+
 
 /**
  * Số câu tối đa của một trận PVP.
@@ -54,6 +70,7 @@ export const POST = route(async (req) => {
     cửa thì phần còn lại của hệ thống không phải phòng thủ thêm lần nào nữa.
   */
   const pet = typeof body.pet === 'string' && getPet(body.pet) ? body.pet : null
+  const spells = cleanSpells(body.spells)
 
   await requireWriteStudent(studentId)
 
@@ -66,6 +83,7 @@ export const POST = route(async (req) => {
       maxHp,
       power,
       pet,
+      spells,
     }),
   }
 })

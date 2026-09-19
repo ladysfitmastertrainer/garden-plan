@@ -12,6 +12,8 @@
  */
 
 import type { Grade, Question, Subject } from '../content/types'
+import type { ActiveEffect } from '../engine/battle'
+import type { EffectKind } from '../engine/pets'
 
 export type PvpStatus = 'pending' | 'active' | 'finished' | 'declined' | 'abandoned'
 
@@ -37,24 +39,59 @@ export interface PvpSide {
   name: string
   avatar: string
   /**
-   * Id con thú ĐỨNG ĐẦU đội, chốt lúc vào trận.
+   * Id con thú ra trận, chốt lúc vào trận.
    *
-   * Đây là thứ duy nhất của đội thú mà đấu trường VẼ ra được. Thiếu nó -
-   * trận tạo từ trước bản này - thì giao diện rơi về con thú mặc định của
-   * môn đó, và sân đấu vẫn chạy.
+   * Thiếu nó - trận tạo từ trước migration 0011 - thì giao diện rơi về con thú
+   * mặc định của môn đó, và sân đấu vẫn chạy.
    */
   pet?: string | null
+  /**
+   * Hai chiêu bên này mang vào trận. Rỗng với trận tạo từ trước migration 0012,
+   * và khi ấy giao diện rơi về hai chiêu nền của con thú.
+   */
+  spells?: string[]
+  /** Chiêu cuối còn nghỉ mấy vòng. 0 là dùng được. */
+  cooldown?: number
+  /** Hiệu ứng đang bám trên bên này. */
+  status?: ActiveEffect[]
   hp: number
   maxHp: number
   power: number
 }
 
 /** Một vòng đã ngã ngũ. Hai máy đọc cùng danh sách này nên kể cùng một chuyện. */
+export interface PvpHit {
+  /** Ai ra đòn này. */
+  studentId: string
+  damage: number
+  /** Id chiêu đã tung, để máy bên kia gọi đúng tên nó ra. */
+  spellId: string | null
+  /** Chiêu cuối vừa gắn hiệu ứng gì lên đối thủ. */
+  effect: EffectKind | null
+}
+
 export interface PvpEvent {
   round: number
-  /** Ai giành được quyền tấn công. null nghĩa là cả hai cùng trượt. */
+  /**
+   * BỎ RỒI - thời một vòng chỉ có một người được đánh.
+   *
+   * Giữ lại để trận đang chạy dở lúc bản này lên không mất diễn biến cũ, và
+   * để màn tổng kết đọc được những trận đã đánh xong từ trước. Trận mới ghi
+   * vào `hits`; chỗ nào đọc cũng phải chịu được cả hai dạng.
+   */
   attackerId: string | null
   damage: number
+  /**
+   * MỌI cú đánh của vòng này - có thể không ai, một, hoặc CẢ HAI bên.
+   *
+   * Cả hai cùng trả lời đúng thì cả hai cùng ra đòn, y như hai con thú đánh
+   * lẫn nhau trong một lượt. Nhanh hơn thì đánh đau hơn, chứ không còn chuyện
+   * chậm hơn nửa giây là mất cả vòng.
+   */
+  hits?: PvpHit[]
+  /** Máu mất do hiệu ứng ở đầu vòng này, theo id. Tách khỏi `hits` vì nó
+   *  không đến từ cú đánh nào của vòng này cả - nó là dư âm của vòng trước. */
+  ticks?: Record<string, number>
   /** Ai bấm trước ở vòng này, dù đúng hay sai. */
   firstId: string | null
   firstCorrect: boolean

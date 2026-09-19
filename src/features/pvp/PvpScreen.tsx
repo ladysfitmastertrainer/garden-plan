@@ -63,6 +63,18 @@ export function PvpScreen() {
   )
 }
 
+/**
+ * Nhịp nhập sân dài bao lâu, mili giây.
+ *
+ * Đủ để mắt kịp thấy hai con thú chạy vào và đứng xuống bệ, chưa đủ để trẻ sốt
+ * ruột. Cùng con số với trận đánh quái (`INTRO_MS` trong PixelBattle) - hai sân
+ * đấu phải mở màn cùng một nhịp, nếu không thì chúng lại nói hai thứ tiếng.
+ *
+ * Đồng hồ của máy chủ vẫn chạy trong nhịp này, và điều đó công bằng: cả hai máy
+ * cùng mở màn một lúc nên cùng mất bấy nhiêu giây.
+ */
+const PVP_INTRO_MS = 1_150
+
 // --- Đang đánh -----------------------------------------------------------------
 
 function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
@@ -97,6 +109,26 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
   */
   const [pending, setPending] = useState(false)
   useEffect(() => setPending(false), [match.round])
+
+  /*
+    ---- NHỊP NHẬP SÂN ----
+
+    Trận đánh quái mở màn bằng việc con quái hiện ra và trẻ nhìn thấy nó; câu
+    hỏi chỉ tới sau. Đấu trường thì không có nhịp ấy - vào cái là đề bài hiện
+    ra, và trên máy nằm ngang khung hỏi nổi lên che kín sân, nên hai con thú
+    chạy vào sân sau lưng nó. Trẻ không bao giờ thấy con thú của mình bước ra.
+
+    Một nhịp ngắn trước khi đề bài tới là đủ. `PvpArena` đã có sẵn hoạt cảnh
+    chạy vào (`enterFrom`) - nó vẫn luôn chạy, chỉ là chưa bao giờ ai được xem.
+
+    Chỉ ở VÒNG ĐẦU. Mỗi vòng một nhịp chờ thì bảy vòng thành bảy lần sốt ruột.
+  */
+  const [intro, setIntro] = useState(() => match.round === 0 && match.events.length === 0)
+  useEffect(() => {
+    if (!intro) return
+    const timer = window.setTimeout(() => setIntro(false), PVP_INTRO_MS)
+    return () => window.clearTimeout(timer)
+  }, [intro])
 
   // Hai chiêu con thú của mình đang mang. Lấy từ hồ sơ chứ không từ trận: trận
   // chỉ giữ id, mà bảng chọn cần cả tên, hệ và hiệu ứng.
@@ -137,7 +169,7 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
   }
 
   const onAnswer = (input: AnswerInput) => {
-    if (!question || answered || pending) return
+    if (!question || answered || pending || intro) return
     setSubmitted(input)
     // Chấm NGAY trên máy này rồi chỉ gửi lên đúng/sai. Gửi cả đáp án để máy chủ
     // chấm thì mỗi lượt bấm phải chờ thêm một vòng mạng trước khi kết quả được
@@ -157,6 +189,24 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
     hiểu nổi - nhất là khi bạn kia đang ngồi đợi mình. Tự tung một chiêu tử tế
     thì tệ nhất cũng chỉ là đánh không đúng hệ.
   */
+  /*
+    Khung hỏi BIẾN ĐI ở bốn lúc, và cả bốn đều là lúc sân đấu mới là thứ đáng nhìn:
+
+      intro   - hai con thú đang chạy vào sân;
+      pending - bảng chọn chiêu đang mở ngay trên sân;
+      answered- đã bấm xong, đang chờ bạn kia, đáp án đã khoá hết;
+      flash   - HAI CON THÚ ĐANG LAO VÀO NHAU.
+
+    Cái cuối là cái vừa thiếu, và nó là cái đắt nhất. Vòng đấu chốt xong thì câu
+    hỏi mới nạp vào ngay, `answered` về false, và khung hỏi ập lại che kín sân -
+    nên cú đánh, con số sát thương, hiệu ứng chiêu cuối đều diễn ra sau lưng nó.
+    Cả phần hoạt hoạ vừa dựng nằm khuất ở đúng một giây rưỡi ấy.
+
+    Chỉ có hiệu lực khi máy nằm ngang; màn hình dọc thì khung hỏi nằm dưới sân
+    đấu trong dòng chảy bình thường, không che gì cả (xem `battle-ask-hidden`).
+  */
+  const hideAsk = intro || pending || answered || flash !== null
+
   const onExpire = () => {
     if (answered) return
     if (pending) send(true, mySpells[0]?.id ?? null)
@@ -268,7 +318,7 @@ function Duel({ match, studentId }: { match: PvpMatch; studentId: string }) {
         Chỉ khi nằm ngang; màn hình dọc thì tên lớp này không có luật nào.
       */}
       <div
-        className={`pixel-panel battle-ask relative${answered || pending ? ' battle-ask-hidden' : ''}`}
+        className={`pixel-panel battle-ask relative${hideAsk ? ' battle-ask-hidden' : ''}`}
       >
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="pixel-font text-lg uppercase" style={{ color: accent }}>

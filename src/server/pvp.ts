@@ -194,7 +194,7 @@ const MATCH_COLUMNS =
   'round_started_at, challenger_hp, opponent_hp, challenger_max, opponent_max, ' +
   'challenger_power, opponent_power, challenger_pet, opponent_pet, ' +
   'challenger_spells, opponent_spells, challenger_cd, opponent_cd, ' +
-  'challenger_status, opponent_status, buzzes, events, winner_id'
+  'challenger_status, opponent_status, buzzes, buzz_seq, events, winner_id'
 
 export interface Buzz {
   studentId: string
@@ -230,6 +230,8 @@ interface MatchRow {
   opponent_cd: number | null
   challenger_status: ActiveEffect[] | null
   opponent_status: ActiveEffect[] | null
+  /** Bộ đếm chống ghi đè - xem migration 0013. */
+  buzz_seq: number | null
   buzzes: Buzz[]
   events: PvpEvent[]
   winner_id: string | null
@@ -483,6 +485,34 @@ function assertPlayer(row: MatchRow, studentId: string): void {
 
 function other(row: MatchRow, studentId: string): string {
   return row.challenger_id === studentId ? row.opponent_id : row.challenger_id
+}
+
+/**
+ * Ghi lượt bấm, nhưng CHỈ KHI chưa ai chen vào trước.
+ *
+ * Trả về `null` nghĩa là có người vừa ghi trước mình - gọi lại từ đầu.
+ *
+ * Điều kiện nằm trong mệnh đề WHERE, nên chính Postgres phân xử chứ không phải
+ * mã ở đây. Đọc rồi kiểm rồi mới ghi bằng ba câu lệnh riêng thì giữa chúng vẫn
+ * còn khe hở - đúng cái khe đã làm cả vòng đấu treo cứng.
+ */
+async function writeBuzzes(
+  matchId: string,
+  round: number,
+  seq: number,
+  buzzes: Buzz[],
+): Promise<PvpMatch | null> {
+  const { data, error } = await db()
+    .from('pvp_matches')
+    .update({ buzzes, buzz_seq: seq + 1, updated_at: new Date().toISOString() })
+    .eq('id', matchId)
+    .eq('round', round)
+    .eq('buzz_seq', seq)
+    .select(MATCH_COLUMNS)
+  check(error, 'Không ghi được lượt bấm')
+
+  const rows = (data as unknown as MatchRow[] | null) ?? []
+  return rows.length === 0 ? null : toMatch(rows[0]!)
 }
 
 async function update(matchId: string, patch: Record<string, unknown>): Promise<PvpMatch> {
@@ -829,35 +859,64 @@ export async function buzz(
   correct: boolean,
   spellId?: string | null,
 ): Promise<BuzzResult> {
-  const row = await loadRow(matchId)
-  assertPlayer(row, studentId)
-  if (row.status !== 'active') throw badRequest('Trận đấu đã kết thúc.')
+  /*
+    Thử tối đa BA lần, mỗi lần đọc lại trạng thái rồi quyết định lại từ đầu.
 
-  // Bấm cho một vòng đã qua: bỏ qua trong im lặng, đừng báo lỗi. Chuyện này xảy
-  // ra bình thường - đồng hồ bên này hết giờ đúng lúc bên kia vừa chốt vòng - và
-  // một lời báo lỗi ở đây chỉ làm trẻ hoảng chứ không sửa được gì.
-  if (round !== row.round) return { match: await toMatch(row), won: null }
+    Chỉ có hai người trong một trận, nên nhiều nhất là một lần thua cuộc đua ghi.
+    Ba lần là để dư ra một nhịp cho trường hợp máy bên kia gửi lại vì mạng chập -
+    và để vòng lặp này có một điểm dừng chắc chắn, không bao giờ quay mãi.
+  */
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const row = await loadRow(matchId)
+    assertPlayer(row, studentId)
+    if (row.status !== 'active') throw badRequest('Trận đấu đã kết thúc.')
 
-  const buzzes = row.buzzes ?? []
-  // Bấm hai lần trong một vòng thì lần sau không tính. Không có nó thì giữ nút
-  // bấm liên tục là một cách gian lận.
-  if (buzzes.some((b) => b.studentId === studentId)) {
-    return { match: await toMatch(row), won: null }
+    // Bấm cho một vòng đã qua: bỏ qua trong im lặng, đừng báo lỗi. Chuyện này
+    // xảy ra bình thường - đồng hồ bên này hết giờ đúng lúc bên kia vừa chốt
+    // vòng - và một lời báo lỗi ở đây chỉ làm trẻ hoảng chứ không sửa được gì.
+    if (round !== row.round) return { match: await toMatch(row), won: null }
+
+    const buzzes = row.buzzes ?? []
+    // Bấm hai lần trong một vòng thì lần sau không tính. Không có nó thì giữ
+    // nút bấm liên tục là một cách gian lận.
+    if (buzzes.some((b) => b.studentId === studentId)) {
+      return { match: await toMatch(row), won: null }
+    }
+
+    const now = Date.now()
+    const next: Buzz[] = [...buzzes, { studentId, correct, at: now, spellId: spellId ?? null }]
+
+    if (roundIsSettled(next)) {
+      // Cả hai đã bấm: chốt vòng. `resolveRound` tự ghi kèm điều kiện vòng
+      // hiện tại, nên hai bên cùng chốt thì chỉ một bên ghi được.
+      const settled = await resolveRound(row, next, now)
+      if (settled) return { match: settled, won: correct }
+      continue
+    }
+
+    // Chưa ngã ngũ: ghi lượt bấm rồi chờ bạn kia - nếu không ai chen vào trước.
+    const written = await writeBuzzes(matchId, row.round, row.buzz_seq ?? 0, next)
+    if (written) return { match: written, won: null }
   }
 
-  const now = Date.now()
-  const next: Buzz[] = [...buzzes, { studentId, correct, at: now, spellId: spellId ?? null }]
-
-  if (!roundIsSettled(next)) {
-    // Chưa ngã ngũ: ghi lượt bấm rồi chờ bạn kia.
-    return { match: await update(matchId, { buzzes: next }), won: null }
-  }
-
-  return { match: await resolveRound(row, next, now), won: correct }
+  // Thua cuộc đua ghi ba lần liên tiếp: trả về trạng thái mới nhất và im lặng.
+  // Máy sẽ hỏi lại sau một nhịp, và lượt bấm của bên kia đã ở trong đó rồi.
+  return { match: await toMatch(await loadRow(matchId)), won: null }
 }
 
-/** Chốt một vòng rồi ghi xuống: cộng sát thương, sang câu sau, xem trận xong chưa. */
-async function resolveRound(row: MatchRow, buzzes: Buzz[], now: number): Promise<PvpMatch> {
+/**
+ * Chốt một vòng rồi ghi xuống: cộng sát thương, sang câu sau, xem trận xong chưa.
+ *
+ * Trả về `null` khi có người chốt vòng này trước mình - cùng lẽ với
+ * `writeBuzzes`. Hai máy cùng gửi lượt bấm cuối cùng thì cả hai đều thấy vòng
+ * đã đủ điều kiện chốt, và nếu không chặn thì vòng bị chốt hai lần: máu trừ hai
+ * lần, số vòng nhảy hai bậc, và một câu hỏi biến mất không dấu vết.
+ */
+async function resolveRound(
+  row: MatchRow,
+  buzzes: Buzz[],
+  now: number,
+): Promise<PvpMatch | null> {
   const sideOf = (which: 'challenger' | 'opponent'): PvpSideState => {
     const mine = which === 'challenger'
     const petId = (mine ? row.challenger_pet : row.opponent_pet) ?? ''
@@ -883,18 +942,30 @@ async function resolveRound(row: MatchRow, buzzes: Buzz[], now: number): Promise
     roundStartedAt: Date.parse(row.round_started_at),
   })
 
-  return update(row.id, {
-    challenger_hp: outcome.challenger.hp,
-    opponent_hp: outcome.opponent.hp,
-    challenger_cd: outcome.challenger.cooldown,
-    opponent_cd: outcome.opponent.cooldown,
-    challenger_status: outcome.challenger.status,
-    opponent_status: outcome.opponent.status,
-    events: [...(row.events ?? []), outcome.event],
-    buzzes: [],
-    round: row.round + 1,
-    round_started_at: new Date(now).toISOString(),
-    status: outcome.finished ? 'finished' : 'active',
-    winner_id: outcome.winnerId,
-  })
+  const { data, error } = await db()
+    .from('pvp_matches')
+    .update({
+      challenger_hp: outcome.challenger.hp,
+      opponent_hp: outcome.opponent.hp,
+      challenger_cd: outcome.challenger.cooldown,
+      opponent_cd: outcome.opponent.cooldown,
+      challenger_status: outcome.challenger.status,
+      opponent_status: outcome.opponent.status,
+      events: [...(row.events ?? []), outcome.event],
+      buzzes: [],
+      buzz_seq: (row.buzz_seq ?? 0) + 1,
+      round: row.round + 1,
+      round_started_at: new Date(now).toISOString(),
+      status: outcome.finished ? 'finished' : 'active',
+      winner_id: outcome.winnerId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', row.id)
+    // Chỉ chốt khi vòng VẪN LÀ vòng mình vừa đọc. Đây là cái chặn "chốt hai lần".
+    .eq('round', row.round)
+    .select(MATCH_COLUMNS)
+  check(error, 'Không chốt được vòng đấu')
+
+  const rows = (data as unknown as MatchRow[] | null) ?? []
+  return rows.length === 0 ? null : toMatch(rows[0]!)
 }

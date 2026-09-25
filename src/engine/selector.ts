@@ -72,6 +72,17 @@ export interface SelectionContext {
    * trận thường. Bậc khó phải được nâng THẲNG, không qua nhóm.
    */
   difficultyBoost?: number
+  /**
+   * Id những câu trẻ đã gặp ở CÁC TRẬN TRƯỚC - né chúng nếu còn câu khác.
+   *
+   * `exclude` của từng lượt bốc chỉ nhớ trong một trận, nên đánh xong con quái
+   * này sang con quái kia là gặp lại đúng những câu vừa làm: kỹ năng đang học
+   * có trọng số cao nhất, mà ngân hàng soạn tay của nó chỉ có vài câu mỗi bậc.
+   *
+   * Đây là ƯU TIÊN, không phải lệnh cấm - xem `selectQuestions`. Kho cạn thì
+   * câu cũ vẫn được hỏi lại, vì một trận thiếu câu còn tệ hơn một câu lặp.
+   */
+  recent?: ReadonlySet<string>
 }
 
 export interface Selection {
@@ -241,8 +252,20 @@ export function selectQuestions(ctx: SelectionContext, count: number): Selection
   const selections: Selection[] = []
   const usedQuestionIds = new Set<string>()
 
+  const recent = ctx.recent ?? new Set<string>()
+
   for (let i = 0; i < count; i++) {
-    const selection = selectQuestion(ctx, usedQuestionIds)
+    /*
+      Hai lượt bốc: trước hết né cả câu đã gặp ở trận trước, và chỉ khi không
+      còn câu nào như thế mới chịu hỏi lại câu cũ.
+
+      Lượt đầu cũng tự rải sang kỹ năng khác: `selectQuestion` thử tối đa tám
+      kỹ năng, nên kỹ năng đang học mà hết câu mới thì nó chuyển sang ôn một kỹ
+      năng khác - thay vì hỏi lại đúng câu của con quái vừa rồi.
+    */
+    const fresh =
+      recent.size > 0 ? selectQuestion(ctx, new Set([...usedQuestionIds, ...recent])) : null
+    const selection = fresh ?? selectQuestion(ctx, usedQuestionIds)
     if (!selection) break
     usedQuestionIds.add(selection.question.id)
     selections.push(selection)

@@ -21,6 +21,7 @@ import { contentSource } from '../content/registry'
 import { getTuning } from '../content/tuning'
 import { buildWorldMap, type MapNode, type WorldMap } from '../content/worldmap'
 import { TOWER_QUESTIONS, createTowerBoss, towerGrades } from '../content/tower'
+import { recentQuestions, rememberQuestions } from './recent-questions'
 import {
   TUTORIAL_GRADE,
   TUTORIAL_MAX_QUESTIONS,
@@ -548,10 +549,13 @@ export const useGame = create<GameState>((set, get) => ({
       ...(node.kind === 'boss'
         ? { weights: { challenge: 70, review: 25, learning: 5 }, difficultyBoost: 1 }
         : {}),
+      // Né câu đã gặp ở những trận trước - xem `store/recent-questions.ts`.
+      recent: recentQuestions(student.id),
     }
 
     const selections = selectQuestions(ctx, getTuning().questionsPerBattle)
     if (selections.length === 0) return
+    rememberQuestions(student.id, selections.map((sel) => sel.question.id))
 
     const level = levelFromTotalXp(student.totalXp).level
     const bonus = student.equippedItemIds.reduce(
@@ -620,12 +624,14 @@ export const useGame = create<GameState>((set, get) => ({
       // Đầu đàn trong hang khó hơn quái dọc đường, nhưng dưới trùm một bậc:
       // chỉ nâng độ khó, không dồn hết sang nhóm thử thách như trận trùm.
       ...(kind === 'wild' ? {} : { difficultyBoost: 1 }),
+      recent: recentQuestions(student.id),
     }
     // Trận ngắn: 5 câu cho quái hoang, 8 câu cho mini boss. Quái hoang là nhịp
     // nghỉ giữa các chặng, không phải một chặng nữa - kéo dài bằng trận ở cổng
     // thì đi cảnh thành cực hình.
     const selections = selectQuestions(ctx, kind === 'wild' ? 5 : 8)
     if (selections.length === 0) return
+    rememberQuestions(student.id, selections.map((sel) => sel.question.id))
 
     const rng = createRng(`${student.id}-wildenemy-${Date.now()}`)
     const level = levelFromTotalXp(student.totalXp).level
@@ -715,6 +721,7 @@ export const useGame = create<GameState>((set, get) => ({
 
     const rng = createRng(`${student.id}-tower-${subject}-${Date.now()}`)
     const picked: Question[] = []
+    const recent = recentQuestions(student.id)
     for (const [g, count] of quota) {
       if (count <= 0) continue
       const ctx: SelectionContext = {
@@ -728,10 +735,12 @@ export const useGame = create<GameState>((set, get) => ({
         // nâng một. Đây là bài cuối cùng, không phải một chặng nữa.
         weights: { challenge: 85, review: 15, learning: 0 },
         difficultyBoost: 2,
+        recent,
       }
       picked.push(...selectQuestions(ctx, count).map((s) => s.question))
     }
     if (picked.length === 0) return
+    rememberQuestions(student.id, picked.map((q) => q.id))
 
     // Xáo lên: xếp theo lớp thì trẻ đọc ra ngay "ba câu dễ rồi tới phần khó", và
     // nhịp của trận đấu vỡ làm mấy khúc rời nhau.

@@ -215,11 +215,55 @@ const g2: GeneratorMap = {
 
   'math.g2.ki-lo-gam-lit': (skill, d, rng) => {
     if (d === 1) {
+      /*
+        BA DẠNG, không phải một câu cố định.
+
+        Bản trước chỉ có đúng câu "Đơn vị nào dùng để đo cân nặng?", nên chặng
+        này hỏi đi hỏi lại y nguyên. Giờ trộn ba dạng - hỏi đơn vị, hỏi đồ vật
+        đo bằng gì, so sánh hai vật - và hai dạng sau đổi đồ vật, con số mỗi lần.
+      */
+      const kind = rng.int(0, 2)
+      if (kind === 0) {
+        const weight = rng.chance(0.5)
+        return choice(skill, d, {
+          prompt: weight ? 'Đơn vị nào dùng để đo cân nặng?' : 'Đơn vị nào dùng để đo lượng nước, sữa, dầu ăn?',
+          correct: weight ? 'Ki-lô-gam (kg)' : 'Lít (l)',
+          distractors: weight ? ['Lít (l)', 'Xăng-ti-mét (cm)', 'Giờ'] : ['Ki-lô-gam (kg)', 'Xăng-ti-mét (cm)', 'Giờ'],
+          explanation: 'Ki-lô-gam đo cân nặng, lít đo dung tích (lượng chất lỏng), xăng-ti-mét đo độ dài.',
+          rng,
+        })
+      }
+      if (kind === 1) {
+        const item = rng.pick([
+          { name: 'bao gạo', unit: 'kg' },
+          { name: 'túi đường', unit: 'kg' },
+          { name: 'quả dưa hấu', unit: 'kg' },
+          { name: 'con gà', unit: 'kg' },
+          { name: 'can nước', unit: 'l' },
+          { name: 'chai dầu ăn', unit: 'l' },
+          { name: 'xô nước', unit: 'l' },
+          { name: 'hộp sữa tươi', unit: 'l' },
+        ])
+        return choice(skill, d, {
+          prompt: `Muốn biết ${item.name} nặng bao nhiêu hay đựng được bao nhiêu, ta thường dùng đơn vị nào?`,
+          correct: item.unit === 'kg' ? 'Ki-lô-gam (kg)' : 'Lít (l)',
+          distractors: [item.unit === 'kg' ? 'Lít (l)' : 'Ki-lô-gam (kg)', 'Xăng-ti-mét (cm)', 'Giờ'],
+          explanation:
+            item.unit === 'kg'
+              ? `Ta cân ${item.name} để biết nó nặng bao nhiêu ki-lô-gam.`
+              : `${item.name.charAt(0).toUpperCase()}${item.name.slice(1)} đựng chất lỏng nên đo bằng lít.`,
+          rng,
+        })
+      }
+      const [first, second] = rng.shuffle(['quả bí', 'quả mít', 'bó rau', 'túi cam', 'con vịt'])
+      const a = rng.int(2, 9)
+      let b = rng.int(2, 9)
+      while (b === a) b = rng.int(2, 9)
       return choice(skill, d, {
-        prompt: 'Đơn vị nào dùng để đo cân nặng?',
-        correct: 'Ki-lô-gam (kg)',
-        distractors: ['Lít (l)', 'Xăng-ti-mét (cm)', 'Giờ'],
-        explanation: 'Ki-lô-gam đo cân nặng, lít đo dung tích, xăng-ti-mét đo độ dài.',
+        prompt: `${first!.charAt(0).toUpperCase()}${first!.slice(1)} nặng ${a} kg, ${second} nặng ${b} kg. Vật nào nặng hơn?`,
+        correct: a > b ? first! : second!,
+        distractors: [a > b ? second! : first!, 'Nặng bằng nhau'],
+        explanation: `${Math.max(a, b)} kg > ${Math.min(a, b)} kg.`,
         rng,
       })
     }
@@ -286,6 +330,35 @@ const g2: GeneratorMap = {
   // --- Chủ đề 5: Làm quen với hình phẳng ------------------------------------
 
   'math.g2.hinh-phang': (skill, d, rng) => {
+    /*
+      Hai bậc dưới từng là HAI CÂU cố định, mỗi bậc một câu. Giữ lại hai câu khái
+      niệm ấy nhưng chỉ còn là một trong vài dạng; các dạng còn lại đổi số đo và
+      tên điểm mỗi lần hỏi.
+    */
+    const [p, q] = rng.shuffle(['A', 'B', 'C', 'D', 'M', 'N'])
+    if (d === 1 && rng.chance(0.6)) {
+      const a = rng.int(2, 12)
+      let b = rng.int(2, 12)
+      while (b === a) b = rng.int(2, 12)
+      return choice(skill, d, {
+        prompt: `Đoạn thẳng ${p}${q} dài ${a} cm, đoạn thẳng CD dài ${b} cm. Đoạn thẳng nào dài hơn?`,
+        correct: a > b ? `Đoạn ${p}${q}` : 'Đoạn CD',
+        distractors: [a > b ? 'Đoạn CD' : `Đoạn ${p}${q}`, 'Dài bằng nhau'],
+        explanation: `${Math.max(a, b)} cm > ${Math.min(a, b)} cm.`,
+        rng,
+      })
+    }
+    if (d === 2 && rng.chance(0.6)) {
+      const a = rng.int(3, 15)
+      const b = rng.int(2, 10)
+      return numeric(skill, d, {
+        prompt: `Đoạn thẳng ${p}${q} dài ${a} cm. Vẽ kéo dài thêm ${b} cm nữa thì được đoạn thẳng dài bao nhiêu xăng-ti-mét?`,
+        value: a + b,
+        unit: 'cm',
+        explanation: `${a} + ${b} = ${a + b} cm.`,
+        hint: 'Kéo dài thêm là cộng thêm.',
+      })
+    }
     if (d === 1) {
       return choice(skill, d, {
         prompt: 'Đoạn thẳng là hình như thế nào?',
@@ -312,7 +385,18 @@ const g2: GeneratorMap = {
         rng,
       })
     }
-    const points = rng.int(3, 6)
+    const points = rng.int(3, 9)
+    if (rng.chance(0.5)) {
+      // Các đoạn liền nhau dài bằng nhau: ghép đếm đoạn với phép nhân.
+      const each = rng.int(2, 5)
+      return numeric(skill, d, {
+        prompt: `Có ${points} điểm thẳng hàng, hai điểm liền nhau cách nhau ${each} cm. Từ điểm đầu tiên đến điểm cuối cùng dài bao nhiêu xăng-ti-mét?`,
+        value: (points - 1) * each,
+        unit: 'cm',
+        explanation: `${points} điểm tạo ra ${points - 1} đoạn liền nhau, mỗi đoạn ${each} cm: ${each} × ${points - 1} = ${(points - 1) * each} cm.`,
+        hint: 'Đếm số đoạn trước - số đoạn ít hơn số điểm một đơn vị.',
+      })
+    }
     return numeric(skill, d, {
       prompt: `Có ${points} điểm nằm trên một đường thẳng, đánh dấu lần lượt từ trái sang phải. Hỏi có bao nhiêu đoạn thẳng nối hai điểm liền nhau?`,
       value: points - 1,
@@ -340,6 +424,35 @@ const g2: GeneratorMap = {
         prompt: `Đường gấp khúc ABCD có AB = ${a} cm, BC = ${b} cm, CD = ${c} cm. Độ dài đường gấp khúc ABCD là bao nhiêu xăng-ti-mét?`,
         value: a + b + c,
         explanation: `${a} + ${b} + ${c} = ${a + b + c} cm.`,
+      })
+    }
+    /*
+      Bậc khó từng chỉ có câu tứ giác. Giờ thêm hai bài toán ngược - biết cả
+      đường gấp khúc, tìm một đoạn; các đoạn bằng nhau thì dùng phép nhân vừa
+      học - và câu tứ giác chỉ còn là một trong ba dạng.
+    */
+    const kind = rng.int(0, 2)
+    if (kind === 0) {
+      const a = rng.int(3, 12)
+      const b = rng.int(3, 12)
+      const c = rng.int(3, 12)
+      return numeric(skill, d, {
+        prompt: `Đường gấp khúc ABCD dài ${a + b + c} cm. Biết AB = ${a} cm, BC = ${b} cm. Đoạn CD dài bao nhiêu xăng-ti-mét?`,
+        value: c,
+        unit: 'cm',
+        explanation: `${a + b + c} - ${a} - ${b} = ${c} cm.`,
+        hint: 'Lấy độ dài cả đường gấp khúc trừ đi các đoạn đã biết.',
+      })
+    }
+    if (kind === 1) {
+      const segments = rng.int(2, 5)
+      const each = rng.int(2, 9)
+      return numeric(skill, d, {
+        prompt: `Một đường gấp khúc gồm ${segments} đoạn thẳng, mỗi đoạn dài ${each} cm. Đường gấp khúc đó dài bao nhiêu xăng-ti-mét?`,
+        value: segments * each,
+        unit: 'cm',
+        explanation: `Các đoạn bằng nhau nên lấy ${each} × ${segments} = ${segments * each} cm.`,
+        hint: 'Các đoạn dài bằng nhau thì dùng phép nhân.',
       })
     }
     return choice(skill, d, {
@@ -465,22 +578,44 @@ const g2: GeneratorMap = {
   // --- Chủ đề 9: Hình khối ---------------------------------------------------
 
   'math.g2.khoi-tru-cau': (skill, d, rng) => {
+    /*
+      Đồ vật quen thuộc, đủ cả hai khối. Bậc dễ và bậc vừa từng chỉ có đúng một
+      câu mỗi bậc ("quả bóng", "lon sữa") - giờ bốc từ danh sách này.
+    */
+    const everyday = [
+      { name: 'quả bóng', shape: 'Khối cầu' },
+      { name: 'quả cam', shape: 'Khối cầu' },
+      { name: 'hòn bi', shape: 'Khối cầu' },
+      { name: 'quả bưởi', shape: 'Khối cầu' },
+      { name: 'lon sữa', shape: 'Khối trụ' },
+      { name: 'lon nước ngọt', shape: 'Khối trụ' },
+      { name: 'cái trống', shape: 'Khối trụ' },
+      { name: 'ống nước', shape: 'Khối trụ' },
+      { name: 'hộp bánh tròn', shape: 'Khối trụ' },
+    ]
     if (d === 1) {
+      const item = rng.pick(everyday)
       return choice(skill, d, {
-        prompt: 'Quả bóng có dạng khối gì?',
-        correct: 'Khối cầu',
-        distractors: ['Khối trụ', 'Khối lập phương', 'Khối hộp chữ nhật'],
-        explanation: 'Quả bóng tròn đều về mọi phía nên có dạng khối cầu.',
+        prompt: `${item.name.charAt(0).toUpperCase()}${item.name.slice(1)} có dạng khối gì?`,
+        correct: item.shape,
+        distractors: ['Khối cầu', 'Khối trụ', 'Khối lập phương', 'Khối hộp chữ nhật'].filter((s) => s !== item.shape),
+        explanation:
+          item.shape === 'Khối cầu'
+            ? `${item.name.charAt(0).toUpperCase()}${item.name.slice(1)} tròn đều về mọi phía nên có dạng khối cầu.`
+            : `${item.name.charAt(0).toUpperCase()}${item.name.slice(1)} có hai mặt tròn bằng nhau ở hai đầu nên là khối trụ.`,
         rng,
       })
     }
     if (d === 2) {
-      return choice(skill, d, {
-        prompt: 'Lon sữa có dạng khối gì?',
-        correct: 'Khối trụ',
-        distractors: ['Khối cầu', 'Khối lập phương', 'Khối hộp chữ nhật'],
-        explanation: 'Lon sữa có hai mặt tròn bằng nhau ở hai đầu nên là khối trụ.',
-        rng,
+      // Đếm trong một nhóm đồ vật: phải nhận ra từng cái chứ không chỉ một cái.
+      const group = rng.shuffle(everyday).slice(0, rng.int(4, 5))
+      const target = rng.pick(['Khối cầu', 'Khối trụ'])
+      const count = group.filter((g) => g.shape === target).length
+      return numeric(skill, d, {
+        prompt: `Trong các đồ vật: ${group.map((g) => g.name).join(', ')}. Có mấy đồ vật dạng ${target.toLowerCase()}?`,
+        value: count,
+        explanation: `Các đồ vật dạng ${target.toLowerCase()}: ${group.filter((g) => g.shape === target).map((g) => g.name).join(', ') || 'không có'}.`,
+        hint: 'Xét lần lượt từng đồ vật.',
       })
     }
     const item = rng.pick([
@@ -488,7 +623,25 @@ const g2: GeneratorMap = {
       { name: 'cây bút chì tròn', shape: 'Khối trụ' },
       { name: 'quả địa cầu', shape: 'Khối cầu' },
       { name: 'cuộn giấy vệ sinh', shape: 'Khối trụ' },
+      { name: 'quả bóng bàn', shape: 'Khối cầu' },
+      { name: 'cây nến tròn', shape: 'Khối trụ' },
+      { name: 'khúc gỗ tròn', shape: 'Khối trụ' },
+      { name: 'viên kẹo tròn', shape: 'Khối cầu' },
     ])
+    if (rng.chance(0.5)) {
+      // Tìm vật KHÁC LOẠI giữa ba vật cùng khối: phải xét cả bốn chứ không chỉ một.
+      const odd = rng.pick(['Khối cầu', 'Khối trụ'])
+      const same = odd === 'Khối cầu' ? 'Khối trụ' : 'Khối cầu'
+      const oddItem = rng.pick(everyday.filter((e) => e.shape === odd))
+      const others = rng.sample(everyday.filter((e) => e.shape === same), 3)
+      return choice(skill, d, {
+        prompt: `Vật nào có dạng ${odd.toLowerCase()}?`,
+        correct: oddItem.name,
+        distractors: others.map((o) => o.name),
+        explanation: `${oddItem.name.charAt(0).toUpperCase()}${oddItem.name.slice(1)} có dạng ${odd.toLowerCase()}; các vật còn lại có dạng ${same.toLowerCase()}.`,
+        rng,
+      })
+    }
     return choice(skill, d, {
       prompt: `${item.name.charAt(0).toUpperCase()}${item.name.slice(1)} có dạng khối gì?`,
       correct: item.shape,
@@ -545,7 +698,18 @@ const g2: GeneratorMap = {
 
   'math.g2.do-dai-tien': (skill, d, rng) => {
     if (d === 1) {
-      const dm = rng.int(2, 9)
+      // Hai chiều đổi, không chỉ dm ra cm: dạng một chiều với tám con số thì
+      // chặng này chỉ có tám câu.
+      const dm = rng.int(1, 9)
+      if (rng.chance(0.5)) {
+        return numeric(skill, d, {
+          prompt: `${dm * 10} cm = ? dm`,
+          value: dm,
+          unit: 'dm',
+          explanation: `10 cm = 1 dm nên ${dm * 10} cm = ${dm} dm.`,
+          hint: 'Cứ 10 xăng-ti-mét là 1 đề-xi-mét.',
+        })
+      }
       return numeric(skill, d, {
         prompt: `${dm} dm = ? cm`,
         value: dm * 10,
@@ -634,25 +798,36 @@ const g2: GeneratorMap = {
         hint: 'Lấy số lớn trừ số bé.',
       })
     }
-    // Chắc chắn - có thể - không thể: hộp chỉ có bóng đỏ và bóng xanh.
+    /*
+      Chắc chắn - có thể - không thể.
+
+      Bản trước chỉ có ba câu viết sẵn, đều về bóng đỏ, bóng xanh. Giờ đồ vật,
+      đồ đựng và hai màu đổi mỗi lần, còn ba tình huống thì giữ nguyên - đó mới
+      là thứ trẻ cần hiểu.
+    */
+    const thing = rng.pick([
+      { item: 'quả bóng', box: 'hộp' },
+      { item: 'viên bi', box: 'túi' },
+      { item: 'cái kẹo', box: 'lọ' },
+      { item: 'bông hoa', box: 'giỏ' },
+    ])
+    const [have, other] = rng.shuffle(['đỏ', 'xanh', 'vàng', 'trắng', 'tím'])
+    const Box = `${thing.box.charAt(0).toUpperCase()}${thing.box.slice(1)}`
     const question = rng.pick([
       {
-        prompt:
-          'Trong hộp chỉ có bóng màu đỏ. Lấy ra một quả bất kì, quả đó màu đỏ. Điều này là:',
+        prompt: `${Box} chỉ có ${thing.item} màu ${have}. Lấy ra một ${thing.item} bất kì, nó có màu ${have}. Điều này là:`,
         correct: 'Chắc chắn',
-        explanation: 'Hộp chỉ có bóng đỏ nên lấy quả nào cũng là màu đỏ.',
+        explanation: `${Box} chỉ có ${thing.item} màu ${have} nên lấy cái nào cũng màu ${have}.`,
       },
       {
-        prompt:
-          'Trong hộp chỉ có bóng màu đỏ. Lấy ra một quả bất kì, quả đó màu xanh. Điều này là:',
+        prompt: `${Box} chỉ có ${thing.item} màu ${have}. Lấy ra một ${thing.item} bất kì, nó có màu ${other}. Điều này là:`,
         correct: 'Không thể',
-        explanation: 'Trong hộp không có quả xanh nào nên không thể lấy được quả xanh.',
+        explanation: `Trong ${thing.box} không có ${thing.item} màu ${other} nào nên không thể lấy được.`,
       },
       {
-        prompt:
-          'Trong hộp có cả bóng đỏ và bóng xanh. Lấy ra một quả bất kì, quả đó màu đỏ. Điều này là:',
+        prompt: `${Box} có cả ${thing.item} màu ${have} và màu ${other}. Lấy ra một ${thing.item} bất kì, nó có màu ${have}. Điều này là:`,
         correct: 'Có thể',
-        explanation: 'Hộp có cả hai màu nên quả lấy ra có thể đỏ, cũng có thể xanh.',
+        explanation: `${Box} có cả hai màu nên ${thing.item} lấy ra có thể màu ${have}, cũng có thể màu ${other}.`,
       },
     ])
     return choice(skill, d, {

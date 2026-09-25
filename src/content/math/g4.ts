@@ -134,6 +134,23 @@ const g4: GeneratorMap = {
         rng,
       })
     }
+    if (d === 2 && rng.chance(0.6)) {
+      /*
+        Góc tạo bởi hai kim đồng hồ lúc đúng giờ - mỗi giờ kim giờ lệch 30°.
+        Bậc này từng chỉ có ba câu (ba hình, mỗi hình một câu).
+      */
+      const hour = rng.int(1, 11)
+      const angle = Math.min(hour * 30, 360 - hour * 30)
+      const name = angle < 90 ? 'góc nhọn' : angle === 90 ? 'góc vuông' : angle < 180 ? 'góc tù' : 'góc bẹt'
+      return choice(skill, d, {
+        prompt: `Lúc đúng ${hour} giờ, kim giờ và kim phút tạo thành góc gì?`,
+        correct: name,
+        distractors: ['góc nhọn', 'góc vuông', 'góc tù', 'góc bẹt'].filter((k) => k !== name),
+        explanation: `Mỗi giờ trên mặt đồng hồ ứng với 30°. Lúc ${hour} giờ, hai kim tạo góc ${angle}°, đó là ${name}.`,
+        hint: 'Lúc 3 giờ hai kim tạo góc vuông.',
+        rng,
+      })
+    }
     if (d === 2) {
       const shapes = [
         { name: 'hình chữ nhật', right: 4 },

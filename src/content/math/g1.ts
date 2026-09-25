@@ -112,6 +112,41 @@ const g1: GeneratorMap = {
       { name: 'hình vuông', emoji: '🟥', sides: 4 },
       { name: 'hình chữ nhật', emoji: '▬', sides: 4 },
     ]
+    /*
+      Đồ vật quanh em mang hình gì - nhận ra hình trong đời sống, không chỉ
+      trong hình vẽ. Hai bậc dưới từng chỉ có bốn và ba câu (mỗi hình một câu).
+    */
+    const objects = [
+      { name: 'bánh xe đạp', shape: 'hình tròn' },
+      { name: 'mặt đồng hồ', shape: 'hình tròn' },
+      { name: 'cái đĩa', shape: 'hình tròn' },
+      { name: 'miếng bánh chưng', shape: 'hình vuông' },
+      { name: 'khăn mùi xoa', shape: 'hình vuông' },
+      { name: 'quyển vở', shape: 'hình chữ nhật' },
+      { name: 'cửa ra vào', shape: 'hình chữ nhật' },
+      { name: 'mặt bàn học', shape: 'hình chữ nhật' },
+      { name: 'lá cờ đuôi nheo', shape: 'hình tam giác' },
+      { name: 'miếng bánh sandwich cắt chéo', shape: 'hình tam giác' },
+    ]
+    if (d === 1 && rng.chance(0.5)) {
+      const obj = rng.pick(objects)
+      return choice(skill, d, {
+        prompt: `${obj.name.charAt(0).toUpperCase()}${obj.name.slice(1)} có dạng hình gì?`,
+        correct: obj.shape,
+        distractors: shapes.map((s) => s.name).filter((n) => n !== obj.shape),
+        explanation: `${obj.name.charAt(0).toUpperCase()}${obj.name.slice(1)} có dạng ${obj.shape}.`,
+        rng,
+      })
+    }
+    if (d === 2 && rng.chance(0.5)) {
+      const [a, b] = rng.shuffle(shapes.filter((s) => s.sides > 0))
+      return numeric(skill, d, {
+        prompt: `Một ${a!.name} và một ${b!.name} có tất cả bao nhiêu cạnh?`,
+        value: a!.sides + b!.sides,
+        explanation: `${a!.name} có ${a!.sides} cạnh, ${b!.name} có ${b!.sides} cạnh. ${a!.sides} + ${b!.sides} = ${a!.sides + b!.sides}.`,
+        hint: 'Đếm cạnh của từng hình rồi cộng lại.',
+      })
+    }
     if (d === 1) {
       const target = rng.pick(shapes)
       return choice(skill, d, {

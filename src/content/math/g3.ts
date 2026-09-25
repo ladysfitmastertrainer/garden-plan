@@ -175,8 +175,26 @@ const g3: GeneratorMap = {
         hint: 'Dùng cách đếm trên nắm tay: chỗ nhô lên là 31 ngày.',
       })
     }
+    if (d === 2 && rng.chance(0.5)) {
+      // Ngày của tháng rơi vào thứ mấy - đọc lịch thật, không chỉ nhân với 7.
+      const weekdays = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy']
+      const first = rng.int(0, 6)
+      const day = rng.pick([8, 15, 22, 29])
+      const m = rng.pick(months)
+      return choice(skill, d, {
+        prompt: `Ngày 1 tháng ${m.n} là ${weekdays[first]}. Ngày ${day} tháng ${m.n} là thứ mấy?`,
+        correct: weekdays[first]!,
+        distractors: rng.sample(
+          weekdays.filter((_, i) => i !== first),
+          3,
+        ),
+        explanation: `Cứ 7 ngày lại lặp lại thứ cũ: ngày 1, 8, 15, 22, 29 cùng là ${weekdays[first]}.`,
+        hint: 'Cộng thêm 7 ngày thì thứ không đổi.',
+        rng,
+      })
+    }
     if (d === 2) {
-      const weeks = rng.int(2, 8)
+      const weeks = rng.int(2, 10)
       return numeric(skill, d, {
         prompt: `${weeks} tuần có bao nhiêu ngày?`,
         value: weeks * 7,

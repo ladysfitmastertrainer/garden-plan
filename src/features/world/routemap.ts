@@ -1078,6 +1078,19 @@ export function buildRouteMap(
           [1, 0],
           [-1, 0],
         ].filter(([dx, dy]) => waterAt(x + dx!, y + dy!)).length
+        /*
+          Tránh xa sân đấu trùm: cách mép sân ít nhất năm ô.
+
+          Năm chứ không phải một: thủy quái bơi quanh ổ trong bán kính hai ô, và
+          được vẽ to gấp rưỡi, thò lên ô phía trên. Ổ sát sân thì con quái bơi
+          chồng lên ngọn đuốc ở góc sân, và hai thứ quan trọng nhất ở khúc đó của
+          bản đồ đè lên nhau thành một đống khó đọc.
+        */
+        if (arena) {
+          const gapX = Math.max(arena.left - x, x - arena.right, 0)
+          const gapY = Math.max(arena.top - y, y - arena.bottom, 0)
+          if (Math.max(gapX, gapY) < 5) continue
+        }
         if (reach && room >= 2) candidates.push({ x, y })
       }
     }

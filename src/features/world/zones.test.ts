@@ -203,6 +203,20 @@ describe('thủy quái ngoài khơi', () => {
     }
   })
 
+  it('ở cách xa sân đấu trùm - không bơi chồng lên đuốc góc sân', () => {
+    for (const grade of GRADES) {
+      const map = regionMap('ethics', grade)
+      const arena = map.arena!
+      for (const { x, y } of map.seaLairs) {
+        const gap = Math.max(
+          Math.max(arena.left - x, x - arena.right, 0),
+          Math.max(arena.top - y, y - arena.bottom, 0),
+        )
+        expect(gap, `lớp ${grade}: (${x},${y})`).toBeGreaterThanOrEqual(5)
+      }
+    }
+  })
+
   it('chỉ bơi trong nước, dù bơi bao lâu', () => {
     const map = regionMap('ethics', 3)
     const rng = createRng('boi')

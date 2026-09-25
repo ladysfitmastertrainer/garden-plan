@@ -119,14 +119,24 @@ export const TUNING_RANGE: Record<keyof Tuning, { min: number; max: number; step
  * trẻ biết vừa có chuyện gì xảy ra. Thầy cô phải có đường bật lại mà không
  * phải đi lục Cài đặt của Windows.
  *
- * Mặc định vẫn là `system`: tôn trọng lựa chọn của người dùng cho tới khi họ
- * nói khác đi.
+ * MẶC ĐỊNH LÀ `full`, không phải `system`.
+ *
+ * Bản trước mặc định `system`, và chính lý do ở trên đã lật ngược nó: máy bật
+ * "giảm chuyển động" mà người dùng không hề biết là chuyện thường chứ không phải
+ * ngoại lệ - Windows 11 tắt "Animation effects" trên máy trường học, Android tắt
+ * hiệu ứng khi tiết kiệm pin. Trên những máy ấy trận đấu mất sạch cú lao, cú
+ * giật khi trúng đòn, cú rung khung - trẻ chỉ còn thấy thanh máu tụt mà không
+ * thấy vì sao. Đo thật bằng trình duyệt giả lập "giảm chuyển động": thú không
+ * nhúc nhích khi ra đòn, quái không nhúc nhích khi đánh trả.
+ *
+ * Người lớn vẫn chọn lại được "Theo máy" hay "Luôn tắt" ở trang quản trị, và
+ * lựa chọn ấy được nhớ - chỉ khi CHƯA ai chọn gì thì app mới tự bật hoạt cảnh.
  */
 export type MotionMode = 'system' | 'full' | 'reduced'
 
 export const MOTION_MODES: Array<{ value: MotionMode; label: string; hint: string }> = [
+  { value: 'full', label: 'Luôn bật', hint: 'Mặc định. Bật hoạt cảnh kể cả khi máy đang tắt hiệu ứng động.' },
   { value: 'system', label: 'Theo máy', hint: 'Nghe theo cài đặt hiệu ứng động của hệ điều hành.' },
-  { value: 'full', label: 'Luôn bật', hint: 'Bật hoạt cảnh kể cả khi máy đang tắt hiệu ứng động.' },
   { value: 'reduced', label: 'Luôn tắt', hint: 'Tắt hoạt cảnh kể cả khi máy đang bật.' },
 ]
 
@@ -135,9 +145,10 @@ const MOTION_KEY = 'hvtt.motion.v1'
 function loadMotion(): MotionMode {
   try {
     const raw = localStorage.getItem(MOTION_KEY)
-    return raw === 'full' || raw === 'reduced' ? raw : 'system'
+    // Người lớn đã chọn "Theo máy" thì giữ đúng như thế; chưa ai chọn gì thì bật.
+    return raw === 'system' || raw === 'reduced' ? raw : 'full'
   } catch {
-    return 'system'
+    return 'full'
   }
 }
 

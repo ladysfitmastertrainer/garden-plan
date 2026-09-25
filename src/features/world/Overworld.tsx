@@ -298,6 +298,13 @@ interface Props {
    */
   onSecret?: (at: { x: number; y: number }, habitat?: Habitat) => void
   /**
+   * Một con THỦY QUÁI nhô lên vì trẻ lội tới sát nó.
+   *
+   * Kèm id để thắng trận thì đúng con ấy lặn mất (cùng cách với `beaten`), và
+   * con thứ mấy trong bầy biển sâu để con vào trận đúng là con vừa thấy.
+   */
+  onSeaMonster?: (id: string, variant: number) => void
+  /**
    * SỐ Ô CỔNG mà địa hình được dựng cho - KHÔNG phải số chặng đang có.
    *
    * Đây là chỗ đã làm hai đứa trẻ cùng lớp nhìn thấy hai tấm bản đồ khác nhau.
@@ -390,6 +397,7 @@ export function Overworld({
   onMonsterBump,
   onEnterHouse,
   onSecret,
+  onSeaMonster,
   slots,
   spawnSeed,
   beaten,
@@ -539,6 +547,72 @@ export function Overworld({
     return () => window.clearInterval(timer)
   }, [map, paused, seed])
 
+  /**
+   * THỦY QUÁI ngoài khơi - một con ở mỗi `seaLairs`.
+   *
+   * Tách khỏi đàn quái trên cạn vì chúng khác luật ở cả ba chỗ: chỉ bơi trong
+   * nước, trẻ không bao giờ bước vào ô của chúng được, và chạm mặt là khi trẻ
+   * lội tới SÁT chứ không phải giẫm lên. Trộn vào `monsters` thì mọi chỗ đọc
+   * đàn quái phải hỏi thêm "con này có phải cá không".
+   *
+   * Con nào ở ổ nào bốc bằng hạt giống của vùng, nên mọi đứa trẻ cùng lớp thấy
+   * cùng một con rắn biển ở cùng một chỗ - "con rắn giữa hai hòn đảo" là một
+   * câu chỉ đường nói được với nhau.
+   */
+  const [serpents, setSerpents] = useState<
+    Array<{ id: string; x: number; y: number; anchor: { x: number; y: number }; variant: number }>
+  >([])
+
+  useEffect(() => {
+    const rng = createRng(`${seed}-thuy-quai`)
+    const kinds = [0, 1, 2, 3]
+    // Xáo bốn con rồi lấy lần lượt: hai ổ không bao giờ ra hai con giống nhau.
+    for (let i = kinds.length - 1; i > 0; i--) {
+      const j = rng.int(0, i)
+      ;[kinds[i], kinds[j]] = [kinds[j]!, kinds[i]!]
+    }
+    setSerpents(
+      map.seaLairs.map((lair, index) => ({
+        id: `sea-${index}`,
+        x: lair.x,
+        y: lair.y,
+        anchor: lair,
+        variant: kinds[index % kinds.length]!,
+      })),
+    )
+  }, [map, seed])
+
+  const aliveSerpents = useMemo(
+    () => (beaten && beaten.length > 0 ? serpents.filter((s) => !beaten.includes(s.id)) : serpents),
+    [serpents, beaten],
+  )
+  const serpentsRef = useRef(aliveSerpents)
+  serpentsRef.current = aliveSerpents
+
+  // Bơi chậm hơn đàn trên cạn một nhịp rưỡi: con quái to thì lừ đừ.
+  useEffect(() => {
+    if (paused || map.seaLairs.length === 0) return
+    const rng = createRng(`${seed}-thuy-quai-boi`)
+    const inWater = (x: number, y: number) => map.tiles[y]?.[x] === 'water'
+    const timer = window.setInterval(() => {
+      setSerpents((current) =>
+        current.map((s) => ({ ...s, ...wanderStep(map, s, s.anchor, 2, rng, undefined, inWater) })),
+      )
+    }, getTuning().monsterStepMs * 1.5)
+    return () => window.clearInterval(timer)
+  }, [map, paused, seed])
+
+  const onSeaMonsterRef = useRef(onSeaMonster)
+  onSeaMonsterRef.current = onSeaMonster
+  /**
+   * Những con vừa nhô lên mà trẻ đã từ chối ("Quay lại").
+   *
+   * Không có danh sách này thì trẻ bấm Quay lại xong, bước thêm một bước dọc mép
+   * nước - vẫn sát con quái - và hộp thoại bật lại ngay. Con quái chỉ hỏi lại
+   * khi trẻ đã đi xa rồi quay trở lại.
+   */
+  const declinedRef = useRef(new Set<string>())
+
   // Đọc đàn quái trong `tryMove` mà không phải phụ thuộc vào nó: đàn đổi mỗi
   // 900ms, mà `tryMove` chỉ cần vị trí đàn TẠI LÚC bước chân chạm ô.
   const monstersRef = useRef(monsters)
@@ -686,6 +760,27 @@ export function Overworld({
 
       const { dx, dy } = DELTA[direction]
       const next = { x: pos.x + dx, y: pos.y + dy }
+
+      /*
+        Thủy quái nhô lên khi trẻ cố bước thẳng xuống ô nước nó đang ở (xét
+        ngay đây), hoặc bước tới một ô sát nó (xét sau khi bước xong, bên dưới).
+
+        Chỉ xét theo BƯỚC CHÂN của trẻ, không xét lúc con quái bơi tới. Xét cả
+        lúc nó bơi thì trẻ đang đứng ngắm biển tự nhiên bị kéo vào trận - trận
+        này mạnh ngang đầu đàn, phải là trẻ chọn nó chứ không phải nó chọn trẻ.
+      */
+      const touching = (s: { x: number; y: number }, at: { x: number; y: number }) =>
+        Math.abs(s.x - at.x) + Math.abs(s.y - at.y) <= 1
+      const declined = declinedRef.current
+      const rising = serpentsRef.current.find(
+        (s) => !declined.has(s.id) && (s.x === next.x && s.y === next.y),
+      )
+      if (rising) {
+        declined.add(rising.id)
+        onSeaMonsterRef.current?.(rising.id, rising.variant)
+        return
+      }
+
       if (!isWalkable(map, next.x, next.y)) return
 
       /*
@@ -774,6 +869,15 @@ export function Overworld({
           không phải chỗ bị quái vây. Trong hang mọi ô đều là "cỏ cao", nên đặt
           cao hơn là trẻ không đi nổi ba bước.
         */
+        // Đi xa khỏi con thủy quái đã từ chối thì lần sau lại gần, nó hỏi lại.
+        for (const s of serpentsRef.current) if (!touching(s, next)) declined.delete(s.id)
+        const beside = serpentsRef.current.find((s) => !declined.has(s.id) && touching(s, next))
+        if (beside) {
+          declined.add(beside.id)
+          onSeaMonsterRef.current?.(beside.id, beside.variant)
+          return
+        }
+
         const habitat = tile ? HABITAT_TILE[tile] : undefined
         if (tile && (tile === 'tallGrass' || habitat) && Math.random() < getTuning().encounterChance) {
           setAmbush({ variant: Math.floor(Math.random() * 4), shown: false, habitat, tile })
@@ -935,6 +1039,35 @@ export function Overworld({
               <PixelSprite sprite={monsterSpriteFor(subject, 0, true)} scale={scale * 2} />
             </div>
           )}
+
+          {/*
+            THỦY QUÁI: vẽ to gấp rưỡi một ô, nhấp nhô theo sóng.
+
+            To hơn quái trên cạn có chủ ý - trên hải đồ cổ con rắn biển to hơn cả
+            con thuyền, và thứ trẻ cần đọc ra từ xa là "cái đó KHÔNG phải cá
+            thường". Neo theo chân (mép dưới trùng mép dưới ô) để phần nhô cao
+            thò lên ô phía trên, như con quái đang ngóc khỏi mặt nước.
+          */}
+          {aliveSerpents.map((s) => (
+            <div
+              key={s.id}
+              className="absolute"
+              style={{
+                left: (s.x - 0.25) * TILE * scale,
+                top: (s.y - 0.5) * TILE * scale,
+                width: TILE * scale * 1.5,
+                height: TILE * scale * 1.5,
+                lineHeight: 0,
+                transition: 'left 700ms linear, top 700ms linear',
+                zIndex: 1,
+              }}
+              aria-hidden="true"
+            >
+              <div style={{ animation: 'boss-bob 1.8s steps(2, end) infinite' }}>
+                <PixelSprite sprite={monsterSpriteFor(subject, s.variant, false, 'deep')} scale={scale * 1.5} />
+              </div>
+            </div>
+          ))}
 
           {/* Đàn quái canh từng chặng */}
           {alive.map((m) => (

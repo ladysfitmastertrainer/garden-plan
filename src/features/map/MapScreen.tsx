@@ -22,6 +22,7 @@ import { SkillTreeScreen } from '../world/SkillTreeScreen'
 import { SUBJECTS, SUBJECT_LABEL, type Grade, type Habitat, type Subject } from '../../content/types'
 import { WorldMapScreen } from '../world/WorldMapScreen'
 import { totalNodes, type MapNode } from '../../content/worldmap'
+import { HABITAT_BESTIARY } from '../../content/bestiary'
 // Cùng tên với `regionKey` của store/ui nhưng khác chữ ký - cái này nhận (môn,
 // lớp), cái kia nhận một đối tượng vùng. Đổi tên để không ai gọi nhầm.
 import {
@@ -638,7 +639,7 @@ function SubjectMap({
    *
    * `'mini'` là con đầu đàn trong hang - nó không gắn với chặng nào trên bản đồ.
    */
-  const [preview, setPreview] = useState<MapNode | 'mini' | null>(null)
+  const [preview, setPreview] = useState<MapNode | 'mini' | { sea: number } | null>(null)
   const [tab, setTab] = useState<'world' | 'tree'>('world')
   /**
    * Chuyện vừa xảy ra ở một ngôi nhà hoặc một ô quái ẩn.
@@ -819,6 +820,11 @@ function SubjectMap({
         }}
         onEnterHouse={enterHouse}
         onSecret={meetSecret}
+        onSeaMonster={(id, variant) => {
+          // Nhớ con nào vừa nhô lên: thắng trận thì đúng con ấy lặn mất.
+          bumpMonster(id)
+          setPreview({ sea: variant })
+        }}
         friends={friends}
         onBumpFriend={(id) => setMet({ id, talking: false })}
         says={chatText(myEmote)}
@@ -997,7 +1003,13 @@ function SubjectMap({
                 exit={{ y: 20, opacity: 0 }}
               >
                 <DialogueBox
-                  text={preview === 'mini' ? MINI_BOSS_DIALOGUE : gateDialogue(preview)}
+                  text={
+                    preview === 'mini'
+                      ? MINI_BOSS_DIALOGUE
+                      : 'sea' in preview
+                        ? seaMonsterDialogue(preview.sea)
+                        : gateDialogue(preview)
+                  }
                 >
                   <div className="mt-2 flex gap-2">
                     <button
@@ -1014,12 +1026,15 @@ function SubjectMap({
                         const target = preview
                         setPreview(null)
                         if (target === 'mini') onWild('mini')
+                        // Thủy quái mạnh ngang đầu đàn, nên đánh theo luật đầu đàn
+                        // - chỉ khác con quái là con của biển sâu.
+                        else if ('sea' in target) onWild('mini', target.sea, 'deep')
                         else onPlay(target)
                       }}
                       className="btn btn-primary flex-[2] text-lg"
                       style={{ background: style.color, minHeight: 44 }}
                     >
-                      {preview !== 'mini' && preview.cleared ? 'Đánh lại' : 'Vào trận!'}
+                      {preview !== 'mini' && !('sea' in preview) && preview.cleared ? 'Đánh lại' : 'Vào trận!'}
                     </button>
                   </div>
                 </DialogueBox>
@@ -1042,6 +1057,12 @@ function SubjectMap({
  */
 const MINI_BOSS_DIALOGUE =
   'Một con đầu đàn!\nNó khoẻ hơn hẳn lũ quái ngoài kia, lại còn có đếm giờ. Con dám thử không?'
+
+/** Lời thoại khi một con thủy quái nhô lên trước mặt trẻ. */
+function seaMonsterDialogue(variant: number): string {
+  const name = HABITAT_BESTIARY.deep[variant % HABITAT_BESTIARY.deep.length]!.name
+  return `Sóng dựng lên... ${name} nhô khỏi mặt nước!\nThủy quái khoẻ lắm, lại còn có đếm giờ. Con dám đấu không?`
+}
 
 /** Lời thoại khi trẻ bước lên cổng. */
 function gateDialogue(node: MapNode): string {

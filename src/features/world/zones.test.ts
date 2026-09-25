@@ -16,7 +16,7 @@ import { createRng } from '../../engine/rng'
 import { HABITAT_FAMILY } from '../pixel/habitat-creatures'
 import { HABITAT_TILE, WALKABLE } from '../pixel/tiles'
 import { biomeFor, routeOptionsFor } from './biome'
-import { buildRouteMap, isWalkable, zoneAt, ZONE_HABITAT, type RouteMap } from './routemap'
+import { buildRouteMap, isWalkable, wanderStep, zoneAt, ZONE_HABITAT, type RouteMap } from './routemap'
 
 /** Đúng tấm bản đồ mà `MapScreen` dựng cho một vùng đất. */
 function regionMap(subject: Subject, grade: Grade): RouteMap {
@@ -171,6 +171,63 @@ describe('khu môi trường của từng vùng đất', () => {
 
   it('cùng hạt giống thì ra cùng khu - bạn cùng lớp thấy đúng cái hang mình thấy', () => {
     expect(regionMap('math', 3).zones).toEqual(regionMap('math', 3).zones)
+  })
+})
+
+describe('thủy quái ngoài khơi', () => {
+  const near = (map: RouteMap, x: number, y: number, d: number) => {
+    for (let dy = -d; dy <= d; dy++) {
+      for (let dx = -d; dx <= d; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) === d && isWalkable(map, x + dx, y + dy)) return true
+      }
+    }
+    return false
+  }
+
+  it('vùng biển có ít nhất hai con, các vùng khác thì không có con nào', () => {
+    for (const { subject, grade } of REGIONS) {
+      const lairs = regionMap(subject, grade).seaLairs
+      if (subject === 'ethics') expect(lairs.length, `lớp ${grade}`).toBeGreaterThanOrEqual(2)
+      else expect(lairs, `${subject} lớp ${grade}`).toEqual([])
+    }
+  })
+
+  it('ở ngoài nước, không chắn ngay mép - nhưng chỉ một sải bơi là tới chỗ trẻ đứng', () => {
+    for (const grade of GRADES) {
+      const map = regionMap('ethics', grade)
+      for (const { x, y } of map.seaLairs) {
+        expect(map.tiles[y]![x]).toBe('water')
+        expect(near(map, x, y, 1), `lớp ${grade}: (${x},${y}) sát bờ`).toBe(false)
+        expect(near(map, x, y, 2), `lớp ${grade}: (${x},${y}) xa quá, không bao giờ gặp`).toBe(true)
+      }
+    }
+  })
+
+  it('chỉ bơi trong nước, dù bơi bao lâu', () => {
+    const map = regionMap('ethics', 3)
+    const rng = createRng('boi')
+    const inWater = (x: number, y: number) => map.tiles[y]?.[x] === 'water'
+    for (const lair of map.seaLairs) {
+      let pos = lair
+      for (let i = 0; i < 300; i++) {
+        pos = wanderStep(map, pos, lair, 2, rng, undefined, inWater)
+        expect(map.tiles[pos.y]![pos.x]).toBe('water')
+      }
+    }
+  })
+
+  it('thủy quái mang tên và hệ đúng, không bị gắn chữ của quái trên cạn', () => {
+    const enemy = createEnemy({
+      subject: 'ethics',
+      grade: 3,
+      nodeIndex: 4,
+      isBoss: false,
+      rng: createRng('t'),
+      variant: 0,
+      habitat: 'deep',
+    })
+    expect(enemy.name).toBe('Rắn Biển Ba Trăm Thước')
+    expect(enemy.element).toBe('ethics')
   })
 })
 

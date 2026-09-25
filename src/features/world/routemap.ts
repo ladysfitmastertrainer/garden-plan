@@ -97,6 +97,15 @@ export interface RouteMap {
    * trong. Rỗng khi vùng này không có khu nào (bàn hướng dẫn, bản đồ quá ngắn).
    */
   zones: ZoneArea[]
+  /**
+   * Chỗ ở của THỦY QUÁI ngoài khơi - chỉ vùng có đảo mới có.
+   *
+   * Mỗi chỗ là một ô nước sâu, cách chỗ trẻ đứng được đúng hai ô: đứng yên thì
+   * con quái chưa chạm tới, bơi thêm một sải là nó đã sát mép nước nông. Thủy
+   * quái bơi quanh đây và chỉ bơi trong nước (xem `wanderStep`, tham số
+   * `canEnter`), nên nó luôn ở ngoài tầm với - trừ khi trẻ tự lội tới sát.
+   */
+  seaLairs: Array<{ x: number; y: number }>
 }
 
 /**
@@ -1031,6 +1040,64 @@ export function buildRouteMap(
   // Cổng đặt cuối cùng để chắc chắn ô chặng luôn là cổng.
   for (const gate of gates) set(gate.x, gate.y, 'gate')
 
+  // --- THỦY QUÁI NGOÀI KHƠI ----------------------------------------------------
+  //
+  // Tính SAU CÙNG, trên lưới ô đã xong hẳn: chỗ ở của thủy quái phụ thuộc vào
+  // việc ô nào quanh đó đi được, mà đảo, bãi cát, viền biển đều phải đứng yên
+  // chỗ rồi mới biết.
+  const seaLairs: Array<{ x: number; y: number }> = []
+  if (zones.some((zone) => zone.kind === 'islands')) {
+    const walkableAt = (x: number, y: number) =>
+      x >= 0 && y >= 0 && x < width && y < height && WALKABLE[tiles[y]![x]!]
+    const waterAt = (x: number, y: number) =>
+      x >= 0 && y >= 0 && x < width && y < height && tiles[y]![x] === 'water'
+
+    const candidates: Array<{ x: number; y: number }> = []
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        if (!waterAt(x, y)) continue
+        // Không sát ô đi được nào: thủy quái không chắn ngay trước mặt lúc mới vào.
+        const near = [
+          [0, 1],
+          [0, -1],
+          [1, 0],
+          [-1, 0],
+        ].some(([dx, dy]) => walkableAt(x + dx!, y + dy!))
+        if (near) continue
+        // Nhưng có ô đi được cách đúng hai ô: bơi một sải là tới mép.
+        let reach = false
+        for (let dy = -2; dy <= 2 && !reach; dy++) {
+          for (let dx = -2; dx <= 2 && !reach; dx++) {
+            if (Math.abs(dx) + Math.abs(dy) === 2 && walkableAt(x + dx, y + dy)) reach = true
+          }
+        }
+        // Và còn chỗ để bơi: ít nhất hai ô nước kề bên.
+        const room = [
+          [0, 1],
+          [0, -1],
+          [1, 0],
+          [-1, 0],
+        ].filter(([dx, dy]) => waterAt(x + dx!, y + dy!)).length
+        if (reach && room >= 2) candidates.push({ x, y })
+      }
+    }
+
+    /*
+      Rải theo chiều dọc bản đồ: giữa trước, rồi hai đầu. Hai con không ở gần
+      nhau quá năm hàng - hai thủy quái chen chúc một chỗ là một cái bể cá, rải
+      ra dọc bờ thì mới là cả một vùng biển có quái.
+    */
+    const want = Math.min(3, Math.max(2, Math.round(height / 20)))
+    for (const at of [0.5, 0.2, 0.8]) {
+      if (seaLairs.length >= want) break
+      const target = height * at
+      const pick = candidates
+        .filter((c) => seaLairs.every((l) => Math.abs(l.y - c.y) >= 5))
+        .sort((a, b) => Math.abs(a.y - target) - Math.abs(b.y - target) || a.x - b.x)[0]
+      if (pick) seaLairs.push(pick)
+    }
+  }
+
   return {
     width,
     height,
@@ -1046,6 +1113,7 @@ export function buildRouteMap(
     doors,
     secrets,
     zones,
+    seaLairs,
   }
 }
 
@@ -1076,6 +1144,11 @@ export function wanderStep(
   rng: { int: (min: number, max: number) => number; chance: (p: number) => boolean },
   /** Giam con quái trong đúng khung này. Mini boss không được rời hang. */
   bounds?: ArenaRect,
+  /**
+   * Ô nào con quái bơi/đi vào được. Bỏ trống là những ô trẻ đi được - như mọi
+   * con quái trên cạn. Thủy quái thì ngược lại: chỉ bơi trong nước.
+   */
+  canEnter: (x: number, y: number) => boolean = (x, y) => isWalkable(map, x, y),
 ): { x: number; y: number } {
   // Đứng yên phần lớn thời gian: quái chạy loạn xạ làm trẻ chóng mặt và rất khó
   // bấm trúng, nhất là trên màn hình cảm ứng.
@@ -1088,7 +1161,7 @@ export function wanderStep(
     { x: pos.x + 1, y: pos.y },
   ].filter(
     (next) =>
-      isWalkable(map, next.x, next.y) &&
+      canEnter(next.x, next.y) &&
       Math.abs(next.x - anchor.x) <= radius &&
       Math.abs(next.y - anchor.y) <= radius &&
       (!bounds ||

@@ -91,6 +91,18 @@ export const HABITAT_BESTIARY: Record<Habitat, EnemyTemplate[]> = {
     { name: 'Người Đá Than Hồng', emoji: '🪨' },
     { name: 'Đốm Lửa Lang Thang', emoji: '✨' },
   ],
+  /*
+    Ngoài khơi: THỦY QUÁI, theo đúng những con vẽ trên hải đồ cổ Carta Marina
+    (1539) - rắn biển quấn thuyền dài ba trăm thước, con cá lớn có mặt người,
+    xoáy nước Charybdis nuốt thuyền, và những con quái gai tua tủa. Vẽ lại cho
+    tròn trịa mắt to như cả bầy, nên chúng kỳ vĩ chứ không đáng sợ.
+  */
+  deep: [
+    { name: 'Rắn Biển Ba Trăm Thước', emoji: '🐉' },
+    { name: 'Cá Voi Mặt Hồng', emoji: '🐋' },
+    { name: 'Xoáy Nước Nuốt Thuyền', emoji: '🌀' },
+    { name: 'Nhím Biển Trăm Gai', emoji: '🦔' },
+  ],
 }
 
 /** Tên nơi chốn của từng môi trường - dùng cho lời chào khi bước vào khu ấy. */
@@ -99,6 +111,7 @@ export const HABITAT_PLACE: Record<Habitat, string> = {
   cave: 'Hang Đá Vọng',
   forest: 'Tán Cây Cổ Thụ',
   lava: 'Miệng Núi Lửa',
+  deep: 'Biển Sâu',
 }
 
 export interface EnemyRequest {

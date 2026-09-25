@@ -64,6 +64,8 @@ export const SCENE_BY_HABITAT: Record<Habitat, (typeof SCENE_BY_SUBJECT)[Subject
   cave: { sky: '#3b3240', ground: '#6b5f58', platform: '#857871', platformEdge: '#51463f' },
   forest: { sky: '#bfe8a8', ground: '#4f9e4a', platform: '#b98552', platformEdge: '#8a5d33' },
   lava: { sky: '#5a2a24', ground: '#5d5654', platform: '#8a3a1c', platformEdge: '#ff6a1f' },
+  // Ngoài khơi: trời xám bão, biển thẫm - trẻ đứng trên một mỏm đá giữa sóng.
+  deep: { sky: '#6f8aa3', ground: '#2a5b96', platform: '#8a8f99', platformEdge: '#5a606b' },
 }
 
 

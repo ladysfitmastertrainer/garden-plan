@@ -37,9 +37,14 @@ export const GRADES: Grade[] = [1, 2, 3, 4, 5]
  * thì gặp quái nham thạch. Câu hỏi vẫn là câu của môn đang học - môi trường chỉ
  * đổi con quái, không đổi bài.
  */
-export type Habitat = 'sea' | 'cave' | 'forest' | 'lava'
+export type Habitat = 'sea' | 'cave' | 'forest' | 'lava' | 'deep'
 
-export const HABITATS: Habitat[] = ['sea', 'cave', 'forest', 'lava']
+/*
+  'deep' là BIỂN SÂU - thủy quái. Khác bốn môi trường kia ở chỗ nó không nấp
+  dưới một loại ô nào: thủy quái bơi lừ lừ ngoài khơi, nhìn thấy được từ bờ,
+  và chỉ nhô lên khi trẻ lội tới sát. Xem `seaLairs` trong `routemap.ts`.
+*/
+export const HABITATS: Habitat[] = ['sea', 'cave', 'forest', 'lava', 'deep']
 
 /** 1 = dễ (mới học), 2 = vừa, 3 = thử thách. */
 export type Difficulty = 1 | 2 | 3

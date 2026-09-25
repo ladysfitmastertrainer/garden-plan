@@ -113,7 +113,9 @@ function enemyFor(kind: 'wild' | 'mini' | 'secret', enemy: Enemy): Enemy {
   if (kind === 'mini') {
     return {
       ...enemy,
-      name: `${enemy.name} Đầu Đàn`,
+      // Thủy quái cũng đánh theo luật đầu đàn, nhưng nó không cầm đầu bầy nào:
+      // "Rắn Biển Ba Trăm Thước Đầu Đàn" là một cái tên thừa chữ.
+      name: enemy.habitat === 'deep' ? enemy.name : `${enemy.name} Đầu Đàn`,
       maxHp: Math.round(enemy.maxHp * 1.35),
       attack: enemy.attack + 3,
       goldReward: enemy.goldReward * 2,
@@ -626,10 +628,16 @@ export const useGame = create<GameState>((set, get) => ({
       rng,
       // Mini boss trong hang luôn là con dữ nhất bầy - khớp với hình đứng trong
       // hang. Quái hoang thì lấy đúng con vừa nhảy ra khỏi bụi cỏ.
-      ...(kind === 'wild' ? (variant === undefined ? {} : { variant }) : { variant: 3 }),
+      // Thủy quái cũng vậy: con vào trận là đúng con vừa nhô lên.
+      ...(kind === 'wild' || (kind === 'mini' && habitat === 'deep')
+        ? variant === undefined
+          ? {}
+          : { variant }
+        : { variant: 3 }),
       // Gặp ở nước nông, trong hang, trên tán cây hay miệng núi lửa thì là con
-      // của nơi ấy. Đầu đàn trong hang quái dữ thì không bao giờ có môi trường.
-      ...(habitat && kind !== 'mini' ? { habitat } : {}),
+      // của nơi ấy. Đầu đàn trong hang quái dữ thì không có môi trường - trận
+      // 'mini' duy nhất mang môi trường là thủy quái ngoài khơi.
+      ...(habitat && (kind !== 'mini' || habitat === 'deep') ? { habitat } : {}),
     })
 
     const level = levelFromTotalXp(student.totalXp).level

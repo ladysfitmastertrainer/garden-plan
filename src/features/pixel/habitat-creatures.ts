@@ -389,6 +389,113 @@ export const FLAME_WISP: Sprite = {
   ],
 }
 
+// --- Biển sâu: thủy quái của hải đồ cổ ---------------------------------------------
+//
+// Bốn con trên hải đồ Carta Marina (1539): rắn biển, cá lớn có mặt, xoáy nước
+// Charybdis, quái gai. Chúng nhô lên từ mặt nước nên phần dưới bị cắt ngang bằng
+// một vệt bọt - trên bản đồ đứng trên ô nước, vệt bọt ấy là mặt biển.
+
+/** Rắn Biển Ba Trăm Thước: đầu vây đỏ ngóc cao, khoanh thân khoang đốm trồi khỏi nước. */
+export const SEA_SERPENT: Sprite = {
+  palette: {
+    '#': '#3a2a10',
+    B: '#e6d49a',
+    S: '#b5953f',
+    L: '#fff4d0',
+    E: '#ffffff',
+    P: '#1a1206',
+    Y: '#d04a3a',
+    w: '#e8f7ff',
+  },
+  rows: [
+    '....#Y#Y#.......',
+    '...#BBBBB#......',
+    '..#BEPBBBB#.....',
+    '..#BEPBBBBB#....',
+    '..#BBBBBLLLL#...',
+    '...#BBB#YY##....',
+    '...#BSB#........',
+    '...#BBB#........',
+    '...#BSB#..###...',
+    '...#BBB#.#BSB#..',
+    '...#BSBB#BBBBB#.',
+    '....#BBBSBBB#S#.',
+    '.ww#####ww###ww.',
+    '..w.w..ww..w.w..',
+    '................',
+    '................',
+  ],
+}
+
+/** Cá Voi Mặt Hồng: con cá lớn có gương mặt, môi dày, đuôi quẫy bên phải. */
+export const FACE_WHALE: Sprite = {
+  palette: { '#': '#5a2a2a', B: '#e39a9a', S: '#b86a6a', L: '#ffd6cf', E: '#ffffff', P: '#2a1010', Y: '#c24a4a' },
+  rows: [
+    '................',
+    '......####......',
+    '....##BBBB##....',
+    '...#BBBBBBBB#..#',
+    '..#BEPBBBEPBB#Y#',
+    '.#BBEPBBBEPBBB#Y',
+    '#BBBBYYYYBBBBB#Y',
+    '#BBBBBYYBBBBBBYY',
+    '#BLLLLLLLLLLBB#Y',
+    '.#LLLLLLLLLLBB#Y',
+    '..#LLLLLLLLBB#..',
+    '...##LLLLLL##...',
+    '....#S#..#S#....',
+    '.....#....#.....',
+    '................',
+    '................',
+  ],
+}
+
+/** Xoáy Nước Nuốt Thuyền: vòng xoáy Charybdis, và giữa tâm xoáy là một đôi mắt. */
+export const WHIRLPOOL: Sprite = {
+  palette: { '#': '#1c3f5c', B: '#4fa3d1', S: '#2f7aa8', L: '#c9eefb', E: '#ffffff', P: '#0d1f2e' },
+  rows: [
+    '................',
+    '.....######.....',
+    '...##LLLLLL##...',
+    '..#LLBBBBBBLL#..',
+    '.#LBBSSSSSSBBL#.',
+    '.#LBSLLLLLLSBL#.',
+    '#LBSLBEPBEPLSBL#',
+    '#LBSLBEPBEPLSBL#',
+    '#LBSLBBSSBBLSBL#',
+    '#LBSLLBBBBLLSBL#',
+    '.#LBSSLLLLSSBL#.',
+    '.#LBBSSSSSSBBL#.',
+    '..#LLBBBBBBLL#..',
+    '...##LLLLLL##...',
+    '.....######.....',
+    '................',
+  ],
+}
+
+/** Nhím Biển Trăm Gai: thân tròn tím sẫm, gai vàng tua tủa, mắt đỏ, hàm răng cưa. */
+export const SPINY: Sprite = {
+  palette: { '#': '#1a0f22', B: '#5a3a78', S: '#3a2450', L: '#8a64b0', E: '#ffd84a', P: '#b0201a', Y: '#e0c070' },
+  rows: [
+    '..Y....Y....Y...',
+    '...Y...Y...Y....',
+    'Y...#######...Y.',
+    '.Y##BBBBBBB##Y..',
+    '..#BBLLBBBBBB#..',
+    'YY#BEPBBBBEPB#YY',
+    '..#BEPBBBBEPB#..',
+    'YY#BBBBSSBBBB#YY',
+    '..#BB#Y#Y#Y#B#..',
+    '.Y#BBBBBBBBBB#Y.',
+    '..#SSSSSSSSSS#..',
+    '.Y.##########.Y.',
+    '..Y..Y....Y..Y..',
+    '................',
+    '................',
+    '................',
+  ],
+}
+
 /**
  * Bầy của từng môi trường. Thứ tự khớp với `HABITAT_BESTIARY` - xem đầu file.
  */
@@ -397,6 +504,7 @@ export const HABITAT_FAMILY: Record<Habitat, readonly Sprite[]> = {
   cave: [CRAB, LOBSTER, LIZARD, SNAKE],
   forest: [MONKEY, SQUIRREL, BOAR, TIGER],
   lava: [LAVA_SLIME, SALAMANDER, MAGMA_GOLEM, FLAME_WISP],
+  deep: [SEA_SERPENT, FACE_WHALE, WHIRLPOOL, SPINY],
 }
 
 /** Tên gọi trong `ALL_SPRITES` - để test kiểm khổ và bảng màu như mọi hình khác. */
@@ -417,4 +525,8 @@ export const HABITAT_SPRITES: Record<string, Sprite> = {
   salamander: SALAMANDER,
   'magma-golem': MAGMA_GOLEM,
   'flame-wisp': FLAME_WISP,
+  'sea-serpent': SEA_SERPENT,
+  'face-whale': FACE_WHALE,
+  whirlpool: WHIRLPOOL,
+  spiny: SPINY,
 }

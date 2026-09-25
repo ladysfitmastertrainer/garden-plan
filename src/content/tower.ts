@@ -61,6 +61,7 @@
  */
 
 import type { Enemy } from '../engine/battle'
+import { enemyScaleForLevel } from '../engine/rewards'
 import { getTuning } from './tuning'
 import { SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from './types'
 
@@ -139,13 +140,18 @@ export function towerGrades(grade: Grade): Grade[] {
  * Mọi con số ở đây đều nhân với hệ số chỉnh tay của thầy cô (`getTuning`), y
  * như quái thường - lớp yếu hạ máu quái xuống là hạ cả trong tháp.
  */
-export function createTowerBoss(subject: Subject, grade: Grade): Enemy {
+export function createTowerBoss(subject: Subject, grade: Grade, playerLevel = 1): Enemy {
   const floor = towerFloor(subject)
   const tuning = getTuning()
+  // Trùm tháp cũng mạnh lên theo cấp của con, như mọi con quái khác - xem
+  // `enemyScaleForLevel`. Giáp nhân theo cùng hệ số với máu: giáp trừ thẳng vào
+  // đòn đánh, mà đòn của con to lên theo cấp, nên giáp đứng yên thì cấp cao đánh
+  // xuyên giáp như không.
+  const scale = enemyScaleForLevel(playerLevel)
 
   // Trận 14 câu với một đội thú đã nuôi tới cấp cao: thanh máu phải đủ dài để
   // cơn giận ở mốc 40% kịp xảy ra trước câu cuối cùng.
-  const maxHp = Math.max(1, Math.round((520 + grade * 110) * tuning.enemyHpScale))
+  const maxHp = Math.max(1, Math.round((520 + grade * 110) * tuning.enemyHpScale * scale.hp))
 
   return {
     id: `tower-${subject}-g${grade}`,
@@ -155,15 +161,16 @@ export function createTowerBoss(subject: Subject, grade: Grade): Enemy {
     // cái gì. Từ câu thứ tư trở đi thì nó tự đổi.
     element: subject,
     maxHp,
-    attack: Math.max(1, Math.round((14 + grade * 2) * tuning.enemyAttackScale)),
+    attack: Math.max(1, Math.round((14 + grade * 2) * tuning.enemyAttackScale * scale.attack)),
     goldReward: Math.round((260 + grade * 40) * tuning.goldScale),
     xpReward: Math.round((340 + grade * 50) * tuning.xpScale),
     // Con dữ nhất bầy của môn đó - hình trong tháp lấy từ hình trùm, tô lại.
     variant: 3,
+    level: Math.max(1, Math.floor(playerLevel)) + 3,
     isBoss: true,
     isTower: true,
 
-    armor: 8 + grade * 2,
+    armor: Math.round((8 + grade * 2) * scale.hp),
     shiftEvery: 3,
     // Một câu sai trả lại 5% máu: ba câu bừa là mất trắng công của một câu đúng
     // có khắc chế. Đủ đau để đáng sợ, chưa tới mức không gỡ nổi.

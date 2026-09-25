@@ -68,6 +68,12 @@ export interface Enemy {
    */
   habitat?: Habitat
   /**
+   * Cấp hiện trên khung máu của quái. Quái mạnh lên theo cấp người chơi (xem
+   * `enemyScaleForLevel`), nên con số này đi theo cấp của con, chứ không còn
+   * đoán từ số thứ tự chặng. Thiếu (trận tập, dữ liệu cũ) thì giao diện tự đoán.
+   */
+  level?: number
+  /**
    * Trùm cuối của vùng đất.
    *
    * Là một CỜ RIÊNG chứ không đoán từ tên: giao diện trước đây dò ký tự '⭐'

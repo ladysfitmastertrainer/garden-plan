@@ -108,7 +108,13 @@ export function configureRepository(next: Repository): void {
  */
 function enemyFor(kind: 'wild' | 'mini' | 'secret', enemy: Enemy): Enemy {
   if (kind === 'wild') {
-    return { ...enemy, name: `${enemy.name} hoang`, maxHp: Math.round(enemy.maxHp * 0.6) }
+    return {
+      ...enemy,
+      name: `${enemy.name} hoang`,
+      maxHp: Math.round(enemy.maxHp * 0.6),
+      // Cấp trên khung máu đi theo độ mạnh thật: yếu hơn quái cổng thì kém một cấp.
+      level: Math.max(1, (enemy.level ?? 1) - 1),
+    }
   }
   if (kind === 'mini') {
     return {
@@ -118,6 +124,7 @@ function enemyFor(kind: 'wild' | 'mini' | 'secret', enemy: Enemy): Enemy {
       name: enemy.habitat === 'deep' ? enemy.name : `${enemy.name} Đầu Đàn`,
       maxHp: Math.round(enemy.maxHp * 1.35),
       attack: enemy.attack + 3,
+      level: Math.max(1, (enemy.level ?? 1) + 1),
       goldReward: enemy.goldReward * 2,
       xpReward: enemy.xpReward * 2,
     }
@@ -127,6 +134,7 @@ function enemyFor(kind: 'wild' | 'mini' | 'secret', enemy: Enemy): Enemy {
     name: `${enemy.name} Ẩn Mình`,
     maxHp: Math.round(enemy.maxHp * 1.6),
     attack: enemy.attack + 4,
+    level: Math.max(1, (enemy.level ?? 1) + 2),
     goldReward: enemy.goldReward * 4,
     xpReward: enemy.xpReward * 4,
   }
@@ -566,6 +574,8 @@ export const useGame = create<GameState>((set, get) => ({
       // Cùng công thức với bản đồ đi cảnh, nên con quái trẻ nhắm tới ngoài đường
       // đúng là con hiện ra khi vào trận.
       variant: node.index,
+      // Quái mạnh lên theo cấp của con - xem `enemyScaleForLevel`.
+      playerLevel: level,
     })
 
     const queue = selections.map((s) => s.question)
@@ -618,6 +628,7 @@ export const useGame = create<GameState>((set, get) => ({
     if (selections.length === 0) return
 
     const rng = createRng(`${student.id}-wildenemy-${Date.now()}`)
+    const level = levelFromTotalXp(student.totalXp).level
     const enemy = createEnemy({
       subject,
       grade: target,
@@ -638,9 +649,9 @@ export const useGame = create<GameState>((set, get) => ({
       // của nơi ấy. Đầu đàn trong hang quái dữ thì không có môi trường - trận
       // 'mini' duy nhất mang môi trường là thủy quái ngoài khơi.
       ...(habitat && (kind !== 'mini' || habitat === 'deep') ? { habitat } : {}),
+      playerLevel: level,
     })
 
-    const level = levelFromTotalXp(student.totalXp).level
     const bonus = student.equippedItemIds.reduce(
       (acc, id) => {
         const item = findLootItem(id)
@@ -741,7 +752,7 @@ export const useGame = create<GameState>((set, get) => ({
     set({
       battle: createBattle(
         {
-          enemy: createTowerBoss(subject, target),
+          enemy: createTowerBoss(subject, target, level),
           player: fighterFor(progress, subject, level, bonus).player,
           /*
             Vẫn đúng con thú ấy, không có ngoại lệ nào cho tháp.

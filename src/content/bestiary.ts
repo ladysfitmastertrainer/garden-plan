@@ -10,6 +10,7 @@
  */
 
 import type { Enemy } from '../engine/battle'
+import { enemyScaleForLevel } from '../engine/rewards'
 import type { Rng } from '../engine/rng'
 import { getTuning } from './tuning'
 import type { Grade, Habitat, Subject } from './types'
@@ -132,6 +133,11 @@ export interface EnemyRequest {
    * thay cho bầy của môn - xem `HABITAT_BESTIARY`.
    */
   habitat?: Habitat
+  /**
+   * Cấp của người chơi. Quái mạnh lên theo đúng nhịp con mạnh lên - xem
+   * `enemyScaleForLevel`. Bỏ trống là cấp 1: quái đúng như công thức gốc.
+   */
+  playerLevel?: number
 }
 
 export function createEnemy({
@@ -142,6 +148,7 @@ export function createEnemy({
   rng,
   variant: fixedVariant,
   habitat,
+  playerLevel = 1,
 }: EnemyRequest): Enemy {
   // Trùm không bao giờ đổi theo môi trường: trùm là của vùng đất, không phải
   // của một góc nào trong nó.
@@ -159,12 +166,21 @@ export function createEnemy({
   // Thầy cô chỉnh được bốn hệ số này ở trang quản trị - lớp yếu hạ máu quái
   // xuống, lớp khá nâng lên, không phải sửa mã nguồn.
   const tuning = getTuning()
-  const maxHp = Math.max(1, Math.round((isBoss ? baseHp * 1.8 : baseHp) * tuning.enemyHpScale))
+  // Nhân thêm theo cấp người chơi, SAU mọi hệ số khác: chặng, lớp và chỉnh tay
+  // của thầy cô vẫn quyết định quái khó tới đâu SO VỚI con, còn cấp thì giữ cho
+  // khoảng cách ấy không bị lên cấp xoá mất.
+  const scale = enemyScaleForLevel(playerLevel)
+  const maxHp = Math.max(
+    1,
+    Math.round((isBoss ? baseHp * 1.8 : baseHp) * tuning.enemyHpScale * scale.hp),
+  )
 
   // Sát thương giữ thấp: trẻ sai 4-5 câu vẫn còn cơ hội gỡ.
   const attack = Math.max(
     1,
-    Math.round((8 + Math.floor(nodeIndex / 2) + (isBoss ? 4 : 0)) * tuning.enemyAttackScale),
+    Math.round(
+      (8 + Math.floor(nodeIndex / 2) + (isBoss ? 4 : 0)) * tuning.enemyAttackScale * scale.attack,
+    ),
   )
 
   return {
@@ -179,6 +195,8 @@ export function createEnemy({
     goldReward: Math.round((isBoss ? 60 + nodeIndex * 5 : 18 + nodeIndex * 3) * tuning.goldScale),
     xpReward: Math.round((isBoss ? 80 + nodeIndex * 6 : 25 + nodeIndex * 4) * tuning.xpScale),
     variant,
+    // Cấp hiện trên khung máu: ngang cấp con, trùm nhỉnh hơn hai cấp.
+    level: Math.max(1, Math.floor(playerLevel)) + (isBoss ? 2 : 0),
     ...(wildHabitat ? { habitat: wildHabitat } : {}),
     isBoss,
   }

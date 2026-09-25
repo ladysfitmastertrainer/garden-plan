@@ -53,6 +53,29 @@ export function statsForLevel(level: number, bonus: EquipmentBonus = {}): Player
   }
 }
 
+/**
+ * Quái mạnh lên bao nhiêu lần, theo cấp của người chơi.
+ *
+ * Tính NGƯỢC từ chính `statsForLevel` chứ không đặt một con số riêng: con lên
+ * một cấp thì sát thương tăng 5% và máu tăng 8 - quái cũng tăng đúng chừng ấy.
+ *
+ *   hp     - máu quái nhân theo SỨC ĐÁNH của con, nên số đòn để hạ nó giữ nguyên.
+ *   attack - đòn quái nhân theo MÁU của con, nên số đòn con chịu được giữ nguyên.
+ *
+ * Trước đây quái chỉ mạnh theo chặng và theo lớp, còn con thì mạnh theo cấp -
+ * nên một em cày tới cấp 20 quay lại vùng nào cũng hạ quái bằng một câu, và
+ * trận đấu thôi là trận đấu.
+ *
+ * CỐ Ý chỉ tính theo CẤP, không tính đồ đeo và cấp của thú: đó là phần thưởng
+ * con kiếm được, và nó phải còn làm con mạnh hơn thật. Nhờ vậy lên cấp không
+ * bao giờ làm trận khó đi - con chỉ không còn vượt quái xa tới mức vô nghĩa.
+ */
+export function enemyScaleForLevel(level: number): { hp: number; attack: number } {
+  const base = statsForLevel(1)
+  const now = statsForLevel(Math.max(1, Math.min(MAX_LEVEL, Math.floor(level))))
+  return { hp: now.power / base.power, attack: now.maxHp / base.maxHp }
+}
+
 // --- Vật phẩm rơi ------------------------------------------------------------
 
 export type Rarity = 'common' | 'rare' | 'epic'

@@ -52,6 +52,7 @@ import {
   rollLoot,
   statsForLevel,
   findLootItem,
+  type FighterStrength,
   type LootItem,
 } from '../engine/rewards'
 import { createRng } from '../engine/rng'
@@ -439,6 +440,16 @@ function fighterFor(
   }
 }
 
+/**
+ * Sức mạnh thật của bên con, để quái theo kịp - xem `enemyScaleFor`.
+ *
+ * Đọc từ ĐÚNG đội hình sắp ra trận (`fighterFor`): sức đánh của nhân vật đã gồm
+ * đồ đeo, sức đánh và máu của thú đã gồm cấp và tiến hoá của nó.
+ */
+function strengthOf(fighter: { pet: Pet; player: PlayerStats }, level: number): FighterStrength {
+  return { level, power: fighter.player.power, petPower: fighter.pet.power, petMaxHp: fighter.pet.maxHp }
+}
+
 export const useGame = create<GameState>((set, get) => ({
   ready: false,
   students: [],
@@ -578,8 +589,8 @@ export const useGame = create<GameState>((set, get) => ({
       // Cùng công thức với bản đồ đi cảnh, nên con quái trẻ nhắm tới ngoài đường
       // đúng là con hiện ra khi vào trận.
       variant: node.index,
-      // Quái mạnh lên theo cấp của con - xem `enemyScaleForLevel`.
-      playerLevel: level,
+      // Quái theo kịp rồi vượt sức mạnh thật của con - xem `enemyScaleFor`.
+      fighter: strengthOf(fighterFor(progress, subject, level, bonus), level),
     })
 
     const queue = selections.map((s) => s.question)
@@ -635,6 +646,16 @@ export const useGame = create<GameState>((set, get) => ({
 
     const rng = createRng(`${student.id}-wildenemy-${Date.now()}`)
     const level = levelFromTotalXp(student.totalXp).level
+    const bonus = student.equippedItemIds.reduce(
+      (acc, id) => {
+        const item = findLootItem(id)
+        return {
+          bonusHp: acc.bonusHp + (item?.bonus.bonusHp ?? 0),
+          bonusPower: acc.bonusPower + (item?.bonus.bonusPower ?? 0),
+        }
+      },
+      { bonusHp: 0, bonusPower: 0 },
+    )
     const enemy = createEnemy({
       subject,
       grade: target,
@@ -655,19 +676,9 @@ export const useGame = create<GameState>((set, get) => ({
       // của nơi ấy. Đầu đàn trong hang quái dữ thì không có môi trường - trận
       // 'mini' duy nhất mang môi trường là thủy quái ngoài khơi.
       ...(habitat && (kind !== 'mini' || habitat === 'deep') ? { habitat } : {}),
-      playerLevel: level,
+      fighter: strengthOf(fighterFor(progress, subject, level, bonus), level),
     })
 
-    const bonus = student.equippedItemIds.reduce(
-      (acc, id) => {
-        const item = findLootItem(id)
-        return {
-          bonusHp: acc.bonusHp + (item?.bonus.bonusHp ?? 0),
-          bonusPower: acc.bonusPower + (item?.bonus.bonusPower ?? 0),
-        }
-      },
-      { bonusHp: 0, bonusPower: 0 },
-    )
 
     const queue = selections.map((sel) => sel.question)
     set({
@@ -761,7 +772,7 @@ export const useGame = create<GameState>((set, get) => ({
     set({
       battle: createBattle(
         {
-          enemy: createTowerBoss(subject, target, level),
+          enemy: createTowerBoss(subject, target, strengthOf(fighterFor(progress, subject, level, bonus), level)),
           player: fighterFor(progress, subject, level, bonus).player,
           /*
             Vẫn đúng con thú ấy, không có ngoại lệ nào cho tháp.

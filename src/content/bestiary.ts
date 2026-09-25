@@ -10,7 +10,7 @@
  */
 
 import type { Enemy } from '../engine/battle'
-import { enemyScaleForLevel } from '../engine/rewards'
+import { enemyScaleFor, type FighterStrength } from '../engine/rewards'
 import type { Rng } from '../engine/rng'
 import { getTuning } from './tuning'
 import type { Grade, Habitat, Subject } from './types'
@@ -134,11 +134,18 @@ export interface EnemyRequest {
    */
   habitat?: Habitat
   /**
-   * Cấp của người chơi. Quái mạnh lên theo đúng nhịp con mạnh lên - xem
-   * `enemyScaleForLevel`. Bỏ trống là cấp 1: quái đúng như công thức gốc.
+   * Sức mạnh thật của bên con: cấp nhân vật, sức đánh (gồm đồ đeo), sức đánh và
+   * máu của thú. Quái theo kịp rồi vượt lên một khoảng - xem `enemyScaleFor`.
+   * Bỏ trống thì quái đúng như công thức gốc, không mang cấp.
    */
-  playerLevel?: number
+  fighter?: FighterStrength
 }
+
+/**
+ * Quái thường cao hơn con MỘT cấp, trùm cao hơn BA. Quái hoang, đầu đàn, quái
+ * ẩn dịch tiếp từ mốc quái thường - xem `enemyFor` trong `store/game.ts`.
+ */
+export const LEVEL_GAP = { normal: 1, boss: 3 } as const
 
 export function createEnemy({
   subject,
@@ -148,7 +155,7 @@ export function createEnemy({
   rng,
   variant: fixedVariant,
   habitat,
-  playerLevel = 1,
+  fighter,
 }: EnemyRequest): Enemy {
   // Trùm không bao giờ đổi theo môi trường: trùm là của vùng đất, không phải
   // của một góc nào trong nó.
@@ -166,10 +173,12 @@ export function createEnemy({
   // Thầy cô chỉnh được bốn hệ số này ở trang quản trị - lớp yếu hạ máu quái
   // xuống, lớp khá nâng lên, không phải sửa mã nguồn.
   const tuning = getTuning()
-  // Nhân thêm theo cấp người chơi, SAU mọi hệ số khác: chặng, lớp và chỉnh tay
-  // của thầy cô vẫn quyết định quái khó tới đâu SO VỚI con, còn cấp thì giữ cho
-  // khoảng cách ấy không bị lên cấp xoá mất.
-  const scale = enemyScaleForLevel(playerLevel)
+  // Nhân thêm theo sức mạnh thật của con, SAU mọi hệ số khác: chặng, lớp và
+  // chỉnh tay của thầy cô vẫn quyết định quái khó tới đâu, còn hệ số này giữ cho
+  // con mạnh lên không xoá mất khoảng cách ấy - và đẩy quái lên cao hơn con.
+  const scale = fighter
+    ? enemyScaleFor(fighter, isBoss ? LEVEL_GAP.boss : LEVEL_GAP.normal)
+    : { hp: 1, attack: 1, level: undefined }
   const maxHp = Math.max(
     1,
     Math.round((isBoss ? baseHp * 1.8 : baseHp) * tuning.enemyHpScale * scale.hp),
@@ -195,8 +204,8 @@ export function createEnemy({
     goldReward: Math.round((isBoss ? 60 + nodeIndex * 5 : 18 + nodeIndex * 3) * tuning.goldScale),
     xpReward: Math.round((isBoss ? 80 + nodeIndex * 6 : 25 + nodeIndex * 4) * tuning.xpScale),
     variant,
-    // Cấp hiện trên khung máu: ngang cấp con, trùm nhỉnh hơn hai cấp.
-    level: Math.max(1, Math.floor(playerLevel)) + (isBoss ? 2 : 0),
+    // Cấp hiện trên khung máu - và là cấp THẬT: chỉ số đã tính theo nó.
+    ...(scale.level !== undefined ? { level: scale.level } : {}),
     ...(wildHabitat ? { habitat: wildHabitat } : {}),
     isBoss,
   }

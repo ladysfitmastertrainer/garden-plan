@@ -54,26 +54,59 @@ export function statsForLevel(level: number, bonus: EquipmentBonus = {}): Player
 }
 
 /**
- * Quái mạnh lên bao nhiêu lần, theo cấp của người chơi.
+ * Sức mạnh THẬT của bên con khi vào trận - thứ quái phải theo kịp.
  *
- * Tính NGƯỢC từ chính `statsForLevel` chứ không đặt một con số riêng: con lên
- * một cấp thì sát thương tăng 5% và máu tăng 8 - quái cũng tăng đúng chừng ấy.
- *
- *   hp     - máu quái nhân theo SỨC ĐÁNH của con, nên số đòn để hạ nó giữ nguyên.
- *   attack - đòn quái nhân theo MÁU của con, nên số đòn con chịu được giữ nguyên.
- *
- * Trước đây quái chỉ mạnh theo chặng và theo lớp, còn con thì mạnh theo cấp -
- * nên một em cày tới cấp 20 quay lại vùng nào cũng hạ quái bằng một câu, và
- * trận đấu thôi là trận đấu.
- *
- * CỐ Ý chỉ tính theo CẤP, không tính đồ đeo và cấp của thú: đó là phần thưởng
- * con kiếm được, và nó phải còn làm con mạnh hơn thật. Nhờ vậy lên cấp không
- * bao giờ làm trận khó đi - con chỉ không còn vượt quái xa tới mức vô nghĩa.
+ * Trong trận, thứ đánh và thứ ăn đòn là CON THÚ, không phải nhân vật: sát thương
+ * nhân cả sức đánh của nhân vật (`power`, đã gồm đồ đeo) lẫn sức đánh của thú
+ * (`petPower`, đã gồm cấp và tiến hoá), còn đòn của quái trừ thẳng vào máu thú.
  */
-export function enemyScaleForLevel(level: number): { hp: number; attack: number } {
-  const base = statsForLevel(1)
-  const now = statsForLevel(Math.max(1, Math.min(MAX_LEVEL, Math.floor(level))))
-  return { hp: now.power / base.power, attack: now.maxHp / base.maxHp }
+export interface FighterStrength {
+  /** Cấp của nhân vật - mốc để tính cấp của quái. */
+  level: number
+  power: number
+  petPower: number
+  petMaxHp: number
+}
+
+/**
+ * Bên con lúc mới chơi: cấp 1, không đồ, thú khởi đầu cấp 1 (máu 95, sức 1).
+ * Mọi con số gốc của quái - máu theo chặng, đòn theo chặng - được cân cho đúng
+ * bên này, nên đây là mốc để chia.
+ */
+export const REFERENCE_FIGHTER: FighterStrength = { level: 1, power: 1, petPower: 1, petMaxHp: 95 }
+
+/** Mỗi cấp quái cao hơn con thì mạnh thêm bấy nhiêu. */
+const PER_LEVEL_GAP = { hp: 0.08, attack: 0.06 }
+
+/**
+ * Quái mạnh cỡ nào, và mang cấp mấy, trước một bên con có sức mạnh `fighter`.
+ *
+ * HAI BƯỚC:
+ *
+ *  1. THEO KỊP con. Máu quái nhân đúng theo sức đánh thật của con, đòn quái nhân
+ *     đúng theo máu thật của thú - so với bên con lúc mới chơi. Nhờ vậy số đòn
+ *     để hạ quái và số đòn con chịu được không bị việc mạnh lên xoá mất.
+ *
+ *  2. VƯỢT con một khoảng. Quái mang cấp `cấp con + gap`, và mỗi cấp chênh cộng
+ *     thêm 8% máu, 6% đòn. Quái thường cao hơn con một cấp - con cấp 1 gặp quái
+ *     cấp 2, con cấp 10 gặp quái cấp 11 - trùm cao hơn ba.
+ *
+ * Bản trước chỉ theo CẤP nhân vật (5% sức đánh mỗi cấp) mà bỏ qua con thú - thứ
+ * mạnh lên nhanh nhất: tới cấp 20 thú đã tiến hoá thì máu gấp bốn, sức đánh gấp
+ * đôi. Sát thương của con vì thế đi trước máu quái gần gấp đôi, và quái mang cấp
+ * cao mà đánh vẫn như bù nhìn.
+ */
+export function enemyScaleFor(
+  fighter: FighterStrength,
+  gap: number,
+): { hp: number; attack: number; level: number } {
+  const ref = REFERENCE_FIGHTER
+  const level = Math.max(1, Math.min(MAX_LEVEL, Math.floor(fighter.level)))
+  return {
+    hp: ((fighter.power * fighter.petPower) / (ref.power * ref.petPower)) * (1 + PER_LEVEL_GAP.hp * gap),
+    attack: (fighter.petMaxHp / ref.petMaxHp) * (1 + PER_LEVEL_GAP.attack * gap),
+    level: level + gap,
+  }
 }
 
 // --- Vật phẩm rơi ------------------------------------------------------------

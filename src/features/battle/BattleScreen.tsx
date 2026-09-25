@@ -170,7 +170,7 @@ export function BattleScreen() {
           avatar={student?.avatar ?? '🦊'}
           heroName={student?.name ?? ''}
           heroLevel={levelFromTotalXp(student?.totalXp ?? 0).level}
-          // Cấp của quái đi theo cấp của con (xem `enemyScaleForLevel`). Trận tập
+          // Cấp của quái đi theo cấp của con (xem `enemyScaleFor`). Trận tập
           // và dữ liệu cũ không mang cấp thì đoán theo chặng như trước.
           enemyLevel={battle.enemy.level ?? (battleNode?.index ?? 0) + (student?.grade ?? 1)}
         />

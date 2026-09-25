@@ -1,18 +1,27 @@
 /**
- * Quái mạnh lên theo cấp người chơi.
+ * Quái theo kịp rồi vượt sức mạnh thật của con.
  *
  * Điều cần giữ không phải một con số mà một TỈ LỆ: số đòn con cần để hạ quái,
- * và số đòn quái cần để hạ con, không bị việc lên cấp xoá mất. Test đo đúng hai
- * tỉ lệ ấy ở nhiều cấp, thay vì chép lại công thức.
+ * và số đòn quái cần để hạ con thú. Test mô phỏng đúng một em lên cấp CÙNG con
+ * thú lên cấp và tiến hoá - bản trước chỉ theo cấp nhân vật, và một phép đo bỏ
+ * qua con thú thì xanh trong khi quái ngoài đời vẫn yếu như bù nhìn.
  */
 
 import { describe, expect, it } from 'vitest'
-import { createEnemy } from './bestiary'
+import { LEVEL_GAP, createEnemy } from './bestiary'
+import { PETS } from './pets'
 import { createTowerBoss } from './tower'
+import { MAX_PET_LEVEL, resolvePet, xpForLevel } from '../engine/pets'
 import { createRng } from '../engine/rng'
-import { MAX_LEVEL, enemyScaleForLevel, statsForLevel } from '../engine/rewards'
+import { REFERENCE_FIGHTER, enemyScaleFor, statsForLevel, type FighterStrength } from '../engine/rewards'
 
-const enemyAt = (playerLevel: number, isBoss = false) =>
+/** Một em cấp `level`, thú khởi đầu cùng cấp (tối đa cấp thú), có thể đeo thêm đồ. */
+function fighterAt(level: number, bonusPower = 0): FighterStrength {
+  const pet = resolvePet(PETS[0]!, xpForLevel(Math.min(level, MAX_PET_LEVEL)))
+  return { level, power: statsForLevel(level, { bonusPower }).power, petPower: pet.power, petMaxHp: pet.maxHp }
+}
+
+const enemyFor = (fighter?: FighterStrength, isBoss = false) =>
   createEnemy({
     subject: 'math',
     grade: 3,
@@ -20,59 +29,83 @@ const enemyAt = (playerLevel: number, isBoss = false) =>
     isBoss,
     rng: createRng('scale'),
     variant: 1,
-    playerLevel,
+    ...(fighter ? { fighter } : {}),
   })
 
-describe('quái mạnh lên theo cấp người chơi', () => {
-  it('cấp 1 thì quái y như công thức gốc - không ai bị đổi gì khi mới chơi', () => {
-    expect(enemyScaleForLevel(1)).toEqual({ hp: 1, attack: 1 })
-    const plain = createEnemy({ subject: 'math', grade: 3, nodeIndex: 4, isBoss: false, rng: createRng('scale'), variant: 1 })
-    expect(enemyAt(1).maxHp).toBe(plain.maxHp)
-    expect(enemyAt(1).attack).toBe(plain.attack)
+/** Số đòn thường để hạ quái, và số đòn quái để hạ thú. */
+function hits(fighter: FighterStrength, isBoss = false) {
+  const enemy = enemyFor(fighter, isBoss)
+  return {
+    toWin: enemy.maxHp / (fighter.power * fighter.petPower),
+    toLose: fighter.petMaxHp / enemy.attack,
+  }
+}
+
+describe('quái theo kịp và vượt sức mạnh của con', () => {
+  it('quái thường cao hơn con MỘT cấp, trùm cao hơn BA - ở mọi cấp', () => {
+    for (const level of [1, 5, 10, 20, 35]) {
+      expect(enemyFor(fighterAt(level)).level).toBe(level + LEVEL_GAP.normal)
+      expect(enemyFor(fighterAt(level), true).level).toBe(level + LEVEL_GAP.boss)
+    }
   })
 
-  it('lên cấp thì quái cũng mạnh lên, cả máu lẫn đòn', () => {
-    let previous = enemyAt(1)
-    for (const level of [5, 10, 20, 35, MAX_LEVEL]) {
-      const now = enemyAt(level)
+  it('con mạnh lên - cả cấp, cả thú tiến hoá - thì quái mạnh lên theo, cả máu lẫn đòn', () => {
+    let previous = enemyFor(fighterAt(1))
+    for (const level of [5, 10, 20, 35, 50]) {
+      const now = enemyFor(fighterAt(level))
       expect(now.maxHp, `cấp ${level}`).toBeGreaterThan(previous.maxHp)
-      expect(now.attack, `cấp ${level}`).toBeGreaterThan(previous.attack)
+      // Đòn quái theo MÁU THÚ, mà thú kịch cấp ở 20 - từ đó máu thú đứng yên
+      // nên đòn quái cũng đứng yên. Không bao giờ được tụt xuống.
+      expect(now.attack, `cấp ${level}`).toBeGreaterThanOrEqual(previous.attack)
       previous = now
     }
   })
 
-  it('số đòn để hạ quái và số đòn để hạ con giữ nguyên ở mọi cấp', () => {
-    const base = enemyAt(1)
-    const baseStats = statsForLevel(1)
-    const hitsToWin = base.maxHp / baseStats.power
-    const hitsToLose = baseStats.maxHp / base.attack
-
-    for (const level of [2, 8, 15, 30, MAX_LEVEL]) {
-      const enemy = enemyAt(level)
-      const stats = statsForLevel(level)
-      // Lệch vì làm tròn tới số nguyên, không lệch vì công thức: dưới 5%.
-      expect(enemy.maxHp / stats.power / hitsToWin, `cấp ${level}`).toBeCloseTo(1, 1)
-      expect(stats.maxHp / enemy.attack / hitsToLose, `cấp ${level}`).toBeGreaterThan(0.9)
-      expect(stats.maxHp / enemy.attack / hitsToLose, `cấp ${level}`).toBeLessThan(1.1)
+  it('số đòn để hạ quái và để bị hạ GIỮ NGUYÊN khi con lên cấp và thú tiến hoá', () => {
+    const start = hits(fighterAt(1))
+    for (const level of [5, 10, 20, 30, 50]) {
+      const now = hits(fighterAt(level))
+      // Lệch chỉ vì làm tròn tới số nguyên.
+      expect(now.toWin / start.toWin, `cấp ${level}`).toBeCloseTo(1, 1)
+      expect(now.toLose / start.toLose, `cấp ${level}`).toBeGreaterThan(0.9)
+      expect(now.toLose / start.toLose, `cấp ${level}`).toBeLessThan(1.1)
     }
   })
 
-  it('cấp trên khung máu đi theo cấp của con, trùm nhỉnh hơn', () => {
-    expect(enemyAt(12).level).toBe(12)
-    expect(enemyAt(12, true).level).toBe(14)
+  it('đồ đeo cũng được tính - quái không bị đồ xịn đánh bẹp', () => {
+    const plain = hits(fighterAt(10))
+    const geared = hits(fighterAt(10, 0.5))
+    expect(geared.toWin / plain.toWin).toBeCloseTo(1, 1)
   })
 
-  it('trùm tháp cũng mạnh lên, kể cả giáp - nếu không cấp cao đánh xuyên giáp như không', () => {
-    const low = createTowerBoss('math', 3, 1)
-    const high = createTowerBoss('math', 3, 30)
+  it('quái cao hơn con thì KHÓ HƠN mốc lúc mới chơi, không chỉ ngang bằng', () => {
+    // Mốc: bên con lúc mới chơi gặp quái đúng công thức gốc, chưa cộng cấp chênh.
+    const base = enemyFor()
+    const ref = REFERENCE_FIGHTER
+    const baseline = { toWin: base.maxHp / (ref.power * ref.petPower), toLose: ref.petMaxHp / base.attack }
+    const normal = hits(fighterAt(12))
+    const boss = hits(fighterAt(12), true)
+    expect(normal.toWin).toBeGreaterThan(baseline.toWin)
+    expect(normal.toLose).toBeLessThan(baseline.toLose)
+    // Trùm cao hơn nhiều cấp hơn, nên chênh nhiều hơn.
+    expect(enemyScaleFor(fighterAt(12), LEVEL_GAP.boss).hp).toBeGreaterThan(
+      enemyScaleFor(fighterAt(12), LEVEL_GAP.normal).hp,
+    )
+    expect(boss.toWin).toBeGreaterThan(normal.toWin)
+  })
+
+  it('không truyền sức mạnh thì quái y như công thức gốc, không mang cấp', () => {
+    const plain = enemyFor()
+    expect(plain.level).toBeUndefined()
+    expect(enemyScaleFor(REFERENCE_FIGHTER, 0)).toEqual({ hp: 1, attack: 1, level: 1 })
+  })
+
+  it('trùm tháp cũng theo kịp, cao hơn con bốn cấp, kể cả giáp', () => {
+    const low = createTowerBoss('math', 3, fighterAt(1))
+    const high = createTowerBoss('math', 3, fighterAt(30))
+    expect(high.level).toBe(34)
     expect(high.maxHp).toBeGreaterThan(low.maxHp)
     expect(high.attack).toBeGreaterThan(low.attack)
     expect(high.armor!).toBeGreaterThan(low.armor!)
-    expect(createTowerBoss('math', 3)).toEqual(low)
-  })
-
-  it('cấp ngoài khoảng hợp lệ không làm quái hỏng', () => {
-    expect(enemyScaleForLevel(0)).toEqual(enemyScaleForLevel(1))
-    expect(enemyScaleForLevel(999)).toEqual(enemyScaleForLevel(MAX_LEVEL))
   })
 })

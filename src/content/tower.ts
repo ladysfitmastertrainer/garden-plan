@@ -61,7 +61,7 @@
  */
 
 import type { Enemy } from '../engine/battle'
-import { enemyScaleForLevel } from '../engine/rewards'
+import { enemyScaleFor, type FighterStrength } from '../engine/rewards'
 import { getTuning } from './tuning'
 import { SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from './types'
 
@@ -140,14 +140,14 @@ export function towerGrades(grade: Grade): Grade[] {
  * Mọi con số ở đây đều nhân với hệ số chỉnh tay của thầy cô (`getTuning`), y
  * như quái thường - lớp yếu hạ máu quái xuống là hạ cả trong tháp.
  */
-export function createTowerBoss(subject: Subject, grade: Grade, playerLevel = 1): Enemy {
+export function createTowerBoss(subject: Subject, grade: Grade, fighter?: FighterStrength): Enemy {
   const floor = towerFloor(subject)
   const tuning = getTuning()
-  // Trùm tháp cũng mạnh lên theo cấp của con, như mọi con quái khác - xem
-  // `enemyScaleForLevel`. Giáp nhân theo cùng hệ số với máu: giáp trừ thẳng vào
+  // Trùm tháp cũng theo kịp rồi vượt con, như mọi con quái khác - cao hơn con
+  // BỐN cấp, xem `enemyScaleFor`. Giáp nhân theo cùng hệ số với máu: giáp trừ thẳng vào
   // đòn đánh, mà đòn của con to lên theo cấp, nên giáp đứng yên thì cấp cao đánh
   // xuyên giáp như không.
-  const scale = enemyScaleForLevel(playerLevel)
+  const scale = fighter ? enemyScaleFor(fighter, 4) : { hp: 1, attack: 1, level: undefined }
 
   // Trận 14 câu với một đội thú đã nuôi tới cấp cao: thanh máu phải đủ dài để
   // cơn giận ở mốc 40% kịp xảy ra trước câu cuối cùng.
@@ -166,7 +166,7 @@ export function createTowerBoss(subject: Subject, grade: Grade, playerLevel = 1)
     xpReward: Math.round((340 + grade * 50) * tuning.xpScale),
     // Con dữ nhất bầy của môn đó - hình trong tháp lấy từ hình trùm, tô lại.
     variant: 3,
-    level: Math.max(1, Math.floor(playerLevel)) + 3,
+    ...(scale.level !== undefined ? { level: scale.level } : {}),
     isBoss: true,
     isTower: true,
 

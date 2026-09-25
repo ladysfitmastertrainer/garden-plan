@@ -289,10 +289,21 @@ export function PixelBattle({
         // Ảnh nền sắc cạnh, không làm mượt khi phóng to.
         imageRendering: 'pixelated',
       }}
-      // Rung cả khung khi trẻ trúng đòn. Rung theo BẬC chứ không mượt: máy thời
-      // đó dịch cả màn hình theo số nguyên điểm ảnh, không có chuyển động mượt.
-      animate={heroHurt && !reduceMotion ? { x: [0, -8, 8, -4, 4, 0] } : { x: 0 }}
-      transition={{ duration: 0.4, delay: 0.25, ease: 'linear' }}
+      // Rung cả khung ở MỖI cú chạm, rung theo BẬC chứ không mượt: máy thời đó
+      // dịch cả màn hình theo số nguyên điểm ảnh. Con ăn đòn thì rung mạnh và
+      // lâu; con đánh trúng quái thì rung ngắn một nhịp - bản trước chỉ rung khi
+      // con ăn đòn, nên đòn của con chạm vào quái mà sân đứng im như không.
+      // Bắt đầu ở 0,25 giây: đúng lúc cú lao chạm tới (xem `Combatant`).
+      animate={
+        reduceMotion
+          ? { x: 0, y: 0 }
+          : heroHurt
+            ? { x: [0, -10, 10, -7, 7, -3, 0], y: [0, 3, -3, 2, -2, 0, 0] }
+            : live === 'hero-attacks'
+              ? { x: [0, 6, -6, 3, 0], y: [0, -2, 2, 0, 0] }
+              : { x: 0, y: 0 }
+      }
+      transition={{ duration: heroHurt ? 0.45 : 0.3, delay: 0.25, ease: 'linear' }}
     >
       {/* Mặt đất: một mảng màu phẳng chiếm nửa dưới */}
       <div className="absolute inset-x-0 bottom-0" style={{ height: '48%', background: scene.ground }} />

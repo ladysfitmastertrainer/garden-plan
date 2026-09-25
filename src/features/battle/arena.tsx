@@ -116,11 +116,15 @@ export function Combatant({
   overlay?: React.ReactNode
 }) {
   const spriteWidth = 16 * scale
+  /** Quãng lao khi ra đòn: gần trọn một thân sprite - xem nhánh `attacking`. */
+  const lunge = spriteWidth * 0.9
 
   return (
     <motion.div
       className="absolute"
-      style={{ ...style, zIndex: 2 }}
+      // Bên đang lao tới nổi lên trên: nó lao sát vào đối thủ, và chui xuống dưới
+      // thanh máu hay dưới chính con kia thì cú đánh mất một nửa.
+      style={{ ...style, zIndex: attacking ? 4 : 2 }}
       initial={reduceMotion ? false : { x: enterFrom, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.2, 0.9, 0.3, 1] }}
@@ -131,7 +135,20 @@ export function Combatant({
         reduceMotion
           ? {}
           : attacking
-            ? { x: [0, -direction * 9, direction * 30, 0] }
+            ? /*
+                CÚ LAO TỚI SÁT ĐỐI THỦ, không phải một cú nhích.
+
+                Bản trước lao 30 điểm ảnh trong 0,35 giây - trên một sân rộng vài
+                trăm điểm ảnh, mắt không nhận ra đó là một đòn đánh. Giờ lùi lấy đà,
+                lao gần trọn một thân sprite theo ĐƯỜNG CHÉO tới chỗ đối thủ đứng
+                (thú ở dưới - trái, quái ở trên - phải), khựng lại đúng lúc chạm,
+                rồi mới lùi về. Tính theo cỡ sprite nên máy to máy nhỏ đều lao tới
+                cùng một chỗ trên sân.
+              */
+              {
+                x: [0, -direction * lunge * 0.15, direction * lunge, direction * lunge, 0],
+                y: [0, 0, -direction * lunge * 0.4, -direction * lunge * 0.4, 0],
+              }
             : hit
               ? // Quy ước trúng đòn của game thời đó: sprite nhấp nháy tắt - hiện,
                 // cộng một cú GIẬT tần số cao. Giật thưa và nhẹ thì chỉ thấy
@@ -145,7 +162,10 @@ export function Combatant({
       }
       transition={
         attacking
-          ? { duration: 0.35 }
+          ? // Chạm ở mốc 50% (0,25 giây) - đúng lúc bên kia bắt đầu giật lùi, xem
+            // `delay` của nhánh trúng đòn ngay dưới. Khựng lại một nhịp ở chỗ chạm
+            // cho đòn có sức nặng, rồi mới lùi về.
+            { duration: 0.5, times: [0, 0.2, 0.5, 0.62, 1], ease: 'easeOut' }
           : hit
             ? { duration: 0.38, delay: 0.25, ease: 'linear' }
             : { duration: 0.55, delay: 0.25 }

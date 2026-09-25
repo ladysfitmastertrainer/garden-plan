@@ -242,7 +242,10 @@ export function BattleScreen() {
               style={{ zIndex: 5, background: 'rgb(12 16 24 / 0.55)' }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              // Biến đi GẦN NHƯ TỨC THÌ. Cú lao của con thú bắt đầu ngay khi bấm
+              // phép, và bản trước để lớp phủ tối này mờ dần mất gần nửa cú lao -
+              // đúng khoảnh khắc đáng xem nhất bị phủ một tấm màn.
+              exit={{ opacity: 0, transition: { duration: 0.08 } }}
             >
               <SpellPicker battle={battle} loadout={loadout} onCast={cast} />
             </motion.div>

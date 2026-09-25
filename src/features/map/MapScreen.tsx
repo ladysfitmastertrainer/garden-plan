@@ -19,7 +19,7 @@ import { PETS, companionOf } from '../../content/pets'
 import { petSpriteFor } from '../inventory/PetCollection'
 import { biomeFor, gradeLight } from '../world/biome'
 import { SkillTreeScreen } from '../world/SkillTreeScreen'
-import { SUBJECTS, SUBJECT_LABEL, type Grade, type Subject } from '../../content/types'
+import { SUBJECTS, SUBJECT_LABEL, type Grade, type Habitat, type Subject } from '../../content/types'
 import { WorldMapScreen } from '../world/WorldMapScreen'
 import { totalNodes, type MapNode } from '../../content/worldmap'
 // Cùng tên với `regionKey` của store/ui nhưng khác chữ ký - cái này nhận (môn,
@@ -327,7 +327,9 @@ export function MapScreen() {
           menu={menuButton}
           onBack={() => setRegion(null)}
           onPlay={(node) => startBattle(region.subject, node, region.grade)}
-          onWild={(kind, variant) => startWildBattle(region.subject, region.grade, kind, variant)}
+          onWild={(kind, variant, habitat) =>
+            startWildBattle(region.subject, region.grade, kind, variant, habitat)
+          }
           onFound={(key) => markFound(key)}
           foundSpots={progress.foundSpots ?? []}
         />
@@ -616,7 +618,7 @@ function SubjectMap({
   menu?: React.ReactNode
   onBack: () => void
   onPlay: (node: MapNode) => void
-  onWild: (kind: 'wild' | 'mini' | 'secret', variant?: number) => void
+  onWild: (kind: 'wild' | 'mini' | 'secret', variant?: number, habitat?: Habitat) => void
   /** Ghi nhớ một chỗ vừa tìm ra, để lần sau không lục lại được nữa. */
   onFound: (key: string) => void
   /** Những chỗ đã tìm ra từ trước, đọc từ tiến độ của trẻ. */
@@ -726,7 +728,7 @@ function SubjectMap({
   }
 
   /** Giẫm trúng ô có quái ẩn. Không có đường lùi - nó nhảy ra luôn. */
-  const meetSecret = (at: { x: number; y: number }) => {
+  const meetSecret = (at: { x: number; y: number }, habitat?: Habitat) => {
     const key = `${subject}.g${grade}.an.${at.x}.${at.y}`
     if (foundSpots.includes(key)) return
     setVisit({
@@ -736,7 +738,8 @@ function SubjectMap({
         // Quái ẩn không phải con nào đứng trên bản đồ, nên xoá cờ "vừa đụng vào
         // con nào" - thắng trận này không được xoá nhầm một con quái khác.
         bumpMonster(null)
-        onWild('secret')
+        // Quái ẩn cuối hang hay góc đảo là con của nơi ấy - xem `onSecret`.
+        onWild('secret', undefined, habitat)
       },
     })
   }
@@ -808,7 +811,7 @@ function SubjectMap({
         seed={`${subject}-g${grade}`}
         biome={biome}
         subject={subject}
-        onWildEncounter={(variant) => onWild('wild', variant)}
+        onWildEncounter={(variant, habitat) => onWild('wild', variant, habitat)}
         beaten={beaten}
         onMonsterBump={(node, id) => {
           bumpMonster(id ?? null)

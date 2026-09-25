@@ -28,6 +28,19 @@ export const SUBJECT_ELEMENT: Record<Subject, string> = {
 export type Grade = 1 | 2 | 3 | 4 | 5
 export const GRADES: Grade[] = [1, 2, 3, 4, 5]
 
+/**
+ * Môi trường sống của quái hoang - nơi nó nhảy ra, chứ không phải môn nó hỏi.
+ *
+ * Mỗi vùng đất có một khu đặc biệt (xem `features/world/biome.ts`), và khu ấy
+ * có bầy quái của riêng nó: lội nước nông ra đảo thì gặp cá, chui vào hang thì
+ * gặp cua và thằn lằn, leo lên tán cây thì gặp thú rừng, trèo lên miệng núi lửa
+ * thì gặp quái nham thạch. Câu hỏi vẫn là câu của môn đang học - môi trường chỉ
+ * đổi con quái, không đổi bài.
+ */
+export type Habitat = 'sea' | 'cave' | 'forest' | 'lava'
+
+export const HABITATS: Habitat[] = ['sea', 'cave', 'forest', 'lava']
+
 /** 1 = dễ (mới học), 2 = vừa, 3 = thử thách. */
 export type Difficulty = 1 | 2 | 3
 

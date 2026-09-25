@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { spawnSpot } from './spawn'
-import { biomeFor } from './biome'
+import { biomeFor, routeOptionsFor } from './biome'
 import { buildRouteMap, isWalkable, type RouteMap } from './routemap'
 import { buildWorldMap, totalNodes } from '../../content/worldmap'
 import { skillsFor } from '../../content/curriculum'
@@ -13,15 +13,11 @@ const NOW = 1_700_000_000_000
 /** Đúng tấm bản đồ mà `MapScreen` dựng cho một vùng đất. */
 function regionMap(subject: Subject, grade: Grade): RouteMap {
   const biome = biomeFor(subject, grade)
-  return buildRouteMap(totalNodes(subject, grade) + 1, `${subject}-g${grade}`, {
-    shape: biome.shape,
-    width: biome.width,
-    ground: biome.ground,
-    border: biome.border,
-    gateHalo: biome.gateHalo,
-    scatter: biome.scatter,
-    bossIndex: skillsFor(subject, grade).length,
-  })
+  return buildRouteMap(
+    totalNodes(subject, grade) + 1,
+    `${subject}-g${grade}`,
+    routeOptionsFor(biome, skillsFor(subject, grade).length),
+  )
 }
 
 /*

@@ -14,7 +14,8 @@
  */
 
 import type { Sprite } from './sprite'
-import type { Subject } from '../../content/types'
+import type { Habitat, Subject } from '../../content/types'
+import { HABITAT_FAMILY, HABITAT_SPRITES } from './habitat-creatures'
 
 // --- Nhân vật của trẻ ---------------------------------------------------------
 
@@ -1126,9 +1127,15 @@ export function towerSpriteFor(subject: Subject): Sprite {
   return recolor(BOSS_SPRITE[subject], TOWER_TINT)
 }
 
-export function monsterSpriteFor(subject: Subject, variant: number, isBoss: boolean): Sprite {
+export function monsterSpriteFor(
+  subject: Subject,
+  variant: number,
+  isBoss: boolean,
+  /** Quái của một môi trường (biển, hang...) thì lấy hình trong bầy của nơi ấy. */
+  habitat?: Habitat,
+): Sprite {
   if (isBoss) return BOSS_SPRITE[subject]
-  const family = MONSTER_FAMILY[subject]
+  const family = habitat ? HABITAT_FAMILY[habitat] : MONSTER_FAMILY[subject]
   return family[((variant % family.length) + family.length) % family.length] ?? family[0]!
 }
 
@@ -1174,6 +1181,7 @@ export const ALL_SPRITES: Record<string, Sprite> = {
   'panda-colossus': PANDA_COLOSSUS,
   'dragon-sovereign': DRAGON_SOVEREIGN,
   'dragon-celestial': DRAGON_CELESTIAL,
+  ...HABITAT_SPRITES,
 }
 
 // --- Tô lại bảng màu -------------------------------------------------------------

@@ -17,13 +17,14 @@ import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import { monsterSpriteFor } from '../pixel/creatures'
 import { heroViewFor } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
-import type { TileKind, TileSet } from '../pixel/tiles'
-import type { Subject } from '../../content/types'
+import { HABITAT_TILE, type TileKind, type TileSet } from '../pixel/tiles'
+import type { Habitat, Subject } from '../../content/types'
+import { HABITAT_PLACE } from '../../content/bestiary'
 import type { MapNode } from '../../content/worldmap'
-import type { Biome } from './biome'
+import { routeOptionsFor, type Biome } from './biome'
 import { getTuning } from '../../content/tuning'
 import { createRng } from '../../engine/rng'
-import { buildRouteMap, gateAt, isWalkable, wanderStep, type RouteMap } from './routemap'
+import { buildRouteMap, gateAt, isWalkable, wanderStep, zoneAt, type RouteMap } from './routemap'
 import { spawnSpot } from './spawn'
 
 const TILE = 16
@@ -269,7 +270,7 @@ interface Props {
    * rắc sẵn cỏ cao quanh mỗi cổng - nên chỉ cần gắn xác suất vào là thế giới có
    * chuyện xảy ra giữa hai cổng, thay vì chỉ có đi bộ.
    */
-  onWildEncounter?: (variant: number) => void
+  onWildEncounter?: (variant: number, habitat?: Habitat) => void
   /**
    * Trẻ đụng phải một con quái đang đi lang thang. `node` là chặng con quái đó
    * canh; `null` nghĩa là mini boss trong hang.
@@ -289,8 +290,13 @@ interface Props {
    * bản đồ dựng lại, nên nó dùng luôn được làm khoá nhớ "nhà này lục rồi".
    */
   onEnterHouse?: (at: { x: number; y: number }) => void
-  /** Trẻ giẫm trúng một ô có quái ẩn. Cùng lẽ với trên: truyền toạ độ. */
-  onSecret?: (at: { x: number; y: number }) => void
+  /**
+   * Trẻ giẫm trúng một ô có quái ẩn. Cùng lẽ với trên: truyền toạ độ.
+   *
+   * Ô nằm trong một khu môi trường (cuối hang, góc đảo...) thì kèm môi trường
+   * ấy, để con quái ẩn là con của nơi đó chứ không phải một con của môn.
+   */
+  onSecret?: (at: { x: number; y: number }, habitat?: Habitat) => void
   /**
    * SỐ Ô CỔNG mà địa hình được dựng cho - KHÔNG phải số chặng đang có.
    *
@@ -398,15 +404,7 @@ export function Overworld({
   const bossIndex = nodes.findIndex((node) => node.kind === 'boss')
   const map = useMemo(
     () =>
-      buildRouteMap(slots ?? nodes.length, seed, {
-        shape: biome.shape,
-        width: biome.width,
-        ground: biome.ground,
-        border: biome.border,
-        gateHalo: biome.gateHalo,
-        scatter: biome.scatter,
-        bossIndex,
-      }),
+      buildRouteMap(slots ?? nodes.length, seed, routeOptionsFor(biome, bossIndex)),
     [slots, nodes.length, seed, biome, bossIndex],
   )
 
@@ -563,7 +561,14 @@ export function Overworld({
    * trên bản đồ - trẻ đang đi bộ thì đột nhiên ở trong một trận đấu, không hiểu
    * đối thủ ở đâu ra.
    */
-  const [ambush, setAmbush] = useState<{ variant: number; shown: boolean } | null>(null)
+  const [ambush, setAmbush] = useState<{
+    variant: number
+    shown: boolean
+    /** Môi trường con quái nhảy ra. Không có là quái của môn, từ bụi cỏ. */
+    habitat?: Habitat
+    /** Ô trẻ đang đứng - thứ rung lên trước khi con quái ló ra. */
+    tile: TileKind
+  } | null>(null)
 // Khoá chân trẻ trong lúc con quái đang nhảy ra, cùng lý do như khoá lúc có
   // hội thoại: bấm tiếp là đi xuyên qua cả đoạn hoạt cảnh.
   const ambushRef = useRef(ambush)
@@ -756,12 +761,22 @@ export function Overworld({
           return
         }
         if (map.secrets.some((spot) => spot.x === next.x && spot.y === next.y)) {
-          onSecret?.(next)
+          onSecret?.(next, zoneAt(map, next.x, next.y)?.habitat)
           return
         }
 
-        if (tile === 'tallGrass' && Math.random() < getTuning().encounterChance) {
-          setAmbush({ variant: Math.floor(Math.random() * 4), shown: false })
+        /*
+          Quái hoang nấp ở hai loại chỗ: bụi cỏ cao (quái của môn, như trước) và
+          sàn của khu môi trường - nước nông, nền hang, sàn tán cây, nền tro. Ở
+          đó con nhảy ra là con của nơi ấy (xem `HABITAT_TILE`).
+
+          Cùng một xác suất cho cả hai: khu môi trường là chỗ đi tìm quái lạ,
+          không phải chỗ bị quái vây. Trong hang mọi ô đều là "cỏ cao", nên đặt
+          cao hơn là trẻ không đi nổi ba bước.
+        */
+        const habitat = tile ? HABITAT_TILE[tile] : undefined
+        if (tile && (tile === 'tallGrass' || habitat) && Math.random() < getTuning().encounterChance) {
+          setAmbush({ variant: Math.floor(Math.random() * 4), shown: false, habitat, tile })
         }
       }, STEP_MS)
     },
@@ -793,11 +808,41 @@ export function Overworld({
     }
 
     const timer = window.setTimeout(() => {
-      onWildRef.current?.(ambush.variant)
+      onWildRef.current?.(ambush.variant, ambush.habitat)
       setAmbush(null)
     }, REVEAL_MS)
     return () => window.clearTimeout(timer)
   }, [ambush])
+
+  /**
+   * Khu môi trường trẻ đang đứng trong, nếu có.
+   *
+   * Nhớ theo KHOÁ chuỗi chứ không theo đối tượng: hai hòn đảo là hai khu khác
+   * nhau cùng một kiểu, lội từ đảo này sang đảo kia thì phải chào lại.
+   */
+  const zone = zoneAt(map, pos.x, pos.y)
+  const zoneKey = zone ? `${zone.rect.left},${zone.rect.top}` : null
+
+  /*
+    Lời chào khi vừa bước vào khu - tên nơi chốn và một câu tả cảnh.
+
+    Không phải trang trí: khu môi trường có luật riêng (quái khác, có khi tối),
+    và thứ duy nhất báo cho trẻ biết mình vừa bước qua ranh giới ấy là cái tên
+    hiện lên. Tự tắt sau vài giây và không chặn bước chân - một hộp thoại phải
+    bấm mới tắt thì lội qua lại giữa hai hòn đảo thành cực hình.
+  */
+  const [banner, setBanner] = useState<string | null>(null)
+  useEffect(() => {
+    if (!zoneKey || !zone) {
+      setBanner(null)
+      return
+    }
+    setBanner(HABITAT_PLACE[zone.habitat])
+    const timer = window.setTimeout(() => setBanner(null), 2600)
+    return () => window.clearTimeout(timer)
+    // Chỉ chạy lại khi ĐỔI khu - đi loanh quanh trong một khu không chào lại.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoneKey])
 
   // Bàn phím cho máy tính.
   useEffect(() => {
@@ -981,7 +1026,9 @@ export function Overworld({
                 width: TILE * scale,
                 height: TILE * scale,
                 lineHeight: 0,
-                zIndex: 3,
+                // Trên cả nhân vật: bụi cỏ rung là tiền cảnh, và con quái ló ra
+                // phải sáng rõ kể cả giữa bóng tối trong hang.
+                zIndex: 4,
                 animation: ambush.shown
                   ? 'ambush-pop 300ms steps(3, end)'
                   : `grass-rustle 160ms steps(2, end) infinite`,
@@ -991,8 +1038,9 @@ export function Overworld({
               <PixelSprite
                 sprite={
                   ambush.shown
-                    ? monsterSpriteFor(subject, ambush.variant, false)
-                    : biome.tiles.tallGrass
+                    ? monsterSpriteFor(subject, ambush.variant, false, ambush.habitat)
+                    : // Chính ô trẻ đang đứng rung lên: bụi cỏ, mặt nước, nền hang.
+                      biome.tiles[ambush.tile]
                 }
                 scale={scale}
               />
@@ -1057,6 +1105,31 @@ export function Overworld({
             </div>
           ))}
 
+          {/*
+            BÓNG TỐI TRONG HANG: chỉ một vầng sáng quanh nhân vật.
+
+            Đây là thứ biến một khoảnh nền xám thành một cái hang. Vẽ đè lên cả
+            bản đồ lẫn đàn quái - trong hang tối thì con quái đứng xa cũng khuất.
+            Nhân vật vẽ SAU lớp này nên luôn sáng rõ: con không bao giờ được lạc
+            mất chính mình.
+
+            Tính theo điểm ảnh bản đồ, nằm trong lớp dịch theo camera, nên vầng
+            sáng đi cùng bản đồ chứ không trôi khỏi nhân vật lúc camera trượt.
+          */}
+          {zone?.kind === 'cave' && (
+            <div
+              className="absolute left-0 top-0"
+              style={{
+                width: map.width * TILE * scale,
+                height: map.height * TILE * scale,
+                zIndex: 2,
+                pointerEvents: 'none',
+                background: `radial-gradient(circle at ${(pos.x + 0.5) * TILE * scale}px ${(pos.y + 0.5) * TILE * scale}px, rgb(10 8 16 / 0) ${TILE * scale * 1.2}px, rgb(10 8 16 / 0.55) ${TILE * scale * 2.4}px, rgb(10 8 16 / 0.86) ${TILE * scale * 3.6}px)`,
+              }}
+              aria-hidden="true"
+            />
+          )}
+
           {/* Nhân vật */}
           <div
             className="absolute"
@@ -1066,6 +1139,8 @@ export function Overworld({
               width: TILE * scale,
               height: TILE * scale,
               transition: `left ${STEP_MS}ms linear, top ${STEP_MS}ms linear`,
+              // Nổi trên lớp bóng tối trong hang - xem ngay trên.
+              zIndex: 3,
             }}
           >
             {/* Bong bóng của CHÍNH TRẺ, vẽ ngay không đợi máy chủ trả lời: một
@@ -1118,6 +1193,31 @@ export function Overworld({
         {/* Hai góc TRÊN của khung. Bốn mũi tên ở góc dưới - trái, hộp thoại dán
             vào đáy khung: ba lớp phủ, ba chỗ, không lớp nào che lớp nào. */}
         {hud}
+
+        {/* Tên khu môi trường vừa bước vào: giữa mép trên, lọt giữa hai nút
+            góc, không nhận chạm - nó chỉ để đọc. */}
+        {banner && zone && (
+          <div
+            className="pixel-font absolute left-1/2 -translate-x-1/2 text-center"
+            style={{
+              top: 10,
+              zIndex: 3,
+              maxWidth: '62%',
+              pointerEvents: 'none',
+              padding: '6px 12px',
+              background: 'rgb(12 16 24 / 0.78)',
+              border: '2px solid #f8f8f0',
+              borderRadius: 8,
+              color: '#fff',
+              lineHeight: 1.25,
+              animation: 'ambush-pop 300ms steps(3, end)',
+            }}
+            role="status"
+          >
+            <div style={{ fontSize: 16, color: '#ffe066' }}>{banner}</div>
+            {biome.zoneFlavour && <div style={{ fontSize: 12, marginTop: 2 }}>{biome.zoneFlavour}</div>}
+          </div>
+        )}
       </div>
     </div>
   )

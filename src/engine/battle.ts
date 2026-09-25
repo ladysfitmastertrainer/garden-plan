@@ -20,6 +20,7 @@ import type {
   ChoiceQuality,
   Difficulty,
   Grade,
+  Habitat,
   Judgement,
   Question,
   Subject,
@@ -57,6 +58,15 @@ export interface Enemy {
    * không còn cảnh tên "Rô-bốt Cộng Trừ" mà vẽ ra con slime.
    */
   variant: number
+  /**
+   * Môi trường con quái nhảy ra - biển, hang, tán cây, núi lửa.
+   *
+   * Có thì `variant` là chỉ số trong bầy của MÔI TRƯỜNG ấy chứ không phải của
+   * môn, và giao diện lấy hình, lấy cảnh nền theo đó. Không có thì là quái của
+   * môn như trước. Nguyên tố vẫn luôn là môn đang học: con cá ở vùng Đạo đức
+   * vẫn mang hệ Ánh Sáng, để phép khắc chế trẻ đã quen vẫn còn đúng.
+   */
+  habitat?: Habitat
   /**
    * Trùm cuối của vùng đất.
    *

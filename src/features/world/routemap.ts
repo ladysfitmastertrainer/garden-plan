@@ -21,12 +21,21 @@
 
 import { createRng } from '../../engine/rng'
 import { WALKABLE, type TileKind } from '../pixel/tiles'
+import type { Habitat } from '../../content/types'
 import type { RouteShape, ScatterRule } from './biome'
 
 /** Bề ngang mặc định, dùng khi gọi không kèm mô tả vùng đất. */
 export const MAP_WIDTH = 13
 
 const MARGIN_TOP = 4
+/**
+ * Số hàng thêm vào lề trên cho vùng Âm nhạc, để có chỗ dựng miệng núi lửa.
+ *
+ * Khuông nhạc chạy kín bề ngang cứ ba hàng một dòng, nên không có chỗ nào lọt
+ * một khu sáu hàng mà không cắt đứt khuông. Thêm hẳn một dải ở trên đầu thì
+ * khuông nhạc còn nguyên, và núi lửa đứng trên đỉnh đảo - đúng chỗ của nó.
+ */
+const ZONE_BAND = 6
 const MARGIN_BOTTOM = 3
 
 /** Số hàng giữa hai chặng liên tiếp. Khuông nhạc xếp dày hơn cho ra đúng hình. */
@@ -82,6 +91,38 @@ export interface RouteMap {
    * phần thưởng khi ấy trả cho việc đi tới, chứ không trả cho việc tìm ra.
    */
   secrets: Array<{ x: number; y: number }>
+  /**
+   * Khu môi trường của vùng đất: cái hang, sàn tán cây, miệng núi lửa, hay mấy
+   * hòn đảo ngoài biển. Mỗi khu kèm môi trường của nó, để biết quái nào nấp ở
+   * trong. Rỗng khi vùng này không có khu nào (bàn hướng dẫn, bản đồ quá ngắn).
+   */
+  zones: ZoneArea[]
+}
+
+/**
+ * Bốn kiểu khu môi trường, mỗi môn một kiểu (xem `biome.ts`).
+ *
+ *   cave    - hang đá: cửa hang khoét vào vách, trong tối, có măng đá  (Toán)
+ *   canopy  - tán cây: leo thang dây lên một sàn ván giữa tán lá      (Tiếng Việt)
+ *   islands - đảo: lội nước nông từ bờ ra những hòn đảo ngoài khơi  (Đạo đức)
+ *   volcano - núi lửa: leo lên miệng núi, nền tro giữa những vũng dung nham (Âm nhạc)
+ */
+export type ZoneKind = 'cave' | 'canopy' | 'islands' | 'volcano'
+
+export const ZONE_HABITAT: Record<ZoneKind, Habitat> = {
+  cave: 'cave',
+  canopy: 'forest',
+  islands: 'sea',
+  volcano: 'lava',
+}
+
+export interface ZoneArea {
+  kind: ZoneKind
+  habitat: Habitat
+  /** Cả khu, kể cả vách (với đảo: cả vành nước nông quanh đảo). */
+  rect: ArenaRect
+  /** Chỗ giấu quái ẩn của khu - ô sâu nhất tính từ lối vào. */
+  secret: { x: number; y: number } | null
 }
 
 export interface RouteOptions {
@@ -96,6 +137,8 @@ export interface RouteOptions {
   scatter: ScatterRule[]
   /** Chặng nào là trùm. -1 nghĩa là vùng này không có trùm. */
   bossIndex: number
+  /** Khu môi trường của vùng đất. null nghĩa là không có - xem `ZoneKind`. */
+  zone: ZoneKind | null
 }
 
 const DEFAULT_OPTIONS: RouteOptions = {
@@ -110,7 +153,44 @@ const DEFAULT_OPTIONS: RouteOptions = {
     { kind: 'tallGrass', chance: 0.05 },
   ],
   bossIndex: -1,
+  zone: null,
 }
+
+/*
+  Chỗ nào đã có chủ thì không đụng vào.
+
+  Cổng, sân đấu trùm, hang, mặt nước - bốn thứ hiển nhiên. Nhưng cả những ô của
+  một khu đất ĐÃ KHOÉT TRƯỚC nữa, và đấy mới là thứ dễ quên: hai khu đất chồng
+  lên nhau thì vách của khu sau nuốt mất bậc thang của khu trước, và cả khu trước
+  thành một bức tranh dán trên tường. Khu môi trường cũng thế - vách hang, tán
+  lá, vách núi lửa, nước nông đều là của một khu nào đó rồi.
+*/
+const TAKEN = new Set<TileKind>([
+  'gate',
+  'arena',
+  // Đuốc là góc sân đấu trùm. Nó đứng trong khung sân nên khu đất nào đè lên
+  // cũng đã bị `arena` chặn trước, nhưng dải nước nông ra đảo thì dọn sạch mọi
+  // thứ không đi được ở mép bờ - thiếu dòng này là nó dọn luôn một ngọn đuốc.
+  'torch',
+  'water',
+  'cliff',
+  'stairs',
+  'highland',
+  'hollow',
+  'house',
+  'door',
+  'shoal',
+  'caveFloor',
+  'caveWall',
+  'caveMouth',
+  'stalagmite',
+  'canopy',
+  'foliage',
+  'vine',
+  'ash',
+  'lava',
+  'basalt',
+])
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -159,11 +239,19 @@ export function buildRouteMap(
   const count = Math.max(1, nodeCount)
   const width = opts.width
   const step = rowsPerNode(opts.shape)
-  const height = MARGIN_TOP + MARGIN_BOTTOM + (count - 1) * step + 1
+  // Chỉ khuông nhạc mới cần dải lề thêm cho khu môi trường - xem `ZONE_BAND`.
+  const marginTop = MARGIN_TOP + (opts.shape === 'staff' && opts.zone ? ZONE_BAND : 0)
+  const height = marginTop + MARGIN_BOTTOM + (count - 1) * step + 1
   const rng = createRng(seed)
 
-  /** Cột đầu tiên là biển, với bố cục ven bờ. */
-  const seaStart = width - 4
+  /**
+   * Cột đầu tiên là biển, với bố cục ven bờ.
+   *
+   * Có đảo thì biển rộng thêm hai cột, và vùng đất phải rộng thêm đúng hai cột
+   * ấy (xem `biome.ts`) - nên phần đất liền vẫn y như cũ, chỉ có biển là đủ
+   * chỗ cho một hòn đảo cùng vành nước nông quanh nó.
+   */
+  const seaStart = width - (opts.zone === 'islands' ? 6 : 4)
 
   const tiles: TileKind[][] = Array.from({ length: height }, () =>
     Array.from({ length: width }, () => opts.ground),
@@ -405,29 +493,20 @@ export function buildRouteMap(
     right: number,
     bottom: number,
     fill: TileKind,
+    /**
+     * Vật liệu vách và lối vào. Mặc định là vách đá với bậc thang - khu đất cao
+     * và khu trũng. Khu môi trường thay bằng vách hang với cửa hang, tán lá với
+     * thang dây, vách bazan với bậc đá: cùng một luật, khác vật liệu.
+     */
+    look: { wall: TileKind; entry: TileKind } = { wall: 'cliff', entry: 'stairs' },
   ): ArenaRect | null => {
     if (right - left < 3 || bottom - top < 3) return null
     if (left < 1 || top < 1 || right > width - 2 || bottom > height - 2) return null
+    // Chỗ đứng lúc mới vào vùng không bao giờ được nằm trong vách của khu nào:
+    // phép loang bên dưới xuất phát TỪ ô ấy nên không tự thấy được nó đã bị lấp.
+    if (start.x >= left && start.x <= right && start.y >= top && start.y <= bottom) return null
 
-    /*
-      Chỗ nào đã có chủ thì không đụng vào.
-
-      Cổng, sân đấu trùm, hang, mặt nước - bốn thứ hiển nhiên. Nhưng cả những ô
-      của một khu đất ĐÃ KHOÉT TRƯỚC nữa, và đấy mới là thứ dễ quên: hai khu
-      đất chồng lên nhau thì vách của khu sau nuốt mất bậc thang của khu trước,
-      và cả khu trước thành một bức tranh dán trên tường.
-    */
-    const TAKEN = new Set<TileKind>([
-      "gate",
-      "arena",
-      "water",
-      "cliff",
-      "stairs",
-      "highland",
-      "hollow",
-      "house",
-      "door",
-    ])
+    // Chỗ đã có chủ thì không đụng vào - xem `TAKEN`.
     for (let y = top; y <= bottom; y++) {
       for (let x = left; x <= right; x++) {
         if (TAKEN.has(tiles[y]![x]!)) return null
@@ -445,7 +524,7 @@ export function buildRouteMap(
     for (let y = top; y <= bottom; y++) {
       for (let x = left; x <= right; x++) {
         const onEdge = x === left || x === right || y === top || y === bottom
-        set(x, y, onEdge ? "cliff" : fill)
+        set(x, y, onEdge ? look.wall : fill)
       }
     }
 
@@ -461,12 +540,14 @@ export function buildRouteMap(
       cũ mới ra được - và đó mới là cảm giác leo lên một chỗ cao.
     */
     const stairX = clamp(Math.round((left + right) / 2), left + 1, right - 1)
-    set(stairX, bottom, "stairs")
+    set(stairX, bottom, look.entry)
 
     // Lối dẫn từ đường chính tới chân bậc thang, nếu không thì bậc thang treo
     // lơ lửng giữa bãi cỏ và chẳng ai nghĩ là đi vào được.
     const footY = clamp(bottom + 1, 1, height - 2)
-    if (tiles[footY]![stairX]! !== "cliff") set(stairX, footY, "path")
+    // Không lát đường đè lên vách hay mặt nước của một khu khác: làm thế là
+    // đục thủng khu ấy. Chân thang bị chặn thì phép kiểm bên dưới tự hoàn tác.
+    if (!TAKEN.has(tiles[footY]![stairX]!)) set(stairX, footY, "path")
 
     /*
       KHOÉT XONG MỚI HỎI: mọi chặng có còn tới được không?
@@ -490,7 +571,7 @@ export function buildRouteMap(
       return null
     }
 
-    stairs.push({ x: stairX, y: bottom })
+    if (look.wall === 'cliff') stairs.push({ x: stairX, y: bottom })
     mustReach.push(inner)
     return { left, top, right, bottom }
   }
@@ -531,6 +612,257 @@ export function buildRouteMap(
     return null
   }
 
+  // --- KHU MÔI TRƯỜNG ---------------------------------------------------------
+  //
+  // Khoét TRƯỚC khu cao và khu trũng: đây là thứ riêng nhất của vùng đất, nên nó
+  // được chọn chỗ trước. Khu cao, khu trũng quét sau và tự tránh nó ra (xem
+  // `TAKEN`) - mất chỗ đẹp thì chúng chịu thiệt, chứ cái hang thì không.
+  //
+  // Mọi phép kiểm của khu đất cao vẫn giữ nguyên ở đây: khoét xong mà một cổng
+  // chặng nào không còn tới được là hoàn tác. Khu môi trường chỉ là một khu đất
+  // khác vật liệu - vách hang thay vách đá, thang dây thay bậc thang.
+  const zones: ZoneArea[] = []
+
+  const ZONE_LOOK: Record<
+    Exclude<ZoneKind, 'islands'>,
+    { fill: TileKind; wall: TileKind; entry: TileKind; obstacle: TileKind }
+  > = {
+    cave: { fill: 'caveFloor', wall: 'caveWall', entry: 'caveMouth', obstacle: 'stalagmite' },
+    canopy: { fill: 'canopy', wall: 'foliage', entry: 'vine', obstacle: 'foliage' },
+    volcano: { fill: 'ash', wall: 'basalt', entry: 'stairs', obstacle: 'lava' },
+  }
+
+  /** Loang TRONG KHUNG `rect` từ `from`, trả về khoảng cách tới từng ô đi được. */
+  const distancesWithin = (rect: ArenaRect, from: { x: number; y: number }): Map<string, number> => {
+    const dist = new Map<string, number>([[`${from.x},${from.y}`, 0]])
+    const queue = [from]
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      const d = dist.get(`${cur.x},${cur.y}`)!
+      for (const [dx, dy] of [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ] as const) {
+        const nx = cur.x + dx
+        const ny = cur.y + dy
+        if (nx < rect.left || nx > rect.right || ny < rect.top || ny > rect.bottom) continue
+        const key = `${nx},${ny}`
+        if (dist.has(key) || !WALKABLE[tiles[ny]![nx]!]) continue
+        dist.set(key, d + 1)
+        queue.push({ x: nx, y: ny })
+      }
+    }
+    return dist
+  }
+
+  /** Mọi ô đi được trong khung có còn tới được từ `from` không. */
+  const connectedWithin = (rect: ArenaRect, from: { x: number; y: number }): boolean => {
+    const dist = distancesWithin(rect, from)
+    for (let y = rect.top; y <= rect.bottom; y++) {
+      for (let x = rect.left; x <= rect.right; x++) {
+        if (WALKABLE[tiles[y]![x]!] && !dist.has(`${x},${y}`)) return false
+      }
+    }
+    return true
+  }
+
+  /**
+   * Ô SÂU NHẤT của một khu, tính theo đường đi từ lối vào - chỗ giấu quái ẩn.
+   *
+   * Theo đường đi chứ không theo đường chim bay: trong hang có măng đá, ô gần
+   * cửa theo đường chim bay có khi phải len cả một vòng mới tới.
+   */
+  const deepestWithin = (
+    rect: ArenaRect,
+    from: { x: number; y: number },
+  ): { x: number; y: number } | null => {
+    let best: { x: number; y: number } | null = null
+    let bestDist = 0
+    for (const [key, d] of distancesWithin(rect, from)) {
+      if (d <= bestDist) continue
+      const [x, y] = key.split(',').map(Number) as [number, number]
+      bestDist = d
+      best = { x, y }
+    }
+    return best
+  }
+
+  /** Khoét một khu có vách (hang, tán cây, núi lửa), rải chướng ngại bên trong. */
+  const carveZone = (
+    kind: Exclude<ZoneKind, 'islands'>,
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
+  ): ArenaRect | null => {
+    const look = ZONE_LOOK[kind]
+    const rect = carveLevel(left, top, right, bottom, look.fill, look)
+    if (!rect) return null
+
+    // Cùng công thức với `carveLevel`: lối vào ở giữa mép dưới.
+    const entry = { x: clamp(Math.round((left + right) / 2), left + 1, right - 1), y: bottom }
+    const inner = { x: entry.x, y: bottom - 1 }
+
+    /*
+      Chướng ngại bên trong: măng đá trong hang, vũng dung nham trên núi lửa.
+
+      Chừng một ô trên sáu - đủ để trong khu có lối len chứ không phải một cái
+      sân trống, mà không đủ dày để thành mê cung. Mỗi ô đặt xuống đều bị hỏi
+      lại: còn đi tới được mọi chỗ trong khu không? Không thì nhấc ra. Một góc
+      hang bị măng đá bịt kín là một góc trẻ nhìn thấy mà không bao giờ vào được.
+    */
+    const interior = (right - left - 1) * (bottom - top - 1)
+    const want = Math.floor(interior / 6)
+    let placed = 0
+    for (let tries = 0; tries < 40 && placed < want; tries++) {
+      const x = rng.int(left + 1, right - 1)
+      const y = rng.int(top + 1, bottom - 1)
+      if (tiles[y]![x] !== look.fill || (x === inner.x && y === inner.y)) continue
+      tiles[y]![x] = look.obstacle
+      if (!connectedWithin(rect, entry)) {
+        tiles[y]![x] = look.fill
+        continue
+      }
+      placed++
+    }
+
+    zones.push({ kind, habitat: ZONE_HABITAT[kind], rect, secret: deepestWithin(rect, entry) })
+    return rect
+  }
+
+  /*
+    Tìm chỗ cho khu có vách: gần GIỮA bản đồ trước, rồi mới ra hai đầu.
+
+    Giữa vì đó là chỗ trẻ đi qua lúc đang hăng: đầu bản đồ thì chưa quen tay, cuối
+    bản đồ là sân đấu trùm. Khổ rộng trước, hẹp sau - một cái hang bốn ô vẫn là
+    cái hang, chứ không bỏ cả khu chỉ vì không có chỗ cho khổ lớn.
+  */
+  const scanZone = (kind: Exclude<ZoneKind, 'islands'>): boolean => {
+    const mid = height / 2
+    for (const [span, tall] of [
+      [6, 5],
+      [5, 5],
+      [5, 4],
+      [4, 4],
+    ] as const) {
+      const rows: number[] = []
+      for (let top = 1; top + tall <= height - 2; top++) rows.push(top)
+      rows.sort((a, b) => Math.abs(a + tall / 2 - mid) - Math.abs(b + tall / 2 - mid))
+      for (const top of rows) {
+        for (let left = 1; left + span <= rightEdge; left++) {
+          if (carveZone(kind, left, top, left + span, top + tall)) return true
+        }
+      }
+    }
+    return false
+  }
+
+  /**
+   * Một hòn đảo ngoài khơi, nối vào bờ bằng một dải nước nông.
+   *
+   * Đảo ba cột sát mép phải, quanh đảo là một vành nước nông - và vành ấy là chỗ
+   * cá nhảy ra. Dải nước nông nối vào bờ là lối DUY NHẤT: không có cầu, phải lội.
+   */
+  const carveIsland = (cy: number): boolean => {
+    const left = seaStart + 2
+    const right = width - 2
+    const top = cy - 1
+    const bottom = cy + 2
+    const ring: ArenaRect = { left: left - 1, top: top - 1, right, bottom: bottom + 1 }
+    if (right - left < 2 || ring.top < 1 || ring.bottom > height - 2) return false
+
+    // Đảo chỉ mọc giữa biển khơi - chạm vào đảo khác hay vào bờ là thôi.
+    for (let y = ring.top; y <= ring.bottom; y++) {
+      for (let x = ring.left; x <= ring.right; x++) if (tiles[y]![x] !== 'water') return false
+    }
+
+    // Lối lội từ đất liền ra: từ sát mép đất tới vành nước nông.
+    const causeway: Array<{ x: number; y: number }> = []
+    for (let x = seaStart - 2; x < ring.left; x++) causeway.push({ x, y: cy })
+    if (causeway.some((c) => tiles[c.y]![c.x] !== 'water' && TAKEN.has(tiles[c.y]![c.x]!))) {
+      return false
+    }
+
+    const before = new Map<string, TileKind>()
+    const put = (x: number, y: number, kind: TileKind) => {
+      const key = `${x},${y}`
+      if (!before.has(key)) before.set(key, tiles[y]![x]!)
+      set(x, y, kind)
+    }
+
+    for (let y = ring.top; y <= ring.bottom; y++) {
+      for (let x = ring.left; x <= ring.right; x++) {
+        const onIsland = x >= left && y >= top && y <= bottom
+        put(x, y, onIsland ? 'sand' : 'shoal')
+      }
+    }
+    for (const c of causeway) {
+      const here = tiles[c.y]![c.x]!
+      if (here === 'water') put(c.x, c.y, 'shoal')
+      // Cây, đá chắn ngay mép bờ thì dọn thành bãi cát - không thì dải nước
+      // nông dẫn ra từ một bức tường.
+      else if (!WALKABLE[here]) put(c.x, c.y, 'sand')
+    }
+    // Một cây dừa ở góc trong, một khóm hoa ở góc ngoài: đủ để đọc ra là đảo,
+    // mà không chặn lối từ chỗ lội lên (hàng `cy`, cột `left`).
+    put(left, top, 'tree')
+    put(right, top, 'flower')
+
+    const landing = { x: left, y: cy }
+    if (!stillReachable(landing)) {
+      for (const [key, kind] of before) {
+        const [x, y] = key.split(',').map(Number) as [number, number]
+        tiles[y]![x] = kind
+      }
+      return false
+    }
+
+    mustReach.push(landing)
+    zones.push({
+      kind: 'islands',
+      habitat: 'sea',
+      rect: ring,
+      // Góc xa nhất của đảo, phía bên kia so với chỗ lội lên.
+      secret: { x: right, y: bottom },
+    })
+    return true
+  }
+
+  if (count >= 3 && opts.zone) {
+    if (opts.zone === 'islands') {
+      if (opts.shape === 'coast') {
+        /*
+          Hai hòn đảo, ở khoảng một phần ba và hai phần ba chặng đường.
+
+          Hai chứ không một: một hòn đảo là một chuyến đi lạc, hai hòn là một
+          vùng biển. Mỗi chỗ thử dịch lên dịch xuống vài hàng - đảo không được
+          đè lên hòn kia, mà bờ biển lượn vào lượn ra nên chỗ đẹp nhất có khi
+          không còn là biển khơi.
+        */
+        for (const at of [0.33, 0.66]) {
+          const base = Math.round(height * at)
+          for (const shift of [0, 1, -1, 2, -2, 3, -3, 4, -4]) {
+            if (carveIsland(base + shift)) break
+          }
+        }
+      }
+    } else if (opts.shape === 'staff') {
+      // Khuông nhạc: núi lửa chỉ được đứng trong dải lề thêm trên đỉnh - xem
+      // `ZONE_BAND`. Mép dưới của nó là hàng cuối của dải ấy.
+      for (const span of [6, 5, 4]) {
+        let done = false
+        for (let left = 1; left + span <= rightEdge && !done; left++) {
+          done = carveZone(opts.zone, left, 1, left + span, ZONE_BAND) !== null
+        }
+        if (done) break
+      }
+    } else {
+      scanZone(opts.zone)
+    }
+  }
+
   if (count >= 3) {
     /*
       Khuông nhạc thử LỀ TRÊN trước.
@@ -560,9 +892,20 @@ export function buildRouteMap(
       // cứng một chỗ đặt là mất cả khu đất cao của vùng ấy.
       const inTopBand = (fill: TileKind): ArenaRect | null => {
         for (const span of [5, 4, 3]) {
-          for (let left = 1; left + span <= rightEdge; left++) {
-            const carved = carveLevel(left, 1, left + span, MARGIN_TOP, fill)
-            if (carved) return carved
+          /*
+            Dải bốn hàng NGAY TRÊN dòng kẻ đầu tiên trước, rồi mới lên cao dần.
+
+            Không có núi lửa thì lề trên chỉ có đúng một dải ấy, và vòng lặp này
+            y như cũ. Có núi lửa thì lề cao thêm `ZONE_BAND` hàng, và khu đất cao
+            được quyền đứng CẠNH núi lửa trên đỉnh đảo - không có quyền ấy thì ở
+            vùng lớp 1, nơi sân đấu trùm chiếm nửa dải dưới còn chân bậc núi lửa
+            chiếm nửa kia, cả vùng mất khu đất cao lẫn ngôi nhà.
+          */
+          for (let top = marginTop - MARGIN_TOP + 1; top >= 1; top--) {
+            for (let left = 1; left + span <= rightEdge; left++) {
+              const carved = carveLevel(left, top, left + span, top + MARGIN_TOP - 1, fill)
+              if (carved) return carved
+            }
           }
         }
         return null
@@ -671,6 +1014,9 @@ export function buildRouteMap(
   for (const corner of [farCorner(plateau), farCorner(hollow)]) {
     if (corner && !doors.some((d) => d.x === corner.x && d.y === corner.y)) secrets.push(corner)
   }
+  // Mỗi khu môi trường cũng giấu một con, ở chỗ sâu nhất của khu: cuối hang,
+  // góc xa của đảo. Con ấy là con dữ nhất trong bầy của nơi đó.
+  for (const zone of zones) if (zone.secret) secrets.push(zone.secret)
 
   // --- Viền khép kín. Làm SAU CÙNG để chắc chắn không bị thứ khác đè -----------
   for (let x = 0; x < width; x++) {
@@ -699,7 +1045,18 @@ export function buildRouteMap(
     stairs,
     doors,
     secrets,
+    zones,
   }
+}
+
+/** Khu môi trường chứa ô (x, y), nếu có. */
+export function zoneAt(map: RouteMap, x: number, y: number): ZoneArea | null {
+  return (
+    map.zones.find(
+      (zone) =>
+        x >= zone.rect.left && x <= zone.rect.right && y >= zone.rect.top && y <= zone.rect.bottom,
+    ) ?? null
+  )
 }
 
 /**

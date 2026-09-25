@@ -11,22 +11,13 @@
 
 import { describe, expect, it } from 'vitest'
 import { GRADES, SUBJECTS } from '../../content/types'
-import { biomeFor } from './biome'
+import { biomeFor, routeOptionsFor } from './biome'
 import { buildRouteMap, gateAt, isWalkable, MAP_WIDTH, wanderStep, type RouteMap } from './routemap'
 
 /** Tham số dựng bản đồ đúng như lúc chơi thật. */
 function optionsFor(subject: (typeof SUBJECTS)[number], grade: (typeof GRADES)[number], count: number) {
-  const biome = biomeFor(subject, grade)
-  return {
-    shape: biome.shape,
-    width: biome.width,
-    ground: biome.ground,
-    border: biome.border,
-    gateHalo: biome.gateHalo,
-    scatter: biome.scatter,
-    // Chặng áp chót là trùm, chặng chót là ôn tập - đúng thứ tự worldmap.ts dựng.
-    bossIndex: Math.max(0, count - 2),
-  }
+  // Chặng áp chót là trùm, chặng chót là ôn tập - đúng thứ tự worldmap.ts dựng.
+  return routeOptionsFor(biomeFor(subject, grade), Math.max(0, count - 2))
 }
 
 /** Loang từ chỗ xuất phát, trả về tập ô tới được. */

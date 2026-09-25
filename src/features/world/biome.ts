@@ -16,6 +16,7 @@
 
 import type { Grade, Subject } from '../../content/types'
 import { TERRAIN, buildTiles, type TerrainColors, type TileKind, type TileSet } from '../pixel/tiles'
+import type { RouteOptions, ZoneKind } from './routemap'
 
 /** Kiểu bố cục đường đi. Mỗi môn một kiểu, xem `routemap.ts`. */
 export type RouteShape = 'terrace' | 'winding' | 'coast' | 'staff'
@@ -39,6 +40,10 @@ export interface Biome {
   shape: RouteShape
   width: number
   scatter: ScatterRule[]
+  /** Khu môi trường riêng của vùng đất - hang, tán cây, đảo, núi lửa. */
+  zone: ZoneKind | null
+  /** Một câu tả khu ấy, hiện lên khi trẻ vừa bước vào. */
+  zoneFlavour: string | null
   colors: TerrainColors
   tiles: TileSet
 }
@@ -87,6 +92,8 @@ interface BiomeSpec {
   shape: RouteShape
   width: number
   scatter: ScatterRule[]
+  zone: ZoneKind
+  zoneFlavour: string
   palette: Palette
 }
 
@@ -105,6 +112,9 @@ const SPECS: Record<Subject, BiomeSpec> = {
       { kind: 'tallGrass', chance: 0.1 },
       { kind: 'flower', chance: 0.03 },
     ],
+    // Thung lũng đá thì có hang: vách đá sẵn đó, chỉ việc khoét cửa vào.
+    zone: 'cave',
+    zoneFlavour: 'Trong hang tối và ẩm. Có tiếng càng cua gõ lách cách đâu đó...',
     palette: {
       grass: '#a3bb8c',
       grassDark: '#8aa373',
@@ -140,6 +150,9 @@ const SPECS: Record<Subject, BiomeSpec> = {
       { kind: 'tallGrass', chance: 0.07 },
       { kind: 'flower', chance: 0.05 },
     ],
+    // Rừng già thì leo lên cây: một sàn ván bắc giữa tán lá, thú rừng ở trên đó.
+    zone: 'canopy',
+    zoneFlavour: 'Con leo lên tới tán cây. Lá xào xạc - có con gì đang chuyền cành!',
     palette: {
       grass: '#4f9e57',
       grassDark: '#3d8146',
@@ -166,14 +179,23 @@ const SPECS: Record<Subject, BiomeSpec> = {
     border: 'water',
     gateHalo: 'flower',
     shape: 'coast',
-    // Hẹp hơn các vùng khác có lý do: khung nhìn rộng 11 ô, để bản đồ 15 ô thì
-    // biển nằm ngoài mép màn hình suốt và "vùng ven biển" thành lời nói suông.
-    width: 13,
+    /*
+      Rộng 15 ô, nhưng phần ĐẤT vẫn đúng tám cột như hồi còn rộng 13.
+
+      Hai cột thêm vào đều là biển, để có chỗ cho đảo (xem `seaStart` trong
+      `routemap.ts`). Hồi trước vùng này cố ý hẹp để biển không nằm ngoài mép
+      màn hình suốt; giờ biển rộng hơn thì càng lộ ra, và ngoài biển có thứ để
+      lội ra tìm - nên nó không còn là "vùng ven biển" chỉ có tên.
+    */
+    width: 15,
     scatter: [
       { kind: 'flower', chance: 0.14 },
       { kind: 'tallGrass', chance: 0.13 },
       { kind: 'rock', chance: 0.03 },
     ],
+    // Đồi ven biển thì có đảo, lội nước nông ra được. Cá nhảy ra từ nước nông.
+    zone: 'islands',
+    zoneFlavour: 'Nước chỉ ngập tới đầu gối. Dưới chân có bóng cá lượn qua lượn lại...',
     palette: {
       grass: '#9ade7e',
       grassDark: '#7cc25f',
@@ -213,6 +235,10 @@ const SPECS: Record<Subject, BiomeSpec> = {
       // gặp quái hoang - bốn vùng đất chơi khác hẳn nhau mà không ai nói gì.
       { kind: 'tallGrass', chance: 0.12 },
     ],
+    // Đảo giữa biển thì có núi lửa trên đỉnh: leo bậc đá lên miệng núi, nền tro
+    // nóng giữa những vũng dung nham.
+    zone: 'volcano',
+    zoneFlavour: 'Miệng núi lửa nóng hầm hập. Dung nham sôi lục bục - cẩn thận nhé!',
     palette: {
       grass: '#e7dcb0',
       grassDark: '#d3c599',
@@ -293,10 +319,34 @@ export function biomeFor(subject: Subject, grade: Grade): Biome {
     shape: spec.shape,
     width: spec.width,
     scatter: spec.scatter.map((rule) => ({ ...rule, chance: rule.chance * density })),
+    zone: spec.zone,
+    zoneFlavour: spec.zoneFlavour,
     colors,
     tiles: buildTiles(colors),
   }
 
   cache.set(key, biome)
   return biome
+}
+
+/**
+ * Tham số dựng bản đồ đi cảnh của một vùng đất.
+ *
+ * Một chỗ duy nhất, vì bản đồ được dựng ở nhiều nơi - màn đi cảnh, bàn hướng
+ * dẫn, test - và mọi nơi phải ra CÙNG MỘT tấm bản đồ tới từng ô: toạ độ của bạn
+ * cùng lớp, chỗ đứng đã nhớ, ô quái ẩn đã tìm ra đều là toạ độ trên tấm ấy.
+ * Chép tay danh sách tham số ra từng chỗ thì thêm một tham số mới (như `zone`)
+ * là có chỗ quên, và hai tấm bản đồ lệch nhau mà không ai báo lỗi.
+ */
+export function routeOptionsFor(biome: Biome, bossIndex: number): Partial<RouteOptions> {
+  return {
+    shape: biome.shape,
+    width: biome.width,
+    ground: biome.ground,
+    border: biome.border,
+    gateHalo: biome.gateHalo,
+    scatter: biome.scatter,
+    bossIndex,
+    zone: biome.zone,
+  }
 }

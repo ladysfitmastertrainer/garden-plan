@@ -28,7 +28,7 @@ import {
   TUTORIAL_SUBJECT,
   tutorialEnemy,
 } from '../content/tutorial'
-import type { Grade, Question, Subject } from '../content/types'
+import type { Grade, Habitat, Question, Subject } from '../content/types'
 import {
   advance as advanceBattle,
   beginAttack,
@@ -240,6 +240,7 @@ interface GameState {
     node: MapNode | null
     kind: BattleKind
     variant?: number
+    habitat?: Habitat
   } | null
   /** Loại trận đang đánh. Quyết định tỉ lệ thu phục thú. */
   battleKind: BattleKind
@@ -286,6 +287,8 @@ interface GameState {
     kind?: 'wild' | 'mini' | 'secret',
     /** Con thứ mấy trong bầy - để con nhảy ra khỏi bụi cỏ đúng là con vào trận. */
     variant?: number,
+    /** Môi trường con quái nhảy ra - nước nông, hang, tán cây, núi lửa. */
+    habitat?: Habitat,
   ) => void
   /**
    * Bước vào một tầng Tháp Trí Tuệ.
@@ -589,7 +592,7 @@ export const useGame = create<GameState>((set, get) => ({
     })
   },
 
-  startWildBattle(subject, grade, kind = 'wild', variant) {
+  startWildBattle(subject, grade, kind = 'wild', variant, habitat) {
     const { student, progress } = get()
     if (!student) return
     const target: Grade = grade ?? student.grade
@@ -624,6 +627,9 @@ export const useGame = create<GameState>((set, get) => ({
       // Mini boss trong hang luôn là con dữ nhất bầy - khớp với hình đứng trong
       // hang. Quái hoang thì lấy đúng con vừa nhảy ra khỏi bụi cỏ.
       ...(kind === 'wild' ? (variant === undefined ? {} : { variant }) : { variant: 3 }),
+      // Gặp ở nước nông, trong hang, trên tán cây hay miệng núi lửa thì là con
+      // của nơi ấy. Đầu đàn trong hang quái dữ thì không bao giờ có môi trường.
+      ...(habitat && kind !== 'mini' ? { habitat } : {}),
     })
 
     const level = levelFromTotalXp(student.totalXp).level
@@ -654,7 +660,7 @@ export const useGame = create<GameState>((set, get) => ({
       ),
       battleSubject: subject,
       battleNode: null,
-      lastFight: { subject, grade: target, node: null, kind, variant },
+      lastFight: { subject, grade: target, node: null, kind, variant, habitat },
       battleKind: kind,
       battleGrade: target,
       queue,
@@ -1023,7 +1029,13 @@ export const useGame = create<GameState>((set, get) => ({
       get().startTowerBattle(lastFight.subject, lastFight.grade)
       return
     }
-    get().startWildBattle(lastFight.subject, lastFight.grade, lastFight.kind === 'mini' ? 'mini' : 'wild', lastFight.variant)
+    get().startWildBattle(
+      lastFight.subject,
+      lastFight.grade,
+      lastFight.kind === 'mini' ? 'mini' : 'wild',
+      lastFight.variant,
+      lastFight.habitat,
+    )
   },
 
   async closeBattle() {

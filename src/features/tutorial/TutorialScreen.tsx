@@ -40,7 +40,7 @@ import { useGame } from '../../store/game'
 import { useTutorial } from '../../store/tutorial'
 import { DialogueBox } from '../../ui/DialogueBox'
 import { petSpriteFor } from '../inventory/PetCollection'
-import { biomeFor } from '../world/biome'
+import { biomeFor, routeOptionsFor } from '../world/biome'
 import { Overworld } from '../world/Overworld'
 import { buildRouteMap } from '../world/routemap'
 import { tutorialStartSpot } from './start-spot'
@@ -131,7 +131,15 @@ function WalkAct() {
   const [line, setLine] = useState(0)
   const talking = line < WALK_SCRIPT.length
 
-  const biome = biomeFor(TUTORIAL_SUBJECT, TUTORIAL_GRADE)
+  /*
+    Vùng đất của bàn tập, BỎ khu môi trường đi.
+
+    Bàn tập dạy đúng ba việc - đi, đụng quái, vào trận - trên một tấm bản đồ bốn
+    chặng. Một cái hang giữa đường là một thứ thứ tư để tò mò, và bài học đi bộ
+    thành một chuyến thám hiểm. Nhớ lại bằng useMemo vì Overworld dựng lại bản
+    đồ mỗi khi vùng đất đổi danh tính.
+  */
+  const biome = useMemo(() => ({ ...biomeFor(TUTORIAL_SUBJECT, TUTORIAL_GRADE), zone: null }), [])
   const nodes = useMemo(() => tutorialNodes(), [])
 
   /*
@@ -143,15 +151,11 @@ function WalkAct() {
     tham số vào một thành phần đã có hai chục, chỉ để phục vụ một màn hình.
   */
   const startAt = useMemo(() => {
-    const map = buildRouteMap(nodes.length, TUTORIAL_SEED, {
-      shape: biome.shape,
-      width: biome.width,
-      ground: biome.ground,
-      border: biome.border,
-      gateHalo: biome.gateHalo,
-      scatter: biome.scatter,
-      bossIndex: nodes.findIndex((node) => node.kind === 'boss'),
-    })
+    const map = buildRouteMap(
+      nodes.length,
+      TUTORIAL_SEED,
+      routeOptionsFor(biome, nodes.findIndex((node) => node.kind === 'boss')),
+    )
     return tutorialStartSpot(map)
   }, [biome, nodes])
 

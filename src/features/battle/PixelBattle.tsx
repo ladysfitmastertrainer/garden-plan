@@ -27,6 +27,7 @@ import {
   EffectBurst,
   HERO_SCALE,
   HpBox,
+  SCENE_BY_HABITAT,
   SCENE_BY_SUBJECT,
   StatusAura,
   Trainer,
@@ -171,11 +172,11 @@ export function PixelBattle({
   enemyLevel: number
 }) {
   const reduceMotion = useReduceMotion()
-  const scene = SCENE_BY_SUBJECT[subject]
+  const scene = battle.enemy.habitat ? SCENE_BY_HABITAT[battle.enemy.habitat] : SCENE_BY_SUBJECT[subject]
   // Mỗi con quái một hình riêng, khớp với cái tên nó mang.
   const enemySprite = battle.enemy.isTower
     ? towerSpriteFor(subject)
-    : monsterSpriteFor(subject, battle.enemy.variant, battle.enemy.isBoss)
+    : monsterSpriteFor(subject, battle.enemy.variant, battle.enemy.isBoss, battle.enemy.habitat)
 
   const answerCount = battle.answers.length
   const [turn, setTurn] = useState<{ key: number; kind: Turn }>({ key: -1, kind: null })

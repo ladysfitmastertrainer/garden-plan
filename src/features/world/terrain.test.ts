@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest'
 import { buildWorldMap } from '../../content/worldmap'
 import { SUBJECTS, type Grade, type Subject } from '../../content/types'
 import { WALKABLE } from '../pixel/tiles'
-import { biomeFor } from './biome'
+import { biomeFor, routeOptionsFor } from './biome'
 import { buildRouteMap, isWalkable, type ArenaRect, type RouteMap } from './routemap'
 
 const GRADES: Grade[] = [1, 2, 3, 4, 5]
@@ -28,15 +28,11 @@ const GRADES: Grade[] = [1, 2, 3, 4, 5]
 function build(subject: Subject, grade: Grade, count: number): RouteMap {
   const biome = biomeFor(subject, grade)
   const nodes = buildWorldMap(subject, grade, 0, {}, 0).nodes
-  return buildRouteMap(count, `${subject}-g${grade}`, {
-    shape: biome.shape,
-    width: biome.width,
-    ground: biome.ground,
-    border: biome.border,
-    gateHalo: biome.gateHalo,
-    scatter: biome.scatter,
-    bossIndex: nodes.findIndex((node) => node.kind === 'boss'),
-  })
+  return buildRouteMap(
+    count,
+    `${subject}-g${grade}`,
+    routeOptionsFor(biome, nodes.findIndex((node) => node.kind === 'boss')),
+  )
 }
 
 /**
@@ -229,7 +225,8 @@ describe('nhà trên khu đất cao', () => {
 describe('quái ẩn', () => {
   it('mỗi khu đất giấu đúng một con, và tới được', () => {
     for (const { name, map } of MAPS) {
-      const levels = [map.plateau, map.hollow].filter(Boolean).length
+      // Khu đất cao, khu trũng, và mỗi khu môi trường (hang, tán cây, đảo...).
+      const levels = [map.plateau, map.hollow].filter(Boolean).length + map.zones.length
       expect(map.secrets.length, name).toBe(levels)
 
       const open = flood(map, map.start)
@@ -258,9 +255,16 @@ describe('quái ẩn', () => {
 
   it('nằm trong khu phải leo thang mới vào được', () => {
     // Khó tìm, chứ không phải khó một cách ngẫu nhiên: muốn tới được thì trước
-    // hết phải tìm ra bậc thang, rồi mới đi men tới góc trong cùng.
+    // hết phải tìm ra lối vào, rồi mới đi men tới góc trong cùng. Lối vào là bậc
+    // thang, cửa hang, thang dây - hoặc với đảo, là lội qua nước nông.
+    const ENTRIES = new Set(['stairs', 'caveMouth', 'vine', 'shoal'])
     for (const { name, map } of MAPS) {
       const blocked = new Set(map.stairs.map((st) => `${st.x},${st.y}`))
+      map.tiles.forEach((row, y) =>
+        row.forEach((tile, x) => {
+          if (ENTRIES.has(tile)) blocked.add(`${x},${y}`)
+        }),
+      )
       const withoutStairs = flood(map, map.start, blocked)
       for (const spot of map.secrets) {
         expect(

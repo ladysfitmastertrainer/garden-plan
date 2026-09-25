@@ -12,6 +12,7 @@
  */
 
 import type { Sprite } from './sprite'
+import type { Habitat } from '../../content/types'
 
 /** Bảng màu gốc - cảnh đồng cỏ. Các vùng đất khác kế thừa rồi tráo màu. */
 export const TERRAIN = {
@@ -63,6 +64,37 @@ export const TERRAIN = {
   wallDark: '#c9b28c',
   doorWood: '#7a4a22',
   doorDark: '#53310f',
+
+  /*
+    --- KHU MÔI TRƯỜNG: nước nông, hang, tán cây, núi lửa ---
+
+    Mỗi vùng đất có một khu riêng với bầy quái riêng (xem `world/biome.ts`).
+    Màu của chúng cũng nằm ở đây, cùng bảng với mọi thứ khác, để ánh sáng theo
+    lớp (nắng sớm, hoàng hôn...) phủ lên cả hang lẫn miệng núi lửa - một cái
+    hang lớp 5 mà vẫn sáng như buổi trưa thì nó tách hẳn ra khỏi vùng đất.
+  */
+  /** Nước nông: sáng hơn hẳn nước sâu - thấy được đáy cát nên biết là lội được. */
+  shoal: '#86d0ea',
+  shoalDark: '#6bbfdc',
+  caveFloor: '#6b5f58',
+  caveFloorDark: '#51463f',
+  caveWall: '#5a4e4a',
+  caveWallDark: '#3b322f',
+  caveWallLight: '#857871',
+  /** Tán cây: lá dày nhìn từ trên xuống, và sàn ván bắc ngang giữa các cành. */
+  canopy: '#4f9e4a',
+  canopyDark: '#357a36',
+  canopyLight: '#8fd06a',
+  plank: '#b98552',
+  plankDark: '#8a5d33',
+  ash: '#5d5654',
+  ashDark: '#46403e',
+  lava: '#ff6a1f',
+  lavaLight: '#ffd34d',
+  lavaDark: '#b3300c',
+  basalt: '#4a4240',
+  basaltDark: '#2c2624',
+  basaltLight: '#6e6360',
 }
 
 export type TerrainColors = typeof TERRAIN
@@ -506,6 +538,307 @@ function doorTile(c: TerrainColors): Sprite {
   }
 }
 
+/*
+  --- KHU MÔI TRƯỜNG ---
+
+  Mọi ô ở đây đều KÍN cả 16×16, không chừa ô trong suốt nào. Ô trong suốt được
+  lót bằng mặt đất của vùng (xem `stampTile`), mà mặt đất của vùng là cỏ hay
+  cát - một cái măng đá đứng trên nền cỏ là thủng mất cảm giác đang ở trong hang.
+*/
+
+/** Nước nông: lội qua được, và quái biển nhảy ra từ đây. */
+function shoalTile(c: TerrainColors): Sprite {
+  return {
+    palette: { S: c.shoal, s: c.shoalDark, l: c.waterLight, a: c.sand },
+    rows: [
+      'SSSSSSSSSSSSSSSS',
+      'SSllSSSSSSSSSSSS',
+      'SSSSSSSSSaSSSSSS',
+      'SSSSSSSSSSSSllSS',
+      'SsSSSSSSSSSSSSSS',
+      'SSSSSSllSSSSSSSS',
+      'SSSaSSSSSSSSSSsS',
+      'SSSSSSSSSSSSSSSS',
+      'SSSllSSSSSSSSSSS',
+      'SSSSSSSSSSsSSSSS',
+      'SSSSSSSSSSSSSaSS',
+      'SSSSSSSSSllSSSSS',
+      'SSsSSSSSSSSSSSSS',
+      'SSSSSSSSSSSSSllS',
+      'SSSSSSSaSSSSSSSS',
+      'SSSSSSSSSSSSSSSS',
+    ],
+  }
+}
+
+/** Nền hang: đất đá tối, lấm tấm sỏi. Đi được, và quái hang nấp ở đây. */
+function caveFloorTile(c: TerrainColors): Sprite {
+  return {
+    palette: { F: c.caveFloor, f: c.caveFloorDark, l: c.caveWallLight },
+    rows: [
+      'FFFFFFFFFFFFFFFF',
+      'FFfFFFFFFFFFFFFF',
+      'FFFFFFFFFFlfFFFF',
+      'FFFFFFFFFFffFFFF',
+      'FFFFFFFFFFFFFFFF',
+      'FlfFFFFFFFFFFFFF',
+      'FffFFFFFFFFFFfFF',
+      'FFFFFFFFFFFFFFFF',
+      'FFFFFFFfFFFFFFFF',
+      'FFFFFFFFFFFFFFFF',
+      'FFFFFFFFFFFFlfFF',
+      'FFFFfFFFFFFFffFF',
+      'FFFFFFFFFFFFFFFF',
+      'FFFlfFFFFFFFFFFF',
+      'FFFffFFFFFfFFFFF',
+      'FFFFFFFFFFFFFFFF',
+    ],
+  }
+}
+
+/** Vách hang: đá sần, tối hơn vách núi ngoài trời. Không đi qua được. */
+function caveWallTile(c: TerrainColors): Sprite {
+  return {
+    palette: { T: c.caveWallLight, C: c.caveWall, c: c.caveWallDark },
+    rows: [
+      'TTTCTTTTTCTTTTCT',
+      'TTCCCTTTCCCTTCCC',
+      'TCCcCCTCCcCCCCcC',
+      'CCcCCCCCCcCCCcCC',
+      'CCcCCcCCCCCCCcCC',
+      'CCCCCcCCcCCCCCCC',
+      'CcCCCCCCcCCCcCCC',
+      'CcCCCCCCCCCCcCCC',
+      'CCCCcCCCCCCCCCCC',
+      'CCCCcCCCCcCCCCcC',
+      'CCcCCCCCCcCCCCcC',
+      'CCcCCCCCCCCCCCCC',
+      'CCCCCCcCCCCcCCCC',
+      'cCCCCCcCCCCcCCCc',
+      'cccccccccccccccc',
+      'cccccccccccccccc',
+    ],
+  }
+}
+
+/**
+ * Cửa hang: vòm tối khoét vào vách đá.
+ *
+ * Tối đen ở giữa có chủ ý - đó là thứ nói "bên trong còn có chỗ", và là cái trẻ
+ * nhìn thấy từ đường chính. Đi vào được.
+ */
+function caveMouthTile(c: TerrainColors): Sprite {
+  return {
+    palette: { T: c.caveWallLight, C: c.caveWall, c: c.caveWallDark, K: c.dark },
+    rows: [
+      'TTTTTTTTTTTTTTTT',
+      'CCCCCCCCCCCCCCCC',
+      'CCCcCKKKKKKCcCCC',
+      'CCcCKKKKKKKKCcCC',
+      'CCcKKKKKKKKKKcCC',
+      'CcCKKKKKKKKKKCcC',
+      'CcKKKKKKKKKKKKcC',
+      'CcKKKKKKKKKKKKcC',
+      'CcKKKKKKKKKKKKcC',
+      'CcKKKKKKKKKKKKcC',
+      'CcKKKKKKKKKKKKcC',
+      'CcKKKKKKKKKKKKcC',
+      'CcKKKKKKKKKKKKcC',
+      'CcKKKKKKKKKKKKcC',
+      'ccKKKKKKKKKKKKcc',
+      'ccKKKKKKKKKKKKcc',
+    ],
+  }
+}
+
+/** Măng đá mọc từ nền hang. Chắn đường, để trong hang có lối len chứ không trống trơn. */
+function stalagmiteTile(c: TerrainColors): Sprite {
+  return {
+    palette: { F: c.caveFloor, f: c.caveFloorDark, T: c.caveWallLight, C: c.caveWall, c: c.caveWallDark },
+    rows: [
+      'FFFFFFFFFFFFFFFF',
+      'FFFFFFFTcFFFFFFF',
+      'FFFFFFFTcFFFFFFF',
+      'FFFFFFTCcFFFFFFF',
+      'FFFFFFTCccFFFFFF',
+      'FFFFFTCCccFFFFFF',
+      'FFFFFTCCCcFFFFFF',
+      'FFFFTCCCCccFFFFF',
+      'FFFFTCCCCccFFFFF',
+      'FFFTCCCCCCccFFFF',
+      'FFFTCCCCCCccFFFF',
+      'FFTCCCCCCCCccFFF',
+      'FFfccccccccccfFF',
+      'FFFFFFFFFFFFFFFF',
+      'FFFfFFFFFFFFFFFF',
+      'FFFFFFFFFFFFFFFF',
+    ],
+  }
+}
+
+/**
+ * Sàn tán cây: ván gỗ bắc giữa những chùm lá. Đi được, và thú rừng ở đây.
+ *
+ * Ván chứ không phải lá: đứng trên lá thì không đọc ra là đứng được. Mấy chùm lá
+ * ở bốn góc là thứ nói "đây là trên cây, không phải cái sân gỗ".
+ */
+function canopyTile(c: TerrainColors): Sprite {
+  return {
+    palette: { d: c.canopy, D: c.canopyDark, w: c.plank, W: c.plankDark },
+    rows: [
+      'dDdwwwwwwwwwwdDd',
+      'DdwwwwwwwwwwwwdD',
+      'wwwwwwwwwwwwwwww',
+      'WWWWWWWWWWWWWWWW',
+      'wwwwwwwwwwwwwwww',
+      'wwwwwwwwwwwwwwww',
+      'wwwwwwwWwwwwwwww',
+      'WWWWWWWWWWWWWWWW',
+      'wwwwwwwwwwwwwwww',
+      'wwwwwwwwwwwwwwww',
+      'wwwwWwwwwwwwwwww',
+      'WWWWWWWWWWWWWWWW',
+      'wwwwwwwwwwwwwwww',
+      'wwwwwwwwwwwwwwww',
+      'DdwwwwwwwwwwwwdD',
+      'dDdwwwwwwwwwwdDd',
+    ],
+  }
+}
+
+/** Tán lá dày nhìn từ trên xuống - bờ rào của sàn tán cây. Không đi qua được. */
+function foliageTile(c: TerrainColors): Sprite {
+  return {
+    palette: { d: c.canopy, D: c.canopyDark, l: c.canopyLight },
+    rows: [
+      'ddlddDDdddlddDDd',
+      'dlllddDDdllldDDd',
+      'ddlddDDDddlddDDD',
+      'DdddDDdDDdddDDdD',
+      'DDdDDddldDDdDDdd',
+      'dDDDddllldDDDddl',
+      'ddDddddlddDDddll',
+      'dDDdlddDDdddDdld',
+      'DDdllldDDdlddDDd',
+      'DdddlddDddllldDd',
+      'dDDddDDdddlddDDd',
+      'ddDDDdddDDddDDdd',
+      'lddDdlddDddddDld',
+      'llddllldDDdlddll',
+      'ldDDdlddDDllldDd',
+      'dDDddDDdddlddDDd',
+    ],
+  }
+}
+
+/** Thang dây buộc vào thân cây: lối DUY NHẤT lên sàn tán cây. */
+function vineTile(c: TerrainColors): Sprite {
+  return {
+    palette: {
+      d: c.canopy,
+      D: c.canopyDark,
+      t: c.trunk,
+      k: c.plankDark,
+      r: c.path,
+      G: c.grass,
+      g: c.grassDark,
+    },
+    rows: [
+      'dDddDDdddDDddDdd',
+      'ddDdtttttttttDdd',
+      'GGtkrrrrrrrktGGG',
+      'GGtktttttttktGGG',
+      'GgtktttttttktGGG',
+      'GGtkrrrrrrrktGgG',
+      'GGtktttttttktGGG',
+      'GGtktttttttktGGG',
+      'GGtkrrrrrrrktGGG',
+      'GGtktttttttktgGG',
+      'GGtktttttttktGGG',
+      'GGtkrrrrrrrktGGG',
+      'GgtktttttttktGGG',
+      'GGtktttttttktGGG',
+      'GGtkrrrrrrrktGGG',
+      'GGGtttttttttGGGG',
+    ],
+  }
+}
+
+/** Tro núi lửa: đất xám đen, lấm tấm than hồng. Đi được, quái nham thạch ở đây. */
+function ashTile(c: TerrainColors): Sprite {
+  return {
+    palette: { A: c.ash, a: c.ashDark, e: c.lava },
+    rows: [
+      'AAAAAAAAAAAAAAAA',
+      'AAaAAAAAAAAAAAAA',
+      'AAAAAAAAAAeAAAAA',
+      'AAAAAAaAAAAAAAAA',
+      'AAAAAAAAAAAAAaAA',
+      'AeAAAAAAAAAAAAAA',
+      'AAAAAAAAAaAAAAAA',
+      'AAAAaAAAAAAAAAAA',
+      'AAAAAAAAAAAAAAeA',
+      'AAAAAAAAAAAAAAAA',
+      'AAaAAAAAeAAAAAAA',
+      'AAAAAAAAAAAAaAAA',
+      'AAAAAAAAAAAAAAAA',
+      'AAAAAeAAAAAAAAAA',
+      'AaAAAAAAAAAAaAAA',
+      'AAAAAAAAAAAAAAAA',
+    ],
+  }
+}
+
+/** Dung nham: sáng rực, có vảy nguội. Không bước vào được - đó là cả luật của nó. */
+function lavaTile(c: TerrainColors): Sprite {
+  return {
+    palette: { L: c.lava, l: c.lavaLight, k: c.lavaDark },
+    rows: [
+      'LLLLLLllLLLLLLLL',
+      'LLllLLLLLLLkkLLL',
+      'LlllLLLLLLkkkkLL',
+      'LLLLLLkkLLLLkLLL',
+      'LLLLLkkkkLLLLLLL',
+      'LLLLLLkkLLLLllLL',
+      'LllLLLLLLLLlllLL',
+      'LLlLLLLLLLLLlLLL',
+      'LLLLLLLLllLLLLLL',
+      'LLkkLLLLlllLLLLL',
+      'LkkkkLLLLLLLLkkL',
+      'LLkkLLLLLLLLkkkk',
+      'LLLLLLllLLLLLkkL',
+      'LLLLLllllLLLLLLL',
+      'LLkLLLLLLLLLLLLL',
+      'LLLLLLLLLLLLLLLL',
+    ],
+  }
+}
+
+/** Vách đá bazan quanh miệng núi lửa, mạch lửa rỉ ra ở mép. Không đi qua được. */
+function basaltTile(c: TerrainColors): Sprite {
+  return {
+    palette: { T: c.basaltLight, C: c.basalt, c: c.basaltDark, e: c.lava },
+    rows: [
+      'TTTTTTTTTTTTTTTT',
+      'TTTTeTTTTTTTeTTT',
+      'TTTTTTTTTTTTTTTT',
+      'CCCCCCCCCCCCCCCC',
+      'CCcCCCeCcCCCCCCC',
+      'CCcCCCCCcCCCCcCC',
+      'CCcCCCcCcCCeCcCC',
+      'CCCCCCcCCCCCCcCC',
+      'CCCCCCcCCCCCCCCC',
+      'CcCCCCCCCCCcCCCC',
+      'CcCCeCCCCCCcCCCC',
+      'CcCCCCCCcCCcCCCC',
+      'CCCCCCCCcCCCCCCC',
+      'CCCCCCCCcCCCCCeC',
+      'cccccccccccccccc',
+      'cccccccccccccccc',
+    ],
+  }
+}
+
 export function buildTiles(c: TerrainColors): TileSet {
   return {
     grass: grassTile(c),
@@ -525,6 +858,17 @@ export function buildTiles(c: TerrainColors): TileSet {
     stairs: stairsTile(c),
     house: houseTile(c),
     door: doorTile(c),
+    shoal: shoalTile(c),
+    caveFloor: caveFloorTile(c),
+    caveWall: caveWallTile(c),
+    caveMouth: caveMouthTile(c),
+    stalagmite: stalagmiteTile(c),
+    canopy: canopyTile(c),
+    foliage: foliageTile(c),
+    vine: vineTile(c),
+    ash: ashTile(c),
+    lava: lavaTile(c),
+    basalt: basaltTile(c),
   }
 }
 
@@ -546,6 +890,17 @@ export type TileKind =
   | 'stairs'
   | 'house'
   | 'door'
+  | 'shoal'
+  | 'caveFloor'
+  | 'caveWall'
+  | 'caveMouth'
+  | 'stalagmite'
+  | 'canopy'
+  | 'foliage'
+  | 'vine'
+  | 'ash'
+  | 'lava'
+  | 'basalt'
 
 export type TileSet = Record<TileKind, Sprite>
 
@@ -579,4 +934,29 @@ export const WALKABLE: Record<TileKind, boolean> = {
     vẹn điều đó, mà mọi thứ khác trong mã nguồn không phải biết gì thêm.
   */
   cliff: false,
+  // Khu môi trường: sàn thì đi được, vách và chướng ngại thì không - cùng một
+  // luật với khu đất cao, chỉ khác vật liệu.
+  shoal: true,
+  caveFloor: true,
+  caveWall: false,
+  caveMouth: true,
+  stalagmite: false,
+  canopy: true,
+  foliage: false,
+  vine: true,
+  ash: true,
+  lava: false,
+  basalt: false,
+}
+
+/**
+ * Ô nào có quái của một MÔI TRƯỜNG nấp, và là môi trường nào.
+ *
+ * Bụi cỏ cao không nằm ở đây: quái trong bụi cỏ là quái của môn, như trước.
+ */
+export const HABITAT_TILE: Partial<Record<TileKind, Habitat>> = {
+  shoal: 'sea',
+  caveFloor: 'cave',
+  canopy: 'forest',
+  ash: 'lava',
 }

@@ -12,7 +12,7 @@
 import type { Enemy } from '../engine/battle'
 import type { Rng } from '../engine/rng'
 import { getTuning } from './tuning'
-import type { Grade, Subject } from './types'
+import type { Grade, Habitat, Subject } from './types'
 
 interface EnemyTemplate {
   name: string
@@ -53,6 +53,54 @@ const BOSSES: Record<Subject, EnemyTemplate> = {
   ethics: { name: 'Chúa Tể Bóng Đêm', emoji: '👹' },
 }
 
+/**
+ * Bầy quái của từng MÔI TRƯỜNG, bốn con mỗi nơi.
+ *
+ * Thứ tự là hợp đồng với `HABITAT_FAMILY` trong `features/pixel/creatures.ts`,
+ * y như bầy của môn: đổi một bên mà quên bên kia là tên một đằng hình một nẻo.
+ *
+ * Tên vẫn mang chút chữ nghĩa của lớp học ("Cua Đá Đếm Càng", "Khỉ Hỏi Vặn")
+ * vì đây vẫn là trận hỏi bài - nhưng CON VẬT là con của nơi ấy.
+ */
+export const HABITAT_BESTIARY: Record<Habitat, EnemyTemplate[]> = {
+  // Lội ra đảo: cá và những thứ sống dưới nước nông.
+  sea: [
+    { name: 'Cá Nóc Phồng Má', emoji: '🐡' },
+    { name: 'Sứa Điện Lấp Lánh', emoji: '🪼' },
+    { name: 'Cá Kiếm Nhanh Nhảu', emoji: '🐟' },
+    { name: 'Cá Mập Con', emoji: '🦈' },
+  ],
+  // Trong hang: giáp xác và bò sát, những loài ưa tối và ẩm.
+  cave: [
+    { name: 'Cua Đá Đếm Càng', emoji: '🦀' },
+    { name: 'Tôm Hùm Hang', emoji: '🦞' },
+    { name: 'Thằn Lằn Mắt To', emoji: '🦎' },
+    { name: 'Rắn Hang Cuộn Tròn', emoji: '🐍' },
+  ],
+  // Trên tán cây: thú rừng.
+  forest: [
+    { name: 'Khỉ Hỏi Vặn', emoji: '🐒' },
+    { name: 'Sóc Bay Tinh Nghịch', emoji: '🐿️' },
+    { name: 'Heo Rừng Húc Bậy', emoji: '🐗' },
+    { name: 'Hổ Con Gầm Gừ', emoji: '🐯' },
+  ],
+  // Miệng núi lửa: những thứ sinh ra từ nham thạch.
+  lava: [
+    { name: 'Slime Dung Nham', emoji: '🔥' },
+    { name: 'Kỳ Nhông Lửa', emoji: '🦎' },
+    { name: 'Người Đá Than Hồng', emoji: '🪨' },
+    { name: 'Đốm Lửa Lang Thang', emoji: '✨' },
+  ],
+}
+
+/** Tên nơi chốn của từng môi trường - dùng cho lời chào khi bước vào khu ấy. */
+export const HABITAT_PLACE: Record<Habitat, string> = {
+  sea: 'Bãi Đảo Nước Nông',
+  cave: 'Hang Đá Vọng',
+  forest: 'Tán Cây Cổ Thụ',
+  lava: 'Miệng Núi Lửa',
+}
+
 export interface EnemyRequest {
   subject: Subject
   grade: Grade
@@ -66,6 +114,11 @@ export interface EnemyRequest {
    * ngẫu nhiên, dành cho quái hoang gặp dọc đường.
    */
   variant?: number
+  /**
+   * Môi trường con quái nhảy ra. Có thì lấy con trong bầy của môi trường ấy
+   * thay cho bầy của môn - xem `HABITAT_BESTIARY`.
+   */
+  habitat?: Habitat
 }
 
 export function createEnemy({
@@ -75,8 +128,12 @@ export function createEnemy({
   isBoss,
   rng,
   variant: fixedVariant,
+  habitat,
 }: EnemyRequest): Enemy {
-  const bestiary = BESTIARY[subject]
+  // Trùm không bao giờ đổi theo môi trường: trùm là của vùng đất, không phải
+  // của một góc nào trong nó.
+  const wildHabitat = isBoss ? undefined : habitat
+  const bestiary = wildHabitat ? HABITAT_BESTIARY[wildHabitat] : BESTIARY[subject]
   const variant = isBoss
     ? 0
     : (fixedVariant ?? rng.int(0, bestiary.length - 1)) % bestiary.length
@@ -109,6 +166,7 @@ export function createEnemy({
     goldReward: Math.round((isBoss ? 60 + nodeIndex * 5 : 18 + nodeIndex * 3) * tuning.goldScale),
     xpReward: Math.round((isBoss ? 80 + nodeIndex * 6 : 25 + nodeIndex * 4) * tuning.xpScale),
     variant,
+    ...(wildHabitat ? { habitat: wildHabitat } : {}),
     isBoss,
   }
 }

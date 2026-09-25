@@ -11,7 +11,7 @@
  */
 
 import { AnimatePresence, motion } from 'framer-motion'
-import type { Subject } from '../../content/types'
+import type { Habitat, Subject } from '../../content/types'
 import type { EffectKind } from '../../engine/pets'
 import { PixelSprite } from '../pixel/sprite'
 import { heroSprite } from '../pixel/heroes'
@@ -52,6 +52,18 @@ export const SCENE_BY_SUBJECT: Record<Subject, { sky: string; ground: string; pl
   vietnamese: { sky: '#f6c9d8', ground: '#6fbf86', platform: '#4fa06a', platformEdge: '#357a4c' },
   music: { sky: '#c9c2f5', ground: '#77c6e0', platform: '#4fa3c4', platformEdge: '#357c99' },
   ethics: { sky: '#bfe6ff', ground: '#8fd98f', platform: '#66b96e', platformEdge: '#468f50' },
+}
+
+/**
+ * Nền trận khi đánh quái của một MÔI TRƯỜNG: đánh con cá thì đứng giữa nước,
+ * đánh con cua thì đứng trong hang. Cùng một khuôn hai mảng màu với nền của môn,
+ * chỉ đổi màu - để trẻ vào trận vẫn nhớ mình vừa bước ra từ đâu.
+ */
+export const SCENE_BY_HABITAT: Record<Habitat, (typeof SCENE_BY_SUBJECT)[Subject]> = {
+  sea: { sky: '#9fe0f2', ground: '#5fb8e0', platform: '#efe2b4', platformEdge: '#c9b37a' },
+  cave: { sky: '#3b3240', ground: '#6b5f58', platform: '#857871', platformEdge: '#51463f' },
+  forest: { sky: '#bfe8a8', ground: '#4f9e4a', platform: '#b98552', platformEdge: '#8a5d33' },
+  lava: { sky: '#5a2a24', ground: '#5d5654', platform: '#8a3a1c', platformEdge: '#ff6a1f' },
 }
 
 

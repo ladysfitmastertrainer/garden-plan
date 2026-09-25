@@ -28,6 +28,7 @@ import ethicsG4G5 from './ethics/g4-g5'
 import ethicsExtraG1G2 from './ethics/extra-g1-g2'
 import ethicsExtraG3G5 from './ethics/extra-g3-g5'
 import ethicsExtraG1B from './ethics/extra-g1-b'
+import ethicsExtraG1C from './ethics/extra-g1-c'
 import vietnameseG1G3 from './vietnamese/g1-g3'
 import vietnameseG2 from './vietnamese/g2'
 import vietnameseG4G5 from './vietnamese/g4-g5'
@@ -66,6 +67,7 @@ export const BANKS: Bank = mergeBanks(
   ethicsExtraG1G2,
   ethicsExtraG3G5,
   ethicsExtraG1B,
+  ethicsExtraG1C,
 )
 
 /**

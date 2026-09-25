@@ -25,6 +25,9 @@ import { musicGenerators } from './music'
 import ethicsG1G3 from './ethics/g1-g3'
 import ethicsG2 from './ethics/g2'
 import ethicsG4G5 from './ethics/g4-g5'
+import ethicsExtraG1G2 from './ethics/extra-g1-g2'
+import ethicsExtraG3G5 from './ethics/extra-g3-g5'
+import ethicsExtraG1B from './ethics/extra-g1-b'
 import vietnameseG1G3 from './vietnamese/g1-g3'
 import vietnameseG2 from './vietnamese/g2'
 import vietnameseG4G5 from './vietnamese/g4-g5'
@@ -35,14 +38,35 @@ export const GENERATORS: GeneratorMap = {
   ...musicGenerators,
 }
 
-export const BANKS: Bank = {
-  ...vietnameseG1G3,
-  ...vietnameseG2,
-  ...vietnameseG4G5,
-  ...ethicsG1G3,
-  ...ethicsG2,
-  ...ethicsG4G5,
+/**
+ * Gộp nhiều ngân hàng, NỐI câu của cùng một kỹ năng lại với nhau.
+ *
+ * Không dùng phép trải `{ ...a, ...b }`: hai file cùng khai một kỹ năng thì file
+ * sau ĐÈ MẤT toàn bộ câu của file trước, và không có gì báo lỗi - số câu của kỹ
+ * năng ấy lặng lẽ tụt về chỉ còn phần bổ sung.
+ */
+export function mergeBanks(...banks: Bank[]): Bank {
+  const out: Bank = {}
+  for (const bank of banks) {
+    for (const [skillId, entries] of Object.entries(bank)) {
+      out[skillId] = [...(out[skillId] ?? []), ...entries]
+    }
+  }
+  return out
 }
+
+export const BANKS: Bank = mergeBanks(
+  vietnameseG1G3,
+  vietnameseG2,
+  vietnameseG4G5,
+  ethicsG1G3,
+  ethicsG2,
+  ethicsG4G5,
+  // Tình huống bổ sung - xem đầu mỗi file vì sao có chúng.
+  ethicsExtraG1G2,
+  ethicsExtraG3G5,
+  ethicsExtraG1B,
+)
 
 /**
  * Số lần thử lại khi generator sinh trúng câu đã hỏi trong trận.

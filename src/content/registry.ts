@@ -34,6 +34,7 @@ import vietnameseG2 from './vietnamese/g2'
 import vietnameseG4G5 from './vietnamese/g4-g5'
 import vietnameseExtraG1 from './vietnamese/extra-g1'
 import vietnameseExtraG1B from './vietnamese/extra-g1-b'
+import vietnameseExtraG3G5 from './vietnamese/extra-g3-g5'
 import type { Difficulty, Question } from './types'
 
 export const GENERATORS: GeneratorMap = {
@@ -64,6 +65,7 @@ export const BANKS: Bank = mergeBanks(
   vietnameseG4G5,
   vietnameseExtraG1,
   vietnameseExtraG1B,
+  vietnameseExtraG3G5,
   ethicsG1G3,
   ethicsG2,
   ethicsG4G5,

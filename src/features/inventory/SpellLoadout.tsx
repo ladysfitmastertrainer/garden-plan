@@ -82,7 +82,7 @@ export function SpellLoadout() {
       </div>
 
       <div className="card flex items-center gap-2" style={{ padding: 10 }}>
-        <PixelSprite sprite={petSpriteFor(pet.sprite, pet.element)} scale={2} />
+        <PixelSprite sprite={petSpriteFor(pet)} scale={2} />
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold leading-tight">{pet.name}</p>
           <p className="text-sm opacity-70">

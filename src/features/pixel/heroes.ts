@@ -35,8 +35,8 @@
  * nào, không thêm một cột nào, và ô chọn không bao giờ nói dối.
  */
 
-import { CREATURE_VIEWS, creatureFromAvatar, recolor, type CreatureViews } from './creatures'
-import type { Sprite } from './sprite'
+import { CREATURE_VIEWS, creatureFromAvatar, recolor, type CreatureViews, type HeroCreatureId } from './creatures'
+import type { Sprite, SpriteArt } from './sprite'
 
 /**
  * Một tông màu. Cả ba hình đều dùng chung một bộ KHOÁ màu, nên một tông ở đây tô
@@ -180,7 +180,11 @@ export function heroViews(avatar: string, seed: string): CreatureViews {
     Gộp emoji vào hạt giống thì hai lựa chọn khác nhau gần như luôn ra hai màu
     khác nhau, mà ô chọn linh vật vẫn xem trước được (nó biết cả hai thứ).
   */
-  const tint = heroTint(avatar + seed)
+  return tintedViews(shape, heroTint(avatar + seed))
+}
+
+/** Ba góc nhìn của một hình, tô theo một tông. Tách ra để trang soát hình bày đủ mười hai tông. */
+export function tintedViews(shape: HeroCreatureId, tint: HeroTint): CreatureViews {
   const base = CREATURE_VIEWS[shape]
   if (!tint.palette) return base
 
@@ -188,13 +192,66 @@ export function heroViews(avatar: string, seed: string): CreatureViews {
   const cached = VIEWS_CACHE.get(key)
   if (cached) return cached
 
+  const palette = tint.palette
+  // Thân gần như không màu (gấu trúc trắng đen): xoay màu chỉ làm thân xám đi,
+  // nên NHÂN màu của tông lên hình - trắng thành màu tông, đen vẫn đen, y như
+  // lưới điểm ảnh tô lại thân. Thân có màu thì xoay vòng màu là đủ.
+  const paint: Partial<SpriteArt> = isPale(base.down.palette.B!)
+    ? { multiply: palette.B }
+    : { filter: tintFilter(base.down.palette.B!, palette.B) }
+  const tinted = (sprite: Sprite): Sprite => {
+    const out = recolor(sprite, palette)
+    if (out.art) out.art = { ...out.art, ...paint }
+    return out
+  }
   const views: CreatureViews = {
-    down: recolor(base.down, tint.palette),
-    up: recolor(base.up, tint.palette),
-    side: recolor(base.side, tint.palette),
+    down: tinted(base.down),
+    up: tinted(base.up),
+    side: tinted(base.side),
   }
   VIEWS_CACHE.set(key, views)
   return views
+}
+
+/**
+ * Bộ lọc CSS đưa màu thân gốc về màu thân của tông - dành cho hình vẽ tay.
+ *
+ * Hình vẽ tay không có bảng màu để tráo, nên ta xoay cả hình quanh vòng màu một
+ * góc đúng bằng khoảng cách từ màu thân gốc tới màu thân của tông, rồi chỉnh độ
+ * rực và độ sáng theo. Bụng kem và khăn đỏ cũng xoay theo - chấp nhận được, vì
+ * cái cần giữ là "hai em cùng con cáo nhìn ra hai con khác nhau", và nó giữ được.
+ */
+export function tintFilter(fromHex: string, toHex: string): string {
+  const a = hsl(fromHex)
+  const b = hsl(toHex)
+  const turn = Math.round(b.h - a.h)
+  const saturate = a.s > 0 ? Math.round((b.s / a.s) * 100) / 100 : 1
+  const brightness = a.l > 0 ? Math.round((b.l / a.l) * 100) / 100 : 1
+  return `hue-rotate(${turn}deg) saturate(${saturate}) brightness(${brightness})`
+}
+
+/** Màu gần như trắng/xám: kênh lệch nhau rất ít. Xoay vòng màu một màu như thế không ra màu gì. */
+function isPale(hex: string): boolean {
+  const n = parseInt(hex.slice(1), 16)
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  return Math.max(...c) - Math.min(...c) < 30
+}
+
+function hsl(hex: string): { h: number; s: number; l: number } {
+  const n = parseInt(hex.slice(1), 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  const d = max - min
+  if (d === 0) return { h: 0, s: 0, l }
+  const s = d / (1 - Math.abs(2 * l - 1))
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  h *= 60
+  if (h < 0) h += 360
+  return { h, s, l }
 }
 
 /** Hình nhìn từ trước - dùng cho mọi chỗ chỉ cần một tấm chân dung. */
@@ -203,7 +260,7 @@ export function heroSprite(avatar: string, seed: string): Sprite {
 }
 
 /**
- * Hình hợp với hướng đang đi. Hướng trái dùng lại hình nghiêng, lật gương.
+ * Hình hợp với hướng đang đi. Hướng phải dùng lại hình nghiêng, lật gương.
  *
  * Thay cho `viewFor(creature, direction)`: nơi gọi giờ cầm emoji và tên trong
  * tay chứ không cầm id hình dáng, và việc "ai ra hình nào, màu nào" là chuyện
@@ -217,5 +274,7 @@ export function heroViewFor(
   const views = heroViews(avatar, seed)
   if (direction === 'up') return { sprite: views.up, flip: false }
   if (direction === 'down') return { sprite: views.down, flip: false }
-  return { sprite: views.side, flip: direction === 'left' }
+  // Hình nghiêng vẽ quay mặt sang TRÁI (cả lưới điểm ảnh lẫn hình vẽ tay), nên
+  // đi sang phải mới phải lật.
+  return { sprite: views.side, flip: direction === 'right' }
 }

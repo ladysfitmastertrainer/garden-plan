@@ -13,7 +13,7 @@
  * mà trẻ phải nhớ số để so.
  */
 
-import { PETS, SPELLS, borrowedElement } from '../../content/pets'
+import { PETS, SPELLS, borrowedElement, getPet } from '../../content/pets'
 import {
   evolutionStage,
   nextEvolution,
@@ -21,11 +21,12 @@ import {
   resolvePet,
   unlockedSpellCount,
   xpToNextLevel,
+  type Pet,
 } from '../../engine/pets'
 import { SUBJECT_ELEMENT, SUBJECT_LABEL, SUBJECTS, type Subject } from '../../content/types'
 import { NATURE_AFTER, NATURE_INFO, natureOf, type NatureCounts } from '../../engine/nature'
 import { ALL_SPRITES, recolor } from '../pixel/creatures'
-import { PixelSprite } from '../pixel/sprite'
+import { PixelSprite, type Sprite } from '../pixel/sprite'
 
 const ELEMENT_COLOR: Record<Subject, string> = {
   math: '#f59e0b',
@@ -51,9 +52,42 @@ const GREY_TINT: Record<string, string> = {
   Y: '#8e9bab',
 }
 
-export function petSpriteFor(spriteId: string, element: Subject, owned = true) {
-  const base = ALL_SPRITES[spriteId] ?? ALL_SPRITES.slime!
-  return recolor(base, owned ? ELEMENT_TINT[element] : GREY_TINT)
+/** Cỡ hình vẽ tay theo nấc tiến hoá: con non bé hơn hẳn, nhưng vẫn đủ to để nhìn. */
+const STAGE_SIZE = [0.72, 0.82, 0.92, 1]
+
+/**
+ * Hình của một con thú, đúng nấc nó đang ở.
+ *
+ * Nhận cả con thú chứ không chỉ id lưới điểm ảnh: lưới thì mấy con dùng chung
+ * (Sóc Số, Trống Nhỏ, Đom Sáng cùng mượn hình slime, tô khác màu), còn hình vẽ
+ * tay thì mỗi con một dòng tiến hoá riêng - `pet-<id>-<nấc>`. `sprite` của con
+ * thú đã qua `resolvePet` cho biết nó đang ở nấc nào.
+ */
+export function petSpriteFor(pet: Pick<Pet, 'id' | 'sprite' | 'element'>, owned = true): Sprite {
+  const base = ALL_SPRITES[pet.sprite] ?? ALL_SPRITES.slime!
+  const sprite = recolor(base, owned ? ELEMENT_TINT[pet.element] : GREY_TINT)
+  const stage = petStage(pet)
+  // Luôn GHI ĐÈ `art`: lưới mượn của quái mang sẵn hình của con quái ấy, và con
+  // thú chưa có hình riêng thì phải về lưới điểm ảnh chứ không được đội lốt quái.
+  sprite.art =
+    stage === null
+      ? undefined
+      : {
+          id: `pet-${pet.id}-${stage}`,
+          size: STAGE_SIZE[stage - 1],
+          // Chưa gặp thì chỉ thấy bóng đen - đúng kiểu ô chưa mở trong sổ thú.
+          filter: owned ? undefined : 'brightness(0) opacity(0.45)',
+        }
+  return sprite
+}
+
+/** Nấc 1..4 của con thú, suy từ lưới nó đang mang. */
+function petStage(pet: Pick<Pet, 'id' | 'sprite'>): number | null {
+  const def = getPet(pet.id)
+  if (!def) return null
+  if (pet.sprite === def.sprite) return 1
+  const i = def.evolutions.findIndex((e) => e.sprite === pet.sprite)
+  return i === -1 ? null : i + 2
 }
 
 export function PetCollection({
@@ -136,7 +170,7 @@ export function PetCollection({
                       opacity: have ? 1 : 0.65,
                     }}
                   >
-                    <PixelSprite sprite={petSpriteFor(shown.sprite, element, have)} scale={2} />
+                    <PixelSprite sprite={petSpriteFor(shown, have)} scale={2} />
                     <div className="min-w-0 flex-1">
                       <p className="text-base font-bold leading-tight">
                         {have ? shown.name : '???'}

@@ -176,7 +176,7 @@ function WalkAct() {
   const companion = useGame((s) => s.progress.companion)
   const leader = companionOf(ownedPets, companion, TUTORIAL_SUBJECT, petXp ?? {})
   const follower = useMemo(
-    () => (leader ? { sprite: petSpriteFor(leader.sprite, leader.element) } : null),
+    () => (leader ? { sprite: petSpriteFor(leader) } : null),
     [leader?.sprite, leader?.element],
   )
 

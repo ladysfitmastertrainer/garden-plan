@@ -450,7 +450,7 @@ function Pets({
       {pets.map((pet, index) => (
         <Wanderer
           key={pet.id}
-          sprite={petSpriteFor(pet.sprite, pet.element)}
+          sprite={petSpriteFor(pet)}
           seat={index}
           reduceMotion={reduceMotion}
         />

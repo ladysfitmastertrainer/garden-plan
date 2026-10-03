@@ -454,7 +454,7 @@ function TeamSide({ side, accent, mine }: { side: PvpSide; accent: string; mine:
 
   return (
     <span className={`flex min-w-0 flex-1 items-center gap-2${mine ? '' : ' flex-row-reverse'}`}>
-      {pet && <PixelSprite sprite={petSpriteFor(pet.sprite, pet.element)} scale={2} />}
+      {pet && <PixelSprite sprite={petSpriteFor(pet)} scale={2} />}
       <span className={`min-w-0 flex-1${mine ? '' : ' text-right'}`}>
         <span className="block truncate text-base font-bold leading-tight">
           {pet?.name ?? 'Chưa có thú'}

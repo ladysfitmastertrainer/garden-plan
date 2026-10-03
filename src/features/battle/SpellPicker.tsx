@@ -20,7 +20,7 @@ import { SUBJECT_ELEMENT, SUBJECT_LABEL, type Subject } from '../../content/type
 import { SPELLS } from '../../content/pets'
 import { matchupLabel, type BattlePet } from '../../engine/pets'
 import type { BattleState } from '../../engine/battle'
-import { ALL_SPRITES, recolor } from '../pixel/creatures'
+import { petSpriteFor } from '../inventory/PetCollection'
 import { PixelSprite } from '../pixel/sprite'
 import { EFFECT_UI } from './effects'
 
@@ -30,18 +30,6 @@ const ELEMENT_COLOR: Record<Subject, string> = {
   vietnamese: '#ef4476',
   music: '#8b5cf6',
   ethics: '#0ea5e9',
-}
-
-/** Tô thú theo nguyên tố để nhìn hình là đoán được hệ. */
-function petSprite(spriteId: string, element: Subject) {
-  const base = ALL_SPRITES[spriteId] ?? ALL_SPRITES.slime!
-  const tint: Record<Subject, Record<string, string>> = {
-    math: { B: '#f2b23a', S: '#c4861f', '#': '#6b4410' },
-    vietnamese: { B: '#ef6b90', S: '#c43f66', '#': '#6b1f36' },
-    music: { B: '#a78bfa', S: '#7c5cd6', '#': '#3b2a6b' },
-    ethics: { B: '#5fc9ea', S: '#3a9ac6', '#': '#154a63' },
-  }
-  return recolor(base, tint[element])
 }
 
 export function SpellPicker({
@@ -133,7 +121,7 @@ export function SpellPicker({
                 opacity: cooling ? 0.7 : 1,
               }}
             >
-              <PixelSprite sprite={petSprite(pet.pet.sprite, pet.pet.element)} scale={2} />
+              <PixelSprite sprite={petSpriteFor(pet.pet)} scale={2} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-lg font-bold leading-tight">
                   {spell.tier === 4 && '⚡ '}
@@ -198,7 +186,7 @@ export function PetStrip({
 
   return (
     <div className="pixel-panel team-strip flex items-center gap-2" style={{ padding: '6px 10px' }}>
-      <PixelSprite sprite={petSprite(pet.pet.sprite, pet.pet.element)} scale={2} />
+      <PixelSprite sprite={petSpriteFor(pet.pet)} scale={2} />
 
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">

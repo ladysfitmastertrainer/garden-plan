@@ -125,12 +125,12 @@ describe('hình theo hướng đi', () => {
     expect(heroViewFor('🐼', 'Bảo An', 'right').sprite).toBe(views.side)
   })
 
-  it('đi sang trái dùng lại hình nghiêng nhưng lật gương', () => {
+  it('hình nghiêng quay mặt sang trái, nên đi sang phải mới lật gương', () => {
     const left = heroViewFor('🦊', 'Minh Bình', 'left')
     const right = heroViewFor('🦊', 'Minh Bình', 'right')
     expect(left.sprite).toBe(right.sprite)
-    expect(left.flip).toBe(true)
-    expect(right.flip).toBe(false)
+    expect(left.flip).toBe(false)
+    expect(right.flip).toBe(true)
   })
 
   it('tô màu rồi thì nhìn từ sau vẫn KHÔNG thấy mắt', () => {

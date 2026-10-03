@@ -1124,7 +1124,11 @@ const TOWER_TINT: Record<string, string> = {
 
 /** Hình con trùm trong tháp: hình trùm của môn đó, tô lại thành tượng đá dát vàng. */
 export function towerSpriteFor(subject: Subject): Sprite {
-  return recolor(BOSS_SPRITE[subject], TOWER_TINT)
+  const sprite = recolor(BOSS_SPRITE[subject], TOWER_TINT)
+  // Hình vẽ tay thì không tráo bảng màu được - hoá đá bằng bộ lọc: rút gần hết
+  // màu rồi ủ lại một lớp vàng, ra tượng đá dát vàng như bản pixel.
+  if (sprite.art) sprite.art = { ...sprite.art, filter: 'grayscale(0.9) sepia(0.45) saturate(1.6) brightness(1.05)' }
+  return sprite
 }
 
 export function monsterSpriteFor(
@@ -1196,7 +1200,7 @@ export const ALL_SPRITES: Record<string, Sprite> = {
  * ở đó việc tô lại là ĐÚNG ý chứ không phải đi tắt.
  */
 export function recolor(sprite: Sprite, overrides: Record<string, string>): Sprite {
-  return { rows: sprite.rows, palette: { ...sprite.palette, ...overrides } }
+  return { ...sprite, palette: { ...sprite.palette, ...overrides } }
 }
 
 // --- Sprite theo hướng đi --------------------------------------------------------
@@ -1355,7 +1359,40 @@ export const CREATURE_VIEWS: Record<HeroCreatureId, CreatureViews> = {
   dragon: { down: DRAGON, up: DRAGON_BACK, side: DRAGON_SIDE },
 }
 
-/** Sprite hợp với hướng đang đi. Hướng trái dùng lại hình nghiêng, lật gương. */
+// --- Hình vẽ tay -----------------------------------------------------------------
+
+/*
+  Gắn tên file hình vẽ tay (`public/art/<id>.webp`, cắt từ tờ hình Gemini - xem
+  `scripts/art-sheets.mjs`) vào từng sprite. File chưa có thì sprite vẫn vẽ bằng
+  điểm ảnh, nên gắn sẵn ở đây không làm vỡ gì.
+
+  Gắn VÀO CHÍNH đối tượng sprite chứ không sao ra bản mới: test và vài màn hình
+  so sánh sprite bằng danh tính (`toBe(CREATURE_VIEWS.fox.up)`, con trên bản đồ
+  phải LÀ con bước vào trận), và bản sao sẽ phá những phép so sánh ấy.
+
+  Quái được vẽ quay sang TRÁI, ngược lưới điểm ảnh - xem `SpriteArt.mirrored`.
+
+  Thú đồng hành KHÔNG lấy hình ở đây dù nó mượn lưới của quái (Sóc Số mượn hình
+  slime): mỗi con thú có dòng tiến hoá vẽ riêng - xem `petSpriteFor`.
+*/
+/** Nhân vật mà Gemini vẽ mặt nghiêng quay sang PHẢI, dù prompt dặn quay trái. */
+const SIDE_DRAWN_FACING_RIGHT = new Set<string>(['dragon'])
+for (const [id, views] of Object.entries(CREATURE_VIEWS)) {
+  views.down.art = { id: `hero-${id}-down` }
+  views.up.art = { id: `hero-${id}-up` }
+  views.side.art = { id: `hero-${id}-side`, mirrored: SIDE_DRAWN_FACING_RIGHT.has(id) }
+}
+for (const [subject, family] of Object.entries(MONSTER_FAMILY)) {
+  family.forEach((sprite, i) => (sprite.art = { id: `monster-${subject}-${i + 1}`, mirrored: true }))
+}
+for (const [subject, sprite] of Object.entries(BOSS_SPRITE)) {
+  sprite.art = { id: `boss-${subject}`, mirrored: true }
+}
+for (const [habitat, family] of Object.entries(HABITAT_FAMILY)) {
+  family.forEach((sprite, i) => (sprite.art = { id: `habitat-${habitat}-${i + 1}`, mirrored: true }))
+}
+
+/** Sprite hợp với hướng đang đi. Hướng phải dùng lại hình nghiêng, lật gương. */
 export function viewFor(
   creature: HeroCreatureId,
   direction: 'up' | 'down' | 'left' | 'right',
@@ -1363,5 +1400,7 @@ export function viewFor(
   const views = CREATURE_VIEWS[creature]
   if (direction === 'up') return { sprite: views.up, flip: false }
   if (direction === 'down') return { sprite: views.down, flip: false }
-  return { sprite: views.side, flip: direction === 'left' }
+  // Hình nghiêng vẽ quay mặt sang TRÁI (cả lưới điểm ảnh lẫn hình vẽ tay), nên
+  // đi sang phải mới phải lật.
+  return { sprite: views.side, flip: direction === 'right' }
 }

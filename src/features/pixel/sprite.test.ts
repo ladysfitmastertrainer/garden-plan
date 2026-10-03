@@ -120,12 +120,12 @@ describe('viewFor', () => {
     expect(viewFor('fox', 'right').sprite).toBe(CREATURE_VIEWS.fox.side)
   })
 
-  it('đi sang trái dùng lại hình nghiêng nhưng lật gương', () => {
+  it('hình nghiêng quay mặt sang trái, nên đi sang phải mới lật gương', () => {
     const left = viewFor('panda', 'left')
     const right = viewFor('panda', 'right')
     expect(left.sprite).toBe(right.sprite)
-    expect(left.flip).toBe(true)
-    expect(right.flip).toBe(false)
+    expect(left.flip).toBe(false)
+    expect(right.flip).toBe(true)
   })
 })
 

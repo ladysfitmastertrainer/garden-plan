@@ -382,7 +382,7 @@ export function PixelBattle({
       {activePet ? (
         <Combatant
           key={activePet.pet.id}
-          sprite={petSpriteFor(activePet.pet.sprite, activePet.pet.element)}
+          sprite={petSpriteFor(activePet.pet)}
           scene={scene}
           style={{ left: '9%', bottom: '12%' }}
           attacking={live === 'hero-attacks'}

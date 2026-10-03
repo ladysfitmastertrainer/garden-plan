@@ -691,7 +691,7 @@ function SubjectMap({
   // mới - hai cái cộng lại là con thú vẽ lại canvas ở mọi lần render.
   const follower = useMemo(
     () =>
-      leader ? { sprite: petSpriteFor(leader.sprite, leader.element) } : null,
+      leader ? { sprite: petSpriteFor(leader) } : null,
     [leader?.sprite, leader?.element],
   )
 

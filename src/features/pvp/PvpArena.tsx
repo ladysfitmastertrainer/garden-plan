@@ -172,7 +172,7 @@ export function PvpArena({
       {/* Bên kia: trên - phải, sprite nhỏ hơn cho cảm giác ở xa. */}
       {foePet && (
         <Combatant
-          sprite={petSpriteFor(foePet.sprite, foePet.element)}
+          sprite={petSpriteFor(foePet)}
           scene={scene}
           flip
           style={{ right: '12%', top: '14%' }}
@@ -213,7 +213,7 @@ export function PvpArena({
       {/* Bên mình: dưới - trái, sprite to hơn cho cảm giác ở gần. */}
       {myPet && (
         <Combatant
-          sprite={petSpriteFor(myPet.sprite, myPet.element)}
+          sprite={petSpriteFor(myPet)}
           scene={scene}
           style={{ left: '9%', bottom: '12%' }}
           attacking={iHit}

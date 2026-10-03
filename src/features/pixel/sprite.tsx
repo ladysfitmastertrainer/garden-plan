@@ -11,12 +11,56 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { ART_MANIFEST } from '../art/manifest'
 
 export interface Sprite {
   /** Ký tự '.' luôn là trong suốt. */
   palette: Record<string, string>
   /** Mỗi chuỗi là một hàng điểm ảnh; mọi hàng phải dài bằng nhau. */
   rows: string[]
+  /**
+   * Hình vẽ tay thay cho lưới điểm ảnh, nếu đã có - xem `SpriteArt`.
+   *
+   * Gắn THẲNG vào sprite chứ không bắt từng màn hình tự tra, vì có hơn sáu mươi
+   * chỗ vẽ nhân vật trong app: chỗ nào đang cầm sprite của con quái thì tự
+   * nhận luôn hình mới của nó, không chỗ nào phải sửa.
+   */
+  art?: SpriteArt
+}
+
+/**
+ * Hình vẽ tay của một sprite: một file trong `public/art`.
+ *
+ * Chưa có file (chưa có trong `ART_MANIFEST`) thì sprite vẽ bằng lưới điểm ảnh
+ * như cũ - nên bộ hình mới gắn vào được dần từng tờ, không tờ nào phải chờ.
+ */
+export interface SpriteArt {
+  /** Tên file trong `public/art`, không có đuôi. */
+  id: string
+  /** Bộ lọc CSS: tô màu nhân vật của trẻ, hoá đá trùm trong tháp, bóng đen thú chưa gặp. */
+  filter?: string
+  /**
+   * Cỡ so với khung, 0..1. Con thú nấc 1 phải bé hơn nấc 4 dù hai hình cùng
+   * được cắt sát mép - không có cái này thì con non cũng to bằng con trưởng thành.
+   */
+  size?: number
+  /**
+   * Hình vẽ quay mặt NGƯỢC chiều lưới điểm ảnh. Lưới điểm ảnh của sinh vật quay
+   * sang phải (sân đấu lật con quái cho nó nhìn về phía thú của trẻ), còn quái
+   * trên tờ hình Gemini được vẽ quay sang trái - đúng chỗ nó đứng trong trận.
+   * Đánh dấu ở đây thì PixelSprite lật bù lại, không màn hình nào phải biết.
+   */
+  mirrored?: boolean
+  /**
+   * Màu NHÂN lên hình (multiply): trắng thành màu này, đen vẫn đen. Dành cho thân
+   * trắng như gấu trúc, nơi bộ lọc xoay màu không có màu nào để xoay.
+   */
+  multiply?: string
+}
+
+/** Hình vẽ tay của sprite này, nếu file đã có. */
+export function artOf(sprite: Sprite): SpriteArt | null {
+  return sprite.art && ART_MANIFEST[sprite.art.id] ? sprite.art : null
 }
 
 export function spriteSize(sprite: Sprite): { width: number; height: number } {
@@ -80,10 +124,77 @@ export function PixelSprite({
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const { width, height } = spriteSize(sprite)
+  const art = artOf(sprite)
 
   useEffect(() => {
     if (ref.current) paint(ref.current, sprite)
   }, [sprite])
+
+  if (art) {
+    /*
+      Khung giữ ĐÚNG cỡ của sprite pixel, để bố cục quanh nó không xê dịch dù
+      con này đã có hình mới còn con bên cạnh thì chưa. Hình đặt sát đáy khung
+      cho chân nhân vật đứng đúng chỗ chân sprite cũ vẫn đứng.
+    */
+    const meta = ART_MANIFEST[art.id]!
+    const size = art.size ?? 1
+    return (
+      <span
+        className={className}
+        style={{
+          position: 'relative',
+          display: 'inline-flex',
+          alignItems: 'flex-end',
+          justifyContent: 'center',
+          width: width * scale,
+          height: height * scale,
+          transform: flip !== !!art.mirrored ? 'scaleX(-1)' : undefined,
+          ...style,
+        }}
+        aria-hidden="true"
+      >
+        {art.multiply && (
+          <span
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: `${((1 - size) / 2) * 100}%`,
+              width: `${size * 100}%`,
+              height: `${size * 100}%`,
+              background: art.multiply,
+              mixBlendMode: 'multiply',
+              WebkitMaskImage: `url(/art/${art.id}.webp)`,
+              maskImage: `url(/art/${art.id}.webp)`,
+              WebkitMaskSize: 'contain',
+              maskSize: 'contain',
+              WebkitMaskPosition: 'bottom',
+              maskPosition: 'bottom',
+              WebkitMaskRepeat: 'no-repeat',
+              maskRepeat: 'no-repeat',
+              zIndex: 1,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+        <img
+          src={`/art/${art.id}.webp`}
+          alt=""
+          width={meta.w}
+          height={meta.h}
+          draggable={false}
+          decoding="async"
+          style={{
+            width: `${size * 100}%`,
+            height: `${size * 100}%`,
+            objectFit: 'contain',
+            objectPosition: 'bottom',
+            filter: art.filter,
+            pointerEvents: 'none',
+          }}
+        />
+      </span>
+    )
+  }
 
   return (
     <canvas

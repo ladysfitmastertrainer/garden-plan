@@ -18,3 +18,6 @@ next-env.d.ts
 
 # Sách giáo khoa gốc - nặng ~185MB, chỉ dùng để soạn nội dung, không phải mã nguồn.
 *.pdf
+
+# Ảnh gốc Gemini vẽ - nặng, chỉ để cắt ra public/art bằng `npm run art`.
+art-src/

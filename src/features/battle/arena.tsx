@@ -194,10 +194,14 @@ export function Combatant({
         {hit && !reduceMotion && (
           <motion.div
             className="absolute inset-0"
-            style={{ opacity: 0.4, mixBlendMode: 'screen' }}
-            initial={{ x: 0 }}
+            style={{ mixBlendMode: 'screen' }}
+            initial={{ x: 0, opacity: 0 }}
+            // Tắt hẳn ở nhịp cuối. Bóng này còn nằm trên sân suốt tới lượt sau
+            // (`hit` giữ nguyên tới câu trả lời kế tiếp), và để nó ở 0,4 thì
+            // con vừa trúng đòn cứ mang một lớp hình chồng mờ đứng chờ cả lượt.
             animate={{
               x: [0, -direction * 12, direction * 10, -direction * 7, direction * 5, -direction * 3, 0],
+              opacity: [0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0],
             }}
             transition={{ duration: 0.38, delay: 0.3, ease: 'linear' }}
             aria-hidden="true"

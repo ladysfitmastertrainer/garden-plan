@@ -566,3 +566,161 @@ ART STYLE: polished 2D vector cartoon for a modern mobile monster-collecting gam
 
 IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 characters standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Characters must never touch or overlap, and no tail, wing, horn or effect may reach into a neighbour's column. Every character is fully visible and never cut off by the image edge. Every character is drawn in three-quarter view, body and face turned toward the LEFT side of the image. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image.
 ```
+
+## Nền trận đấu (9 tấm)
+
+Mỗi tấm là MỘT ảnh nền nguyên vẹn, không cắt gì cả. Cách làm như trên, chỉ khác:
+
+- **Ảnh mẫu đính kèm:** một tờ quái đẹp nhất đã làm (ví dụ `art-src/habitat-sea.png`), để
+  nền cùng nét viền và cách tô màu với nhân vật. Prompt đã dặn chỉ học nét vẽ, không vẽ con nào.
+- **Duyệt ảnh - một tấm đạt khi:**
+  - Không có con vật, người hay chữ nào.
+  - Góc dưới bên trái và khoảng giữa bên phải (ngay dưới đường chân trời) để trống, chỉ có
+    mặt đất trơn - đó là chỗ thú của trẻ và con quái đứng.
+  - Đường chân trời nằm khoảng giữa ảnh.
+  - Màu dịu hơn nhân vật một chút; nền chói quá thì bảo Gemini "make the colors softer".
+- Tải về, đổi tên đúng dòng "Tên file", bỏ vào `art-src/` như các tờ khác rồi báo tôi.
+
+### 27. Nền - Môn Toán - Thung lũng Con Số
+
+**Tên file:** `scene-math.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: A high rocky valley: rounded grey-beige stone terraces stacked like big stair steps on both sides, short dry yellow-green grass, a few smooth round boulders shaped like cubes, spheres and pyramids. Far away, layered pale blue mountains. Sky: clear light blue with two or three puffy white clouds.
+
+Palette: light blue sky, fresh green grass, warm grey stone, sandy yellow.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```
+
+### 28. Nền - Môn Tiếng Việt - Rừng Ngôn Từ
+
+**Tên file:** `scene-vietnamese.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: An old, deep, friendly forest: thick tree trunks with big roots on the left and right edges, a dense canopy of leaves closing overhead, soft sunbeams falling in stripes through gaps in the leaves, ferns curled like paper scrolls, a few floating leaves. Through the gap in the middle, a glimpse of soft pink sky.
+
+Palette: soft pink sky, leafy greens, warm brown bark, golden sunbeams.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```
+
+### 29. Nền - Môn Đạo đức - Đồi Ánh Sáng
+
+**Tên file:** `scene-ethics.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: Gentle rolling green hills by the sea in warm morning light: a small white lighthouse on a far hill, a calm blue sea strip on the horizon, little wildflowers and round bushes along the edges, soft rays of light from a rising sun behind the clouds.
+
+Palette: pale sky blue, fresh mint green, warm sunlight yellow, white.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```
+
+### 30. Nền - Môn Âm nhạc - Đảo Thanh Âm
+
+**Tên file:** `scene-music.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: A small tropical sand island: turquoise sea around it, gentle wavy lines in the sand like ripples, palm trees on the edges, giant seashells shaped like a horn and a drum lying on the beach, a few little bubbles floating up like notes (round bubbles only, no music symbols).
+
+Palette: lavender sky, turquoise water, warm sand, coral pink.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```
+
+### 31. Nền - Nơi chốn - Bãi Đảo Nước Nông
+
+**Tên file:** `scene-sea.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: A shallow lagoon: clear light-blue water with gentle ripples, the two empty standing areas are flat pale sandbars just above the water, a few rocks, starfish and seaweed along the edges, small islands with palm trees on the horizon.
+
+Palette: bright sky blue, clear aqua water, pale sand, coral and seaweed green.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```
+
+### 32. Nền - Nơi chốn - Hang Đá Vọng
+
+**Tên file:** `scene-cave.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: Inside a big friendly cave: rounded rock walls on the left and right, stalactites hanging from the top edge, clusters of glowing purple and teal crystals lighting the walls, a small underground pool far in the back. The cave floor is smooth flat stone. Dim but cozy, never dark or creepy.
+
+Palette: deep purple-grey rock, glowing teal and violet crystals, warm stone floor.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```
+
+### 33. Nền - Nơi chốn - Tán Cây Cổ Thụ
+
+**Tên file:** `scene-forest.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: High up in the treetops of a giant ancient tree: the ground is a wide flat wooden plank deck, rope railings and big branches along the edges, huge round clusters of leaves all around, a rope bridge leading away in the far background, bright light-green sky peeking through the leaves.
+
+Palette: light leaf green, deep foliage green, warm wood brown, soft yellow light.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```
+
+### 34. Nền - Nơi chốn - Miệng Núi Lửa
+
+**Tên file:** `scene-lava.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: Inside the rim of a cartoon volcano crater: the ground is flat dark grey ash rock, small streams of glowing orange lava far in the background and along the edges, rounded black rocks, puffs of soft grey smoke rising into a warm red-orange sky. Exciting but friendly, like a theme-park volcano, never scary.
+
+Palette: charcoal grey, molten orange, warm red sky, yellow glow.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```
+
+### 35. Nền - Nơi chốn - Biển Sâu
+
+**Tên file:** `scene-deep.png`
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT draw any of its characters.
+
+Background scenery for a battle screen: The open deep sea far from shore under a cloudy sky: big rounded waves, the two empty standing areas are wide flat-topped grey rocks rising out of the water, sea spray along the edges, an old wooden shipwreck mast far away on the horizon. Adventurous, with a light grey-blue sky, never dark or frightening.
+
+Palette: grey-blue sky, deep navy and teal sea, seafoam white, grey rock.
+
+ART STYLE: polished 2D vector cartoon background for a modern mobile monster-collecting game, made for children aged 6-10. Same line work as the attached image: thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Shapes are big, simple and rounded. Colors are bright and friendly but a little SOFTER and less saturated than the characters, so the creatures that will stand here pop out clearly in front of it. Cheerful and safe, never scary or gloomy.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from a slightly raised side view, like the battle screen of a classic monster-collecting game. The horizon line sits at about 45% of the image height: sky and far scenery above it, ground below it. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. Put no objects, plants, rocks, puddles or patterns in those two areas - only plain ground color. All decoration goes along the left and right edges, in the far background and in the sky. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, signs, labels, frame, border or signature anywhere in the image.
+```

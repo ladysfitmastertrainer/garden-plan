@@ -203,14 +203,115 @@ function pebble(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number
   stroke(ctx, 2.5, line)
 }
 
-function grassDetail(dark: string) {
+function grassDetail(dark: string, light = '#ffffff') {
   return (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     const px = x * T
     const py = y * T
     if (rand(x, y, 1) < 0.55) tuft(ctx, px + T * (0.2 + rand(x, y, 2) * 0.6), py + T * (0.35 + rand(x, y, 3) * 0.5), 5, dark)
-    if (rand(x, y, 4) < 0.2) tuft(ctx, px + T * (0.2 + rand(x, y, 5) * 0.6), py + T * (0.3 + rand(x, y, 6) * 0.5), 4, dark)
+    if (rand(x, y, 4) < 0.3) tuft(ctx, px + T * (0.2 + rand(x, y, 5) * 0.6), py + T * (0.3 + rand(x, y, 6) * 0.5), 4, dark)
+    // Cỏ ba lá: ba chấm sẫm sát nhau.
+    if (rand(x, y, 7) < 0.14) {
+      const cx = px + T * (0.2 + rand(x, y, 8) * 0.6)
+      const cy = py + T * (0.25 + rand(x, y, 9) * 0.6)
+      ctx.fillStyle = dark
+      for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3.5]] as const) {
+        ctx.beginPath()
+        ctx.arc(cx + dx, cy + dy, 2.6, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+    // Hoa dại li ti: bốn cánh trắng, nhuỵ vàng.
+    if (rand(x, y, 10) < 0.08) {
+      const cx = px + T * (0.2 + rand(x, y, 11) * 0.6)
+      const cy = py + T * (0.25 + rand(x, y, 12) * 0.6)
+      ctx.fillStyle = light
+      for (const [dx, dy] of [[-2.5, 0], [2.5, 0], [0, -2.5], [0, 2.5]] as const) {
+        ctx.beginPath()
+        ctx.arc(cx + dx, cy + dy, 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.fillStyle = '#ffd23f'
+      ctx.beginPath()
+      ctx.arc(cx, cy, 1.6, 0, Math.PI * 2)
+      ctx.fill()
+    }
   }
 }
+
+/**
+ * MẶT ĐẤT CÓ CHẤT: loang màu và bóng viền, vẽ trong lòng một mảng.
+ *
+ * Loang: mỗi ô vài vệt đậm nhạt mờ, đặt ngẫu nhiên - mặt đất thật không bao giờ
+ * một màu đều tăm tắp, và chính cái đều ấy là thứ làm bản đồ trông "phẳng".
+ *
+ * Bóng viền: dải mờ chạy sát mép trong của mảng. Mảng LÕM (đường đất, đất trũng,
+ * nền hang, nước nông) tối ở mép trên - bờ phía trên che nắng xuống; mảng NỔI
+ * thì sáng ở mép trên, như ánh nắng chiếu vào bờ. Chỉ tô ở mép giáp mảng khác,
+ * nên giữa hai ô cùng mảng không lộ đường nối.
+ */
+function texture(
+  ctx: CanvasRenderingContext2D,
+  path: Path2D,
+  inside: (x: number, y: number) => boolean,
+  w: number,
+  h: number,
+  fill: string,
+  recessed: boolean,
+): void {
+  ctx.save()
+  ctx.clip(path)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!inside(x, y)) continue
+      for (let i = 0; i < 2; i++) {
+        ctx.globalAlpha = 0.14
+        ctx.fillStyle = rand(x, y, 200 + i) < 0.5 ? shade(fill, -0.14) : shade(fill, 0.14)
+        ctx.beginPath()
+        ctx.ellipse(
+          x * T + T * rand(x, y, 210 + i),
+          y * T + T * rand(x, y, 220 + i),
+          T * (0.22 + rand(x, y, 230 + i) * 0.3),
+          T * (0.14 + rand(x, y, 240 + i) * 0.16),
+          rand(x, y, 250 + i) * Math.PI,
+          0,
+          Math.PI * 2,
+        )
+        ctx.fill()
+      }
+    }
+  }
+  ctx.globalAlpha = 1
+  const rim = T * 0.22
+  const dark = 'rgba(30, 20, 10, 0.24)'
+  const light = 'rgba(255, 250, 225, 0.32)'
+  const at = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && inside(x, y)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!inside(x, y)) continue
+      const px = x * T
+      const py = y * T
+      const edges: Array<[boolean, number, number, number, number, string]> = [
+        // [lộ ra?, x0, y0, x1, y1 của gradient, màu ở mép]
+        [!at(x, y - 1), px, py, px, py + rim, recessed ? dark : light],
+        [!at(x - 1, y), px, py, px + rim, py, recessed ? dark : light],
+        [!at(x, y + 1), px, py + T, px, py + T - rim, recessed ? light : dark],
+        [!at(x + 1, y), px + T, py, px + T - rim, py, recessed ? light : dark],
+      ]
+      for (const [open, x0, y0, x1, y1, color] of edges) {
+        if (!open) continue
+        const g = ctx.createLinearGradient(x0, y0, x1, y1)
+        g.addColorStop(0, color)
+        g.addColorStop(1, 'rgba(0, 0, 0, 0)')
+        ctx.fillStyle = g
+        ctx.fillRect(px, py, T, T)
+      }
+    }
+  }
+  ctx.restore()
+}
+
+/** Mảng LÕM xuống so với đất xung quanh - xem `texture`. */
+const RECESSED = new Set<TileKind>(['path', 'shoal', 'lava', 'hollow', 'caveFloor', 'ash'])
 
 function speckle(color: string, chance: number, size: number, salt: number) {
   return (ctx: CanvasRenderingContext2D, x: number, y: number) => {
@@ -224,7 +325,7 @@ function speckle(color: string, chance: number, size: number, salt: number) {
   }
 }
 
-function floorStyles(c: TerrainColors): Record<Surface, FloorStyle> {
+function floorStyles(c: TerrainColors, sameAs: (x: number, y: number, dx: number, dy: number) => boolean = () => true): Record<Surface, FloorStyle> {
   const highland = shade(c.grass, 0.18)
   const hollow = shade(c.grass, -0.18)
   return {
@@ -283,6 +384,18 @@ function floorStyles(c: TerrainColors): Record<Surface, FloorStyle> {
       detail: (ctx, x, y) => {
         if (rand(x, y, 13) < 0.3) pebble(ctx, x * T + T * (0.2 + rand(x, y, 14) * 0.6), y * T + T * (0.2 + rand(x, y, 15) * 0.6), 4, c.pathDark, edgeOf(c.path))
         speckle(c.pathDark, 0.35, 2, 50)(ctx, x, y)
+        // Sỏi viền: một hàng đá nhỏ chạy dọc mép đường, ở phía giáp cỏ.
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+          if (sameAs(x, y, dx, dy)) continue
+          for (let i = 0; i < 3; i++) {
+            if (rand(x, y, 300 + i + dx * 7 + dy * 13) < 0.35) continue
+            const along = 0.18 + i * 0.32 + (rand(x, y, 310 + i) - 0.5) * 0.12
+            const inset = 0.13
+            const sx = dx === 0 ? along : dx < 0 ? inset : 1 - inset
+            const sy = dy === 0 ? along : dy < 0 ? inset : 1 - inset
+            pebble(ctx, x * T + T * sx, y * T + T * sy, 3 + rand(x, y, 320 + i) * 2, mix(c.pathDark, '#ffffff', 0.25), edgeOf(c.path))
+          }
+        }
       },
     },
     ash: {
@@ -360,10 +473,17 @@ function shadow(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: numbe
   ctx.fill()
 }
 
+/**
+ * Cây - BA LOẠI, chọn theo vị trí: tán tròn (phần lớn), cây thông, cây ăn quả.
+ * Một hàng cây giống hệt nhau là thứ đầu tiên làm bản đồ trông như dán tem.
+ */
 function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, c: TerrainColors): void {
+  const kind = rand(x, y, 95)
+  if (kind > 0.66 && kind <= 0.9) return drawPine(ctx, x, y, c)
   const cx = x * T + T / 2 + (rand(x, y, 90) - 0.5) * 6
   const by = y * T + T * 0.92
-  shadow(ctx, cx, by, T * 0.36)
+  // Bóng đổ lệch về phía phải - nắng xiên từ góc trên bên trái.
+  shadow(ctx, cx + T * 0.08, by, T * 0.4)
   // Thân
   ctx.beginPath()
   ctx.moveTo(cx - 7, by)
@@ -403,7 +523,70 @@ function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, c: Terrai
   ctx.beginPath()
   ctx.arc(cx - r * 0.3, top - r * 0.45, r * 0.18, 0, Math.PI * 2)
   ctx.fill()
+  // Vài nét lá trong tán, cho tán có lớp lang chứ không phải một mảng bột.
+  ctx.strokeStyle = mix(c.treeLeafDark, INK, 0.35)
+  ctx.lineWidth = 2.5
+  ctx.lineCap = 'round'
+  for (let i = 0; i < 3; i++) {
+    const lx = cx + (rand(x, y, 400 + i) - 0.5) * r * 1.4
+    const ly = top + (rand(x, y, 410 + i) - 0.3) * r * 0.9
+    ctx.beginPath()
+    ctx.arc(lx, ly, r * 0.22, Math.PI * 0.15, Math.PI * 0.85)
+    ctx.stroke()
+  }
   ctx.restore()
+  // Cây ăn quả: mấy quả đỏ tròn trên tán.
+  if (kind > 0.9) {
+    for (let i = 0; i < 4; i++) {
+      const fx = cx + (rand(x, y, 420 + i) - 0.5) * r * 1.5
+      const fy = top + (rand(x, y, 430 + i) - 0.35) * r * 1.1
+      ctx.beginPath()
+      ctx.arc(fx, fy, 4, 0, Math.PI * 2)
+      ctx.fillStyle = c.flower
+      ctx.fill()
+      stroke(ctx, 2)
+    }
+  }
+}
+
+/** Cây thông: ba tầng tán nhọn chồng lên nhau, gốc thấp. */
+function drawPine(ctx: CanvasRenderingContext2D, x: number, y: number, c: TerrainColors): void {
+  const cx = x * T + T / 2 + (rand(x, y, 90) - 0.5) * 6
+  const by = y * T + T * 0.92
+  shadow(ctx, cx + T * 0.08, by, T * 0.32)
+  ctx.beginPath()
+  ctx.rect(cx - 5, by - T * 0.22, 10, T * 0.22)
+  ctx.fillStyle = c.trunk
+  ctx.fill()
+  stroke(ctx, 3.5)
+  const tiers: Array<[number, number, number]> = [
+    // [đáy tầng, bề ngang nửa, chiều cao]
+    [by - T * 0.18, T * 0.42, T * 0.42],
+    [by - T * 0.42, T * 0.34, T * 0.38],
+    [by - T * 0.66, T * 0.24, T * 0.36],
+  ]
+  for (const [base, half, height] of tiers) {
+    const tier = new Path2D()
+    tier.moveTo(cx - half, base)
+    tier.quadraticCurveTo(cx - half * 0.2, base - height * 0.55, cx, base - height)
+    tier.quadraticCurveTo(cx + half * 0.2, base - height * 0.55, cx + half, base)
+    tier.quadraticCurveTo(cx, base + 6, cx - half, base)
+    ctx.fillStyle = c.treeLeafDark
+    ctx.fill(tier)
+    ctx.save()
+    ctx.clip(tier)
+    ctx.fillStyle = c.treeLeaf
+    ctx.beginPath()
+    ctx.ellipse(cx - half * 0.35, base - height * 0.35, half * 0.6, height * 0.5, -0.3, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+    ctx.save()
+    ctx.lineWidth = 3.5
+    ctx.strokeStyle = INK
+    ctx.lineJoin = 'round'
+    ctx.stroke(tier)
+    ctx.restore()
+  }
 }
 
 function drawRock(ctx: CanvasRenderingContext2D, x: number, y: number, c: TerrainColors): void {
@@ -427,6 +610,18 @@ function drawRock(ctx: CanvasRenderingContext2D, x: number, y: number, c: Terrai
   ctx.beginPath()
   ctx.ellipse(cx - T * 0.12, by - T * 0.36, T * 0.12, T * 0.06, -0.3, 0, Math.PI * 2)
   ctx.fill()
+  // Rêu phủ đỉnh một số tảng, và một vết nứt.
+  if (rand(x, y, 500) < 0.45) {
+    ctx.fillStyle = c.grassDark
+    ctx.beginPath()
+    ctx.ellipse(cx + T * 0.04, by - T * 0.47, T * 0.2, T * 0.08, 0.1, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.beginPath()
+  ctx.moveTo(cx + T * 0.1, by - T * 0.3)
+  ctx.lineTo(cx + T * 0.16, by - T * 0.18)
+  ctx.lineTo(cx + T * 0.12, by - T * 0.08)
+  stroke(ctx, 2, c.stoneDark)
   ctx.restore()
   ctx.save()
   ctx.lineWidth = 3.5
@@ -777,14 +972,27 @@ function wallFaces(
       const py = y * T + T - face
       ctx.fillStyle = colors.face
       ctx.fillRect(px - 0.5, py, T + 1, face)
+      // Mặt vách xếp thành HAI HÀNG ĐÁ so le, như tường đá thật - thay cho mấy
+      // vết nứt dọc trông như vạch kẻ.
+      const course = face / 2
+      ctx.strokeStyle = colors.crack
+      ctx.lineWidth = 2.5
+      ctx.lineJoin = 'round'
+      for (let row = 0; row < 2; row++) {
+        const top = py + row * course
+        const offset = (row + x) % 2 ? T * 0.5 : T * 0.25
+        for (let sx = px - T + offset; sx < px + T; sx += T * 0.5) {
+          const left = Math.max(px, sx + 1.5)
+          const right = Math.min(px + T, sx + T * 0.5 - 1.5)
+          if (right - left < 6) continue
+          ctx.beginPath()
+          ctx.roundRect(left, top + 1.5, right - left, course - 3, 4)
+          ctx.stroke()
+        }
+      }
       ctx.beginPath()
       ctx.moveTo(px - 0.5, py)
       ctx.lineTo(px + T + 0.5, py)
-      for (const f of [0.22, 0.55, 0.8]) {
-        const cx = px + T * f + (rand(x, y, f * 10) - 0.5) * 6
-        ctx.moveTo(cx, py + 6)
-        ctx.lineTo(cx + 2, py + face - 6)
-      }
       stroke(ctx, 3, colors.crack)
     }
   }
@@ -826,7 +1034,10 @@ export function paintMapArt(ctx: CanvasRenderingContext2D, tiles: Grid, colors: 
   const h = tiles.length
   const w = tiles[0]?.length ?? 0
   const surface = surfaceGrid(tiles, ground)
-  const styles = floorStyles(colors)
+  const styles = floorStyles(colors, (x, y, dx, dy) => {
+    const n = surface[y + dy]?.[x + dx]
+    return n === undefined || n === surface[y]![x]
+  })
   const base: Surface = (SURFACE_SET.has(ground) ? ground : 'grass') as Surface
 
   ctx.clearRect(0, 0, w * T, h * T)
@@ -860,6 +1071,8 @@ export function paintMapArt(ctx: CanvasRenderingContext2D, tiles: Grid, colors: 
     outline(ctx, path, line, LINE)
     ctx.fillStyle = style.fill
     ctx.fill(path)
+    const kind = detailOf ?? (Object.keys(styles) as Surface[]).find((k) => styles[k] === style) ?? null
+    texture(ctx, path, inside, w, h, style.fill, kind !== null && RECESSED.has(kind))
     const detail = detailOf ? styles[detailOf].detail : style.detail
     if (detail) {
       ctx.save()
@@ -886,6 +1099,23 @@ export function paintMapArt(ctx: CanvasRenderingContext2D, tiles: Grid, colors: 
   // 3. ĐẤT LIỀN: mọi thứ không phải nước hay nham thạch, tô màu mặt đất chính.
   // Nổi lên trên nước với một bờ tối - nên bờ biển, bờ hồ tự hiện ra.
   const hasLow = surface.some((row) => row.some((k) => LOW.has(k)))
+  /*
+    BỌT SÓNG quanh bờ: hai lớp viền sáng loang ra mặt nước từ mép đất liền, vẽ
+    TRƯỚC khi đất liền đè lên - nên nó chỉ lộ ra ở phía nước. Cắt theo đúng các ô
+    nước, để quanh vũng nham thạch không mọc bọt trắng.
+  */
+  if (present('water') || present('shoal')) {
+    const land = regionPath(w, h, (x, y) => !LOW.has(surface[y]![x]!), T * 0.32)
+    const wet = new Path2D()
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++)
+        if (surface[y]![x] === 'water' || surface[y]![x] === 'shoal') wet.rect(x * T - 0.5, y * T - 0.5, T + 1, T + 1)
+    ctx.save()
+    ctx.clip(wet)
+    outline(ctx, land, mix(colors.water, '#ffffff', 0.35), 16, 6)
+    outline(ctx, land, colors.waterLight, 9, 6)
+    ctx.restore()
+  }
   paintLayer((x, y) => !LOW.has(surface[y]![x]!), { ...styles[base], lift: hasLow ? 8 : 0 }, base)
 
   // 4. Các mặt đất khác nằm trên đất liền.

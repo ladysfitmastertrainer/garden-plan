@@ -1,60 +1,49 @@
 /**
- * Màn hình đăng nhập.
+ * Màn hình đăng nhập - TỪNG BƯỚC, mỗi bước một màn hình.
  *
- * Hai lối vào tách bạch:
- *  - Người lớn (phụ huynh / giáo viên): email + mật khẩu.
- *  - Trẻ trên máy dùng chung ở lớp: mã lớp → chọn ảnh đại diện của mình → mã PIN.
+ *   Bước 0: ai đang vào? - hai lựa chọn lớn: Học sinh, hoặc Phụ huynh / Giáo viên.
+ *   Học sinh:  mã lớp → chọn mình trong danh sách lớp → mã bí mật 4 số.
+ *   Người lớn: email + mật khẩu (kèm đăng ký hai bước và quên mật khẩu).
+ *
+ * Bản trước đặt hai lối vào thành hai thẻ trên cùng một màn, và cả ba bước của
+ * trẻ nằm chung khung với hàng thẻ ấy. Trên điện thoại thì mọi thứ chen nhau
+ * trong một màn hình: cái lâu đài, hàng thẻ, ô nhập, nút - và trẻ không biết
+ * mình đang ở bước nào. Mỗi bước một màn, có nút quay lại và dấu "Bước 1/3",
+ * thì lúc nào cũng chỉ có ĐÚNG một việc trước mặt.
  *
  * Trẻ không bao giờ phải nhập email hay mật khẩu, và không gõ tên mình ra.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth, type RosterEntry, type SignUpRole } from '../../store/auth'
 import { PasswordInput } from '../../ui/PasswordInput'
 
-type Tab = 'child' | 'adult'
+type Who = 'child' | 'adult' | null
 
 export function AuthScreen() {
-  const [tab, setTab] = useState<Tab>('child')
+  const [who, setWho] = useState<Who>(null)
   const error = useAuth((s) => s.error)
   const notice = useAuth((s) => s.notice)
   const clearError = useAuth((s) => s.clearError)
 
-  /*
-    Màn đăng nhập VỪA ĐÚNG MỘT MÀN HÌNH, không phải một trang cuộn.
+  const choose = (next: Who) => {
+    clearError()
+    setWho(next)
+  }
 
-    Đây là màn hình đầu tiên của cả app, và trên điện thoại nó từng dài hơn máy:
-    ở 390×844 thì trang cao 910px, nên phải vuốt lên vuốt xuống mới bấm được nút
-    Đăng nhập. Ba cái tên lớp dưới đây - `auth-layout`, `auth-head`, `auth-tabs`
-    - là móc để `globals.css` chia lại chiều cao: phần đầu và hàng thẻ giữ
-    nguyên cỡ, chỉ KHUNG NHẬP được co và cuộn. Lý do đầy đủ nằm ở đó.
+  /*
+    Màn đăng nhập VỪA ĐÚNG MỘT MÀN HÌNH, không phải một trang cuộn - xem
+    `auth-layout` trong `globals.css`: phần đầu giữ nguyên cỡ, chỉ KHUNG NHẬP
+    được co và cuộn.
   */
   return (
     <div className="pixel-ui auth-layout mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-4 px-4 py-8">
+      {/* Màn chọn vai mới có cái lâu đài to: đó là màn chào. Các bước sau chỉ giữ
+          tên app cho nhỏ - chỗ ấy dành cho việc đang làm. */}
       <header className="auth-head text-center">
-        <p className="auth-crest text-6xl">🏰</p>
-        <h1 className="pixel-font text-4xl">HỌC VIỆN TRÍ TUỆ</h1>
+        {who === null && <p className="auth-crest text-6xl">🏰</p>}
+        <h1 className={`pixel-font ${who === null ? 'text-4xl' : 'text-2xl opacity-70'}`}>HỌC VIỆN TRÍ TUỆ</h1>
       </header>
-
-      <div className="auth-tabs flex gap-2">
-        {(['child', 'adult'] as Tab[]).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => {
-              clearError()
-              setTab(value)
-            }}
-            className="pixel-font flex-1 border-4 py-3 text-lg"
-            style={{
-              borderColor: tab === value ? 'var(--color-brand)' : 'transparent',
-              background: tab === value ? 'var(--color-brand-soft)' : 'var(--color-paper-sunk)',
-            }}
-          >
-            {value === 'child' ? '🎒 Học sinh' : '👨‍👩‍👧 Phụ huynh / Giáo viên'}
-          </button>
-        ))}
-      </div>
 
       {error && (
         <p
@@ -78,14 +67,68 @@ export function AuthScreen() {
         </p>
       )}
 
-      {tab === 'child' ? <ChildLogin /> : <AdultLogin />}
+      {who === null && <ChooseWho onChoose={choose} />}
+      {who === 'child' && <ChildLogin onBack={() => choose(null)} />}
+      {who === 'adult' && <AdultLogin onBack={() => choose(null)} />}
+    </div>
+  )
+}
+
+/**
+ * Thanh đầu mỗi bước: nút quay lại bên trái, "Bước x/y" bên phải.
+ *
+ * Nút quay lại luôn ở ĐÚNG một chỗ ở mọi bước, nên ngón tay quen chỗ ấy sau một
+ * lần bấm. Và nó là một nút thật, to cỡ ngón tay, chứ không phải dòng chữ gạch
+ * chân ở cuối khung như bản trước - thứ trẻ bảy tuổi không nhận ra là bấm được.
+ */
+function StepBar({ onBack, step, total, label }: { onBack: () => void; step?: number; total?: number; label?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <button type="button" onClick={onBack} className="btn btn-ghost px-4 text-lg" style={{ minHeight: 44 }}>
+        ← Quay lại
+      </button>
+      <span className="pixel-font text-right text-base leading-tight opacity-70">
+        {label ?? (step && total ? `Bước ${step}/${total}` : '')}
+      </span>
+    </div>
+  )
+}
+
+// --- Bước 0: chọn vai -------------------------------------------------------------
+
+function ChooseWho({ onChoose }: { onChoose: (who: Who) => void }) {
+  return (
+    <div className="pixel-panel grid gap-4">
+      <p className="text-center text-xl font-extrabold">Ai đang vào học thế?</p>
+      {(
+        [
+          { who: 'child', icon: '🎒', title: 'Học sinh', hint: 'Vào bằng mã lớp thầy cô cho' },
+          { who: 'adult', icon: '👨‍👩‍👧', title: 'Phụ huynh / Giáo viên', hint: 'Vào bằng email và mật khẩu' },
+        ] as const
+      ).map((option) => (
+        <button
+          key={option.who}
+          type="button"
+          onClick={() => onChoose(option.who)}
+          className="flex items-center gap-4 rounded-2xl border-4 p-5 text-left"
+          style={{ borderColor: 'var(--color-brand)', background: 'var(--color-brand-soft)' }}
+        >
+          <span className="text-5xl leading-none" aria-hidden="true">
+            {option.icon}
+          </span>
+          <span className="grid gap-1">
+            <span className="pixel-font text-2xl leading-tight">{option.title}</span>
+            <span className="text-base opacity-70">{option.hint}</span>
+          </span>
+        </button>
+      ))}
     </div>
   )
 }
 
 // --- Lối vào của trẻ -----------------------------------------------------------
 
-function ChildLogin() {
+function ChildLogin({ onBack }: { onBack: () => void }) {
   const loadRoster = useAuth((s) => s.loadRoster)
   const claimStudent = useAuth((s) => s.claimStudent)
   const busy = useAuth((s) => s.busy)
@@ -94,77 +137,85 @@ function ChildLogin() {
   const [roster, setRoster] = useState<RosterEntry[] | null>(null)
   const [picked, setPicked] = useState<RosterEntry | null>(null)
   const [pin, setPin] = useState('')
+  const pinRef = useRef<HTMLInputElement>(null)
 
-  // Bước 3: nhập mã PIN
+  /*
+    Đủ bốn số là VÀO LUÔN, không bắt bấm thêm nút.
+
+    Sai mã thì xoá trắng để gõ lại từ đầu - giữ lại ba số đúng một số sai thì trẻ
+    không biết số nào sai, chỉ biết xoá từng số một.
+  */
+  useEffect(() => {
+    if (!picked || pin.length !== 4 || busy) return
+    void claimStudent(picked.studentId, pin).then(() => {
+      setPin('')
+      pinRef.current?.focus()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin, picked])
+
+  // Bước 3: nhập mã bí mật
   if (picked) {
     return (
       <div className="pixel-panel grid gap-5 text-center">
+        <StepBar
+          step={3}
+          total={3}
+          onBack={() => {
+            setPicked(null)
+            setPin('')
+          }}
+        />
         <div>
           <p className="text-6xl">{picked.avatar}</p>
           <p className="text-2xl font-extrabold">{picked.name}</p>
         </div>
 
-        <div>
-          <p className="mb-2 font-bold">Nhập mã bí mật 4 số của con</p>
-          <div className="flex justify-center gap-2">
+        {/*
+          Ô nhập THẬT, không phải bàn phím vẽ trên màn hình.
+
+          Bản trước tự vẽ một bàn phím số 0-9 chiếm nửa màn hình. Trên điện
+          thoại cái đó thừa hẳn: máy vốn đã có bàn phím, và `inputMode="numeric"`
+          gọi đúng bàn phím số của máy ra - to, quen tay. Trên máy tính thì gõ
+          phím số luôn.
+
+          Bốn ô tròn vẫn giữ để trẻ thấy mình đã gõ mấy số: ô nhập thật nằm
+          trong suốt ĐÈ LÊN bốn ô ấy, nên chạm vào đâu trong dải ô cũng là chạm
+          vào ô nhập, và bàn phím bật lên.
+        */}
+        <label className="grid justify-items-center gap-2">
+          <span className="font-bold">Nhập mã bí mật 4 số của con</span>
+          <span className="relative flex justify-center gap-2">
             {[0, 1, 2, 3].map((index) => (
               <span
                 key={index}
-                className="flex h-16 w-14 items-center justify-center rounded-2xl border-4 text-3xl font-extrabold"
+                className="flex h-16 w-14 items-center justify-center rounded-2xl border-4 bg-white text-3xl font-extrabold"
                 style={{
                   borderColor:
                     pin.length === index ? 'var(--color-brand)' : 'color-mix(in srgb, var(--color-ink) 15%, transparent)',
                 }}
+                aria-hidden="true"
               >
                 {pin[index] ? '●' : ''}
               </span>
             ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-            <button
-              key={digit}
-              type="button"
-              disabled={busy || pin.length >= 4}
-              onClick={() => setPin(pin + digit)}
-              className="btn btn-ghost text-2xl"
-            >
-              {digit}
-            </button>
-          ))}
-          <button type="button" onClick={() => setPin('')} disabled={busy} className="btn btn-ghost text-lg">
-            Xoá
-          </button>
-          <button
-            type="button"
-            disabled={busy || pin.length >= 4}
-            onClick={() => setPin(pin + '0')}
-            className="btn btn-ghost text-2xl"
-          >
-            0
-          </button>
-          <button
-            type="button"
-            disabled={busy || pin.length !== 4}
-            onClick={() => void claimStudent(picked.studentId, pin).then(() => setPin(''))}
-            className="btn btn-good text-lg"
-          >
-            Vào
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setPicked(null)
-            setPin('')
-          }}
-          className="text-base font-bold underline opacity-70"
-        >
-          Chọn lại bạn khác
-        </button>
+            <input
+              ref={pinRef}
+              value={pin}
+              onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              autoComplete="off"
+              autoFocus
+              disabled={busy}
+              aria-label="Mã bí mật 4 số"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              style={{ caretColor: 'transparent' }}
+            />
+          </span>
+          <span className="text-base opacity-70">{busy ? 'Đang mở cửa...' : 'Chạm vào ô để gõ mã'}</span>
+        </label>
       </div>
     )
   }
@@ -173,6 +224,14 @@ function ChildLogin() {
   if (roster) {
     return (
       <div className="pixel-panel grid gap-4">
+        <StepBar
+          step={2}
+          total={3}
+          onBack={() => {
+            setRoster(null)
+            setClassCode('')
+          }}
+        />
         <p className="text-center text-xl font-extrabold">Con là bạn nào?</p>
         <div className="grid grid-cols-3 gap-3">
           {roster.map((entry) => (
@@ -188,16 +247,6 @@ function ChildLogin() {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setRoster(null)
-            setClassCode('')
-          }}
-          className="text-base font-bold underline opacity-70"
-        >
-          Nhập lại mã lớp
-        </button>
       </div>
     )
   }
@@ -213,14 +262,19 @@ function ChildLogin() {
         })
       }}
     >
+      <StepBar step={1} total={3} onBack={onBack} />
       <label className="grid gap-2">
-        <span className="font-bold">Mã lớp của con</span>
+        <span className="text-xl font-extrabold">Mã lớp của con</span>
         <input
           value={classCode}
           onChange={(event) => setClassCode(event.target.value.toUpperCase())}
           maxLength={6}
           autoCapitalize="characters"
           autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="go"
+          autoFocus
           placeholder="VD: K7M2XP"
           className="rounded-2xl border-4 bg-white px-4 py-3 text-center text-3xl font-extrabold tracking-widest outline-none"
           style={{ borderColor: 'color-mix(in srgb, var(--color-ink) 15%, transparent)' }}
@@ -228,7 +282,7 @@ function ChildLogin() {
         <span className="text-base opacity-70">Thầy cô sẽ cho con mã này.</span>
       </label>
       <button type="submit" disabled={busy || classCode.length < 4} className="btn btn-primary text-xl">
-        {busy ? 'Đang tìm lớp...' : 'Tiếp tục'}
+        {busy ? 'Đang tìm lớp...' : 'Tiếp tục →'}
       </button>
     </form>
   )
@@ -253,7 +307,7 @@ function ChildLogin() {
  */
 type Doing = 'signIn' | 'registerWho' | 'registerAccount' | 'forgot'
 
-function AdultLogin() {
+function AdultLogin({ onBack }: { onBack: () => void }) {
   const signIn = useAuth((s) => s.signIn)
   const signUp = useAuth((s) => s.signUp)
   const requestPasswordReset = useAuth((s) => s.requestPasswordReset)
@@ -308,29 +362,30 @@ function AdultLogin() {
       }}
     >
       {/*
-        "Bước 1/2" phải nói ra thành lời.
-
-        Không có nó thì bước một chỉ hỏi đúng cái tên rồi có một cái nút - trông
-        như biểu mẫu bị cụt, hoặc như app vừa nuốt mất mấy ô kia. Biết trước là
-        có hai bước thì cùng một màn hình ấy đọc ra hoàn toàn khác.
+        Thanh đầu: nút quay lại cùng một chỗ với các bước của trẻ. Đang ở một
+        việc con (đăng ký, quên mật khẩu) thì lùi một bước; đang ở màn đăng nhập
+        thì lùi về màn chọn vai.
       */}
-      {registering && (
-        <p className="pixel-font text-center text-base leading-snug opacity-70">
-          Tạo tài khoản · bước {doing === 'registerWho' ? '1' : '2'}/2
-          {/*
-            Bước hai nhắc lại tên vừa nhập, NGAY TRÊN CÙNG DÒNG ẤY.
+      <StepBar
+        onBack={() => (doing === 'signIn' ? onBack() : setDoing(doing === 'registerAccount' ? 'registerWho' : 'signIn'))}
+        label={
+          doing === 'forgot'
+            ? 'Quên mật khẩu'
+            : registering
+              ? `Tạo tài khoản · ${doing === 'registerWho' ? '1' : '2'}/2`
+              : 'Phụ huynh / Giáo viên'
+        }
+      />
 
-            Một màn chỉ có email và mật khẩu thì không có gì nói cho người ta
-            biết mình đang tạo tài khoản cho AI - nhất là khi một thầy cô lập
-            hộ đồng nghiệp. Nhưng cho nó một dòng riêng thì bước hai cao hơn cả
-            màn đăng nhập thường, và lại phải cuộn: đúng cái vừa được dọn đi.
-          */}
-          {doing === 'registerAccount' && (
-            <>
-              <br />
-              <strong>{displayName}</strong> · {role === 'parent' ? 'Phụ huynh' : 'Giáo viên'}
-            </>
-          )}
+      {/*
+        Bước hai nhắc lại tên vừa nhập. Một màn chỉ có email và mật khẩu thì
+        không có gì nói cho người ta biết mình đang tạo tài khoản cho AI - nhất
+        là khi một thầy cô lập hộ đồng nghiệp. ("Bước 1/2" thì đã nằm trên thanh
+        đầu, xem `StepBar`.)
+      */}
+      {doing === 'registerAccount' && (
+        <p className="text-center text-base leading-snug opacity-70">
+          <strong>{displayName}</strong> · {role === 'parent' ? 'Phụ huynh' : 'Giáo viên'}
         </p>
       )}
 
@@ -442,48 +497,21 @@ function AdultLogin() {
         )}
 
         {/*
-          Lùi một bước, KHÔNG xoá gì cả.
+          Lùi một bước thì dùng nút "← Quay lại" trên thanh đầu - và lùi KHÔNG
+          xoá gì cả: mọi ô nhập sống ở `AdultLogin`, không sống trong từng bước,
+          nên người ta lùi lại sửa cái tên rồi đi tiếp mà email vẫn còn nguyên.
 
-          Người ta lùi lại để sửa cái tên hoặc đổi vai, rồi đi tiếp - xoá ô email
-          vừa gõ ở đây thì họ phải gõ lại một thứ chẳng liên quan gì tới việc vừa
-          sửa. Mọi ô nhập sống ở `AdultLogin`, không sống trong từng bước, nên
-          việc giữ lại là mặc định chứ không phải một cố gắng riêng.
+          Ở bước hai, liên kết về đăng nhập biến đi: thanh đầu đã có lối lùi, và
+          một hàng chữ ở đây đúng bằng khoảng còn thiếu để cả bước hai nằm gọn
+          trong một màn hình điện thoại nhỏ.
         */}
-        {doing === 'registerAccount' && (
-          <button
-            type="button"
-            onClick={() => setDoing('registerWho')}
-            className="text-base font-bold underline opacity-70"
-          >
-            ← Quay lại bước 1
-          </button>
-        )}
-
-        {/*
-          Ở BƯỚC HAI, liên kết này biến đi.
-
-          Lúc ấy màn hình đã có "← Quay lại bước 1" làm lối lùi, và bước một thì
-          vẫn còn nguyên liên kết về đăng nhập - nên không ai bị nhốt lại. Đổi
-          lại được một hàng chữ, mà một hàng chữ ở đây đúng bằng khoảng còn
-          thiếu để cả bước hai nằm gọn trong một màn hình điện thoại nhỏ.
-        */}
-        {doing !== 'registerAccount' && (
+        {doing !== 'registerAccount' && doing !== 'forgot' && (
           <button
             type="button"
             onClick={() => setDoing(registering ? 'signIn' : 'registerWho')}
             className="text-base font-bold underline opacity-70"
           >
             {registering ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}
-          </button>
-        )}
-
-        {doing === 'forgot' && (
-          <button
-            type="button"
-            onClick={() => setDoing('signIn')}
-            className="text-base font-bold underline opacity-70"
-          >
-            ← Quay lại đăng nhập
           </button>
         )}
       </div>

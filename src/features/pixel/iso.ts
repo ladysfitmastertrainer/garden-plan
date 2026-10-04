@@ -108,7 +108,94 @@ export function makeIsoIsland(colors: IslandColors, size: IsoSize = ISO_MEDIUM):
     }
   }
 
-  return { palette, rows: outlined.map((row) => row.join('')) }
+  return { palette, rows: outlined.map((row) => row.join('')), vector: (ctx, p) => drawIsoBlock(ctx, p, size) }
+}
+
+/**
+ * Khối đảo vẽ bằng NÉT: cùng hình với lưới điểm ảnh ở trên, nhưng cạnh thẳng
+ * mịn, viền đậm và mặt trên có vài túm cỏ - cùng nét với nhân vật vẽ tay.
+ *
+ * Lưới điểm ảnh vẫn được dựng như cũ, vì nó là thứ quyết định CỠ của khối và là
+ * thứ `placeProp` ghép vào. Hình nét chỉ thay cách tô ra màn hình.
+ */
+function drawIsoBlock(ctx: CanvasRenderingContext2D, p: Record<string, string>, size: IsoSize): void {
+  const w = size.width
+  const th = size.topHeight
+  const d = size.depth
+  const inset = 0.8
+  const top: Array<[number, number]> = [
+    [w / 2, inset],
+    [w - inset, th / 2],
+    [w / 2, th - inset],
+    [inset, th / 2],
+  ]
+  const poly = (points: Array<[number, number]>) => {
+    ctx.beginPath()
+    points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)))
+    ctx.closePath()
+  }
+  const line = Math.max(0.9, w / 40)
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+
+  // Hai vách
+  poly([[inset, th / 2], [w / 2, th - inset], [w / 2, th - inset + d], [inset, th / 2 + d]])
+  ctx.fillStyle = p.L!
+  ctx.fill()
+  poly([[w - inset, th / 2], [w / 2, th - inset], [w / 2, th - inset + d], [w - inset, th / 2 + d]])
+  ctx.fillStyle = p.R!
+  ctx.fill()
+  // Vệt đất sẫm chạy ngang giữa vách - cho vách ra lớp đất chứ không phẳng lì.
+  ctx.beginPath()
+  ctx.moveTo(inset + 1.5, th / 2 + d * 0.55)
+  ctx.lineTo(w / 2, th - inset + d * 0.55)
+  ctx.lineTo(w - inset - 1.5, th / 2 + d * 0.55)
+  ctx.lineWidth = line * 0.6
+  ctx.strokeStyle = 'rgba(40, 25, 15, 0.25)'
+  ctx.stroke()
+
+  // Mặt trên
+  poly(top)
+  ctx.fillStyle = p.T!
+  ctx.fill()
+  // Mép sáng chạy dọc hai cạnh trên - ánh sáng tới từ phía trên.
+  ctx.beginPath()
+  ctx.moveTo(inset + line * 1.6, th / 2)
+  ctx.lineTo(w / 2, inset + line * 0.9)
+  ctx.lineTo(w - inset - line * 1.6, th / 2)
+  ctx.lineWidth = line
+  ctx.strokeStyle = p.E!
+  ctx.stroke()
+  // Vài túm cỏ trên mặt, chỉ ở khối đủ to để thấy được.
+  if (w >= 30) {
+    ctx.strokeStyle = 'rgba(30, 50, 20, 0.35)'
+    ctx.lineWidth = line * 0.55
+    for (const [fx, fy] of [[0.36, 0.55], [0.62, 0.4], [0.55, 0.7]] as const) {
+      const cx = w * fx
+      const cy = th * fy
+      ctx.beginPath()
+      ctx.moveTo(cx - 1.2, cy)
+      ctx.lineTo(cx - 0.9, cy - 1.3)
+      ctx.moveTo(cx, cy)
+      ctx.lineTo(cx, cy - 1.8)
+      ctx.moveTo(cx + 1.2, cy)
+      ctx.lineTo(cx + 0.9, cy - 1.3)
+      ctx.stroke()
+    }
+  }
+
+  // Viền: cạnh giữa hai vách, cạnh mặt trên, và cả bóng ngoài.
+  ctx.lineWidth = line
+  ctx.strokeStyle = p['#']!
+  ctx.beginPath()
+  ctx.moveTo(inset, th / 2)
+  ctx.lineTo(w / 2, th - inset)
+  ctx.lineTo(w - inset, th / 2)
+  ctx.moveTo(w / 2, th - inset)
+  ctx.lineTo(w / 2, th - inset + d)
+  ctx.stroke()
+  poly([[w / 2, inset], [w - inset, th / 2], [w - inset, th / 2 + d], [w / 2, th - inset + d], [inset, th / 2 + d], [inset, th / 2]])
+  ctx.stroke()
 }
 
 /**
@@ -123,7 +210,12 @@ export function greyOut(sprite: Sprite): Sprite {
   for (const [key, color] of Object.entries(sprite.palette)) {
     palette[key] = desaturate(color)
   }
-  return { palette, rows: sprite.rows }
+  return {
+    ...sprite,
+    palette,
+    // Hình vẽ tay không tráo bảng màu được - rút màu bằng bộ lọc.
+    art: sprite.art ? { ...sprite.art, filter: 'grayscale(1) brightness(1.05) contrast(0.9)' } : undefined,
+  }
 }
 
 /** Đổi một màu thành sắc xám xanh cùng độ sáng. */
@@ -510,6 +602,26 @@ export const PROP_FLOWERS: Sprite = {
  */
 export const PROP_PIN: Sprite = {
   palette: { '#': '#3a1010', r: '#e0483e', w: '#fff6f2' },
+  // Ghim vẽ nét: giọt nước ngược, chấm trắng ở giữa.
+  vector: (ctx, p) => {
+    ctx.beginPath()
+    ctx.moveTo(8, 12)
+    ctx.bezierCurveTo(5.5, 9, 2.6, 7.4, 2.6, 5.4)
+    ctx.arc(8, 5.4, 5.4, Math.PI, 0)
+    ctx.bezierCurveTo(13.4, 7.4, 10.5, 9, 8, 12)
+    ctx.closePath()
+    ctx.fillStyle = p.r!
+    ctx.fill()
+    ctx.lineWidth = 0.9
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = p['#']!
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(8, 5.4, 2.1, 0, Math.PI * 2)
+    ctx.fillStyle = p.w!
+    ctx.fill()
+    ctx.stroke()
+  },
   rows: [
     '................',
     '................',
@@ -694,3 +806,38 @@ export const PROP_STONE: Sprite = {
     '................',
   ],
 }
+
+// --- Hình vẽ tay ---------------------------------------------------------------
+
+/*
+  Gắn tên file hình vẽ tay (`public/art/prop-<tên>.webp`, cắt từ các tờ
+  `props-*.png` - xem mục "Đồ trang trí" trong `docs/art/prompts.md`) vào từng
+  món. Chưa có file thì món vẫn vẽ bằng điểm ảnh, nên gắn sẵn không làm vỡ gì.
+
+  Gắn VÀO CHÍNH đối tượng sprite, cùng lẽ với nhân vật trong `creatures.ts`: khu
+  vườn và bản đồ tra món bằng danh tính, và mọi chỗ đang cầm sprite của món ấy
+  tự nhận hình mới mà không phải sửa gì.
+*/
+const PROP_ART: Array<[Sprite, string]> = [
+  [PROP_CASTLE, 'castle'],
+  [PROP_TOWER, 'tower'],
+  [PROP_BELLTOWER, 'belltower'],
+  [PROP_LIGHTHOUSE, 'lighthouse'],
+  [PROP_SHRINE, 'shrine'],
+  [PROP_PORTAL, 'portal'],
+  [PROP_OBELISK, 'obelisk'],
+  [PROP_CRYSTAL, 'crystal'],
+  [PROP_TREE, 'tree'],
+  [PROP_PINE, 'pine'],
+  [PROP_PALM, 'palm'],
+  [PROP_BUSH, 'bush'],
+  [PROP_MUSHROOM, 'mushroom'],
+  [PROP_FLOWERS, 'flowers'],
+  [PROP_STONE, 'stone'],
+  [PROP_LANTERN, 'lantern'],
+  [PROP_ABACUS, 'abacus'],
+  [PROP_BOOKSTAND, 'bookstand'],
+  [PROP_DRUM, 'drum'],
+  [PROP_HARP, 'harp'],
+]
+for (const [sprite, id] of PROP_ART) sprite.art = { id: `prop-${id}` }

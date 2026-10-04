@@ -729,3 +729,107 @@ ART STYLE: polished 2D vector cartoon background for a modern mobile monster-col
 
 IMAGE LAYOUT (very important): wide landscape 16:9 image, an empty battle stage seen from the side with the camera slightly raised, like the battle screen of a classic monster-collecting game - NOT a top-down map. The horizon line sits at about 45% of the image height: sky or far scenery above it, ground below it, the ground stretching back in gentle perspective. Keep TWO areas plain, flat and empty, because two creatures will be drawn on top of them later: (1) the lower-left quarter of the image, the near foreground; (2) the middle-right area just below the horizon, the far ground. In those two areas put only plain walkable ground (short grass, packed dirt or smooth stone) - no objects, plants, rocks, puddles or patterns. All the rich detail goes along the left and right edges, in the far background and in the sky, framing the stage. The image will be cropped a little on any side depending on the screen, so nothing important may touch the edges. Absolutely NO characters, creatures, animals or people. Absolutely NO text, letters, numbers, runes, signs with writing, labels, UI, frame, border or signature anywhere in the image.
 ```
+
+## Đồ trang trí (5 tờ)
+
+Những món đứng trên bản đồ thế giới và trong khu vườn của trẻ. Cách làm y như các tờ
+nhân vật: đính kèm một tờ quái đẹp nhất làm mẫu nét vẽ, tải về, đổi tên đúng dòng
+"Tên file", bỏ vào `art-src/` rồi báo tôi.
+
+Duyệt thêm một điều so với tờ nhân vật: các món là ĐỒ VẬT - không có mắt, không có mặt.
+Gemini hay tự vẽ mặt cho cây nấm, cái trống; gặp thì bảo nó "remove the faces".
+
+### 36. Đồ trang trí - Công trình cao
+
+**Tên file:** `props-1.png` · **Thứ tự trái → phải:** Toà lâu đài, Tháp canh, Tháp chuông, Ngọn hải đăng
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT copy any of its characters.
+
+A line-up of 4 DIFFERENT decorative objects for a fantasy island map. Similar size to each other.
+
+1. a cozy fairy-tale castle: cream stone walls, three towers with pointy red roofs, a big wooden gate - the wide, important landmark of the world.
+2. a round grey stone watchtower with a little glowing yellow window near the top and a crenellated top.
+3. a purple bell tower with a golden bell hanging in an open arch and a small pointed roof.
+4. a white lighthouse with red stripes, a navy blue top and a glowing yellow lamp room.
+
+ART STYLE: polished 2D vector cartoon game props for a modern mobile monster-collecting game, made for children aged 6-10. Chunky, rounded, slightly squashed toy-like proportions that read clearly even when very small. Thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Bright, cheerful colors. These are OBJECTS, not characters: no eyes, no faces, no arms or legs.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 objects standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Objects must never touch or overlap. Every object is fully visible and never cut off by the image edge. Every object is seen from the front and slightly from above, as if standing on a small floating island in a game map. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no grass base, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image - not even on books, signs or stones.
+```
+
+### 37. Đồ trang trí - Đền đài
+
+**Tên file:** `props-2.png` · **Thứ tự trái → phải:** Ngôi miếu, Cổng thần, Bia đá, Khối pha lê
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT copy any of its characters.
+
+A line-up of 4 DIFFERENT decorative objects for a fantasy island map. Similar size to each other.
+
+1. a small Asian-style shrine with a curved red roof, cream walls and a warm glowing lamp inside.
+2. a magical stone archway gate with a swirling glowing purple portal inside it.
+3. a tall grey stone obelisk with a small golden gem set into it (no carved writing).
+4. a cluster of shiny pale-blue crystals growing from a small rock.
+
+ART STYLE: polished 2D vector cartoon game props for a modern mobile monster-collecting game, made for children aged 6-10. Chunky, rounded, slightly squashed toy-like proportions that read clearly even when very small. Thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Bright, cheerful colors. These are OBJECTS, not characters: no eyes, no faces, no arms or legs.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 objects standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Objects must never touch or overlap. Every object is fully visible and never cut off by the image edge. Every object is seen from the front and slightly from above, as if standing on a small floating island in a game map. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no grass base, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image - not even on books, signs or stones.
+```
+
+### 38. Đồ trang trí - Cây cối
+
+**Tên file:** `props-3.png` · **Thứ tự trái → phải:** Cây to, Cây thông, Cây dừa, Bụi cỏ
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT copy any of its characters.
+
+A line-up of 4 DIFFERENT decorative objects for a fantasy island map. Similar size to each other.
+
+1. a big round leafy tree with a thick brown trunk and a fluffy green crown.
+2. a cone-shaped green pine tree with layered branches and a short trunk.
+3. a coconut palm tree with a curved trunk and big green fronds, two coconuts.
+4. a small round green bush, low and wide.
+
+ART STYLE: polished 2D vector cartoon game props for a modern mobile monster-collecting game, made for children aged 6-10. Chunky, rounded, slightly squashed toy-like proportions that read clearly even when very small. Thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Bright, cheerful colors. These are OBJECTS, not characters: no eyes, no faces, no arms or legs.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 objects standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Objects must never touch or overlap. Every object is fully visible and never cut off by the image edge. Every object is seen from the front and slightly from above, as if standing on a small floating island in a game map. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no grass base, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image - not even on books, signs or stones.
+```
+
+### 39. Đồ trang trí - Đồ nhỏ
+
+**Tên file:** `props-4.png` · **Thứ tự trái → phải:** Cây nấm, Luống hoa, Hòn đá, Đèn lồng
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT copy any of its characters.
+
+A line-up of 4 DIFFERENT decorative objects for a fantasy island map. Similar size to each other.
+
+1. a cute red-capped mushroom with white spots and a cream stem.
+2. a small flower bed of three colorful flowers with green leaves.
+3. a small smooth grey rock, low and wide.
+4. a glowing golden paper lantern on a short wooden post.
+
+ART STYLE: polished 2D vector cartoon game props for a modern mobile monster-collecting game, made for children aged 6-10. Chunky, rounded, slightly squashed toy-like proportions that read clearly even when very small. Thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Bright, cheerful colors. These are OBJECTS, not characters: no eyes, no faces, no arms or legs.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 objects standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Objects must never touch or overlap. Every object is fully visible and never cut off by the image edge. Every object is seen from the front and slightly from above, as if standing on a small floating island in a game map. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no grass base, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image - not even on books, signs or stones.
+```
+
+### 40. Đồ trang trí - Đồ học tập và âm nhạc
+
+**Tên file:** `props-5.png` · **Thứ tự trái → phải:** Bàn tính, Giá sách, Cái trống, Cây đàn
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading and color intensity. Do NOT copy any of its characters.
+
+A line-up of 4 DIFFERENT decorative objects for a fantasy island map. Similar size to each other.
+
+1. a wooden abacus standing upright with rows of red and yellow beads.
+2. a wooden reading stand (lectern) holding an open book with blank pages.
+3. a festival drum with a red body, cream drumhead and golden rope pattern.
+4. a small golden harp (lyre) with a few strings.
+
+ART STYLE: polished 2D vector cartoon game props for a modern mobile monster-collecting game, made for children aged 6-10. Chunky, rounded, slightly squashed toy-like proportions that read clearly even when very small. Thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Bright, cheerful colors. These are OBJECTS, not characters: no eyes, no faces, no arms or legs.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 objects standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Objects must never touch or overlap. Every object is fully visible and never cut off by the image edge. Every object is seen from the front and slightly from above, as if standing on a small floating island in a game map. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no grass base, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image - not even on books, signs or stones.
+```

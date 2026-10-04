@@ -26,6 +26,15 @@ export interface Sprite {
    * nhận luôn hình mới của nó, không chỗ nào phải sửa.
    */
   art?: SpriteArt
+  /**
+   * Vẽ bằng NÉT thay cho lưới điểm ảnh: khối đảo, ô vườn, ghim bản đồ - những
+   * thứ hình học đơn giản, vẽ bằng code là đủ đẹp mà không cần ảnh.
+   *
+   * Toạ độ tính bằng điểm ảnh của lưới (`rows`): lưới vẫn là thứ quyết định cỡ
+   * của sprite, nên mọi bố cục quanh nó không đổi. `palette` truyền vào chứ không
+   * đóng gói sẵn, để `greyOut` hay `recolor` tráo màu vẫn ăn vào hình nét.
+   */
+  vector?: (ctx: CanvasRenderingContext2D, palette: Record<string, string>) => void
 }
 
 /**
@@ -88,8 +97,30 @@ export function validateSprite(sprite: Sprite): string[] {
   return errors
 }
 
-function paint(canvas: HTMLCanvasElement, sprite: Sprite): void {
+/**
+ * Độ phân giải của sprite vẽ nét: đủ mịn cho cỡ hiện trên màn hình (kể cả màn
+ * hình mật độ cao), nhưng có trần - khung bản đồ còn kéo giãn thêm bằng CSS.
+ */
+function vectorResolution(scale: number): number {
+  const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1
+  return Math.min(16, Math.max(2, Math.ceil(scale * dpr * 1.5)))
+}
+
+function paint(canvas: HTMLCanvasElement, sprite: Sprite, scale: number): void {
   const { width, height } = spriteSize(sprite)
+  if (sprite.vector) {
+    const res = vectorResolution(scale)
+    canvas.width = width * res
+    canvas.height = height * res
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.save()
+    ctx.scale(res, res)
+    sprite.vector(ctx, sprite.palette)
+    ctx.restore()
+    return
+  }
   canvas.width = width
   canvas.height = height
 
@@ -127,8 +158,8 @@ export function PixelSprite({
   const art = artOf(sprite)
 
   useEffect(() => {
-    if (ref.current) paint(ref.current, sprite)
-  }, [sprite])
+    if (ref.current) paint(ref.current, sprite, scale)
+  }, [sprite, scale])
 
   if (art) {
     /*
@@ -189,6 +220,9 @@ export function PixelSprite({
             objectFit: 'contain',
             objectPosition: 'bottom',
             filter: art.filter,
+            // Khung ngoài hay đặt `pixelated` cho sprite điểm ảnh, và thuộc tính
+            // ấy được kế thừa - hình vẽ tay mà phóng kiểu đó thì nét ra răng cưa.
+            imageRendering: 'auto',
             pointerEvents: 'none',
           }}
         />
@@ -203,7 +237,7 @@ export function PixelSprite({
       style={{
         width: width * scale,
         height: height * scale,
-        imageRendering: 'pixelated',
+        imageRendering: sprite.vector ? 'auto' : 'pixelated',
         transform: flip ? 'scaleX(-1)' : undefined,
         ...style,
       }}

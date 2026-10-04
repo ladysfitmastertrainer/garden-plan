@@ -45,6 +45,12 @@ export const SHEETS = [
   ...HABITATS.map((h) => ({ file: `habitat-${h}.png`, ids: four(`habitat-${h}`) })),
   // Nhân vật của trẻ: mặt trước, mặt nghiêng (nhìn sang trái), mặt sau.
   ...HEROES.map((h) => ({ file: `hero-${h}.png`, ids: [`hero-${h}-down`, `hero-${h}-side`, `hero-${h}-up`] })),
+  // Đồ trang trí của bản đồ thế giới và khu vườn - xem `PROP_ART` trong `pixel/iso.ts`.
+  { file: 'props-1.png', ids: ['prop-castle', 'prop-tower', 'prop-belltower', 'prop-lighthouse'] },
+  { file: 'props-2.png', ids: ['prop-shrine', 'prop-portal', 'prop-obelisk', 'prop-crystal'] },
+  { file: 'props-3.png', ids: ['prop-tree', 'prop-pine', 'prop-palm', 'prop-bush'] },
+  { file: 'props-4.png', ids: ['prop-mushroom', 'prop-flowers', 'prop-stone', 'prop-lantern'] },
+  { file: 'props-5.png', ids: ['prop-abacus', 'prop-bookstand', 'prop-drum', 'prop-harp'] },
 ]
 
 /**

@@ -44,9 +44,8 @@ import {
   PROP_TREE,
   greyOut,
   makeIsoIsland,
-  placeProp,
 } from '../pixel/iso'
-import { PixelSprite } from '../pixel/sprite'
+import { PixelSprite, spriteSize } from '../pixel/sprite'
 import { PixelModal } from '../../ui/PixelModal'
 import { useUi } from '../../store/ui'
 import { biomeFor, tintForGrade } from './biome'
@@ -469,9 +468,9 @@ export function WorldMapScreen({
           height: compact ? '100%' : CANVAS_HEIGHT * scale * fit,
           border: '4px solid #1b2432',
           borderRadius: 6,
-          background:
-            `repeating-linear-gradient(0deg, ${layout.sea.light} 0 14px, ${layout.sea.dark} 14px 15px),` +
-            `repeating-linear-gradient(90deg, ${layout.sea.light} 0 14px, ${layout.sea.dark} 14px 15px)`,
+          // Mặt nước phẳng rải gợn sóng chữ "~" - cùng kiểu nước của bản đồ đi
+          // cảnh, thay cho lưới kẻ ô của bản pixel.
+          background: `${seaWaves(layout.sea.dark)} ${layout.sea.light}`,
         }}
       >
       {/*
@@ -725,7 +724,7 @@ function RegionModal({
     <PixelModal title={title} onClose={onClose}>
       <div className="grid justify-items-center gap-2 text-center">
         <span className="modal-hero">
-          <PixelSprite sprite={islandSprite(region)} scale={2} />
+          <IslandWithProp region={region} scale={2} />
         </span>
 
         <h3 className="pixel-font text-3xl leading-none">{land}</h3>
@@ -934,7 +933,7 @@ function ProgressBar({ cleared, total }: { cleared: number; total: number }) {
  * Hình hòn đảo. Tách khỏi component để khung hỏi dùng lại đúng hình đó - vẽ một
  * hình khác thì trẻ tưởng đang nói về đảo nào khác.
  */
-function islandSprite(region: RegionView) {
+function islandParts(region: RegionView) {
   const theme = REGION_THEMES[region.subject]
   // Nhuộm theo lớp, cùng ánh sáng với vùng đất bên trong - bước qua cổng mà đổi
   // hẳn màu thì hai chỗ đó không còn là một nơi nữa.
@@ -945,7 +944,38 @@ function islandSprite(region: RegionView) {
     rightWall: tintForGrade(theme.colors.rightWall, region.grade),
     outline: theme.colors.outline,
   }
-  return placeProp(makeIsoIsland(colors, ISO_MEDIUM), theme.prop, 2, 0, ISO_MEDIUM)
+  return { island: makeIsoIsland(colors, ISO_MEDIUM), prop: theme.prop }
+}
+
+/**
+ * Khối đảo của một vùng, vật mốc đứng trên.
+ *
+ * Hai lớp chồng lên nhau chứ không ghép vào một lưới điểm ảnh như `placeProp`:
+ * khối đảo vẽ bằng nét, còn vật mốc có thể đã có hình vẽ tay - hai thứ ấy không
+ * gộp được vào một lưới. Chỗ đứng của vật mốc tính đúng như `placeProp`: chân
+ * nó ở giữa mặt trên, nhích xuống hai điểm ảnh.
+ */
+function IslandWithProp({ region, scale }: { region: RegionView; scale: number }) {
+  const { island, prop } = islandParts(region)
+  const { width: propW, height: propH } = spriteSize(prop)
+  const left = Math.round((ISO_MEDIUM.width - propW) / 2)
+  const top = Math.round(ISO_MEDIUM.topHeight / 2) - propH + 2
+  return (
+    <span className="relative inline-block" style={{ lineHeight: 0, marginTop: Math.max(0, -top) * scale }}>
+      <PixelSprite sprite={island} scale={scale} />
+      <span className="absolute" style={{ left: left * scale, top: top * scale, lineHeight: 0 }}>
+        <PixelSprite sprite={prop} scale={scale} />
+      </span>
+    </span>
+  )
+}
+
+/** Mặt biển: những gợn sóng chữ "~" rải đều, vẽ bằng một ô SVG lặp lại. */
+function seaWaves(color: string): string {
+  const stroke = encodeURIComponent(color)
+  const wave = (x: number, y: number) =>
+    `%3Cpath d='M${x} ${y} q4 -4 8 0 t8 0' fill='none' stroke='${stroke}' stroke-width='2.2' stroke-linecap='round'/%3E`
+  return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='48'%3E${wave(6, 14)}${wave(42, 38)}%3C/svg%3E")`
 }
 /** Cổng sang lớp sau. Còn khoá thì tô xám. */
 function gateSprite(unlocked: boolean) {

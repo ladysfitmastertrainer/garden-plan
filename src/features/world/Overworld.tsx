@@ -17,7 +17,8 @@ import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import { monsterSpriteFor } from '../pixel/creatures'
 import { heroViewFor } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
-import { HABITAT_TILE, type TileKind, type TileSet } from '../pixel/tiles'
+import { HABITAT_TILE, type TerrainColors, type TileKind } from '../pixel/tiles'
+import { ART_TILE, paintMapArt } from './tile-art'
 import type { Habitat, Subject } from '../../content/types'
 import { HABITAT_PLACE } from '../../content/bestiary'
 import type { MapNode } from '../../content/worldmap'
@@ -1016,7 +1017,7 @@ export function Overworld({
           <MapCanvas
             map={map}
             scale={scale}
-            tiles={biome.tiles}
+            colors={biome.colors}
             ground={biome.ground}
             hideGates={roamingKey}
           />
@@ -1168,15 +1169,12 @@ export function Overworld({
               }}
               aria-hidden="true"
             >
-              <PixelSprite
-                sprite={
-                  ambush.shown
-                    ? monsterSpriteFor(subject, ambush.variant, false, ambush.habitat)
-                    : // Chính ô trẻ đang đứng rung lên: bụi cỏ, mặt nước, nền hang.
-                      biome.tiles[ambush.tile]
-                }
-                scale={scale}
-              />
+              {ambush.shown ? (
+                <PixelSprite sprite={monsterSpriteFor(subject, ambush.variant, false, ambush.habitat)} scale={scale} />
+              ) : (
+                // Chính ô trẻ đang đứng rung lên: bụi cỏ, mặt nước, nền hang.
+                <TileArt kind={ambush.tile} colors={biome.colors} ground={biome.ground} size={TILE * scale} />
+              )}
             </div>
           )}
 
@@ -1440,40 +1438,23 @@ function keyToDirection(key: string): Direction | null {
 }
 
 /**
- * Một ô cảnh dựng sẵn ở khổ gốc 16×16, dán thẳng lên bản đồ được.
+ * Vẽ toàn bộ bản đồ vào một canvas duy nhất. Vẽ lại chỉ khi bản đồ đổi.
  *
- * Bản đồ lớn nhất là 15×44 ô; tô từng điểm ảnh cho cả bản đồ là khoảng 280.000
- * lệnh `fillRect`, đủ chặn luồng chính vài trăm mili giây trên tablet cũ. Vẽ
- * MỖI LOẠI ô đúng một lần rồi `drawImage` thì chỉ còn đúng số ô - vài trăm lệnh.
+ * Vẽ bằng nét vẽ tay của `tile-art.ts` chứ không dán ô pixel: mặt đất gộp
+ * thành từng mảng liền có viền, cây đá nhà cửa vẽ đè lên - cùng một thế giới
+ * với nhân vật. Lưới ô thì vẫn y như cũ, nên bản đồ rộng và đi được khắp nơi
+ * đúng như trước, chỉ khác cách tô.
  */
-function stampTile(tiles: TileSet, ground: TileKind, kind: TileKind): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = TILE
-  canvas.height = TILE
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return canvas
-
-  // Ô có phần trong suốt (cây, đuốc) cần nền bên dưới, nếu không sẽ thủng.
-  // Đuốc đứng trong sân đấu nên nền của nó là đá lát, không phải mặt đất -
-  // lót nhầm là có một vũng cỏ giữa sân.
-  const under = kind === 'torch' ? tiles.arena : tiles[ground]
-  drawSprite(ctx, under, 0, 0)
-  if (tiles[kind] !== under) drawSprite(ctx, tiles[kind], 0, 0)
-  return canvas
-}
-
-/** Vẽ toàn bộ bản đồ vào một canvas duy nhất. Vẽ lại chỉ khi bản đồ đổi. */
 function MapCanvas({
   map,
   scale,
-  tiles,
+  colors,
   ground,
   hideGates,
 }: {
   map: RouteMap
   scale: number
-  tiles: TileSet
+  colors: TerrainColors
   ground: TileKind
   /**
    * Toạ độ "x,y" của những ô cửa được thay bằng đường đi, nối bằng dấu cách.
@@ -1489,29 +1470,20 @@ function MapCanvas({
   useEffect(() => {
     const canvas = ref.current
     if (!canvas) return
-    canvas.width = map.width * TILE
-    canvas.height = map.height * TILE
+    canvas.width = map.width * ART_TILE
+    canvas.height = map.height * ART_TILE
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     const hidden = new Set(hideGates ? hideGates.split(' ') : [])
-    // Bản đồ chỉ dùng 11 loại ô, nên bảng này dựng nhiều nhất 11 lần cho cả lượt vẽ.
-    const stamps = new Map<TileKind, HTMLCanvasElement>()
-
-    for (let y = 0; y < map.height; y++) {
-      for (let x = 0; x < map.width; x++) {
-        const raw = map.tiles[y]![x]!
-        const kind = raw === 'gate' && hidden.has(`${x},${y}`) ? 'path' : raw
-        let stamp = stamps.get(kind)
-        if (!stamp) {
-          stamp = stampTile(tiles, ground, kind)
-          stamps.set(kind, stamp)
-        }
-        ctx.drawImage(stamp, x * TILE, y * TILE)
-      }
-    }
-  }, [map, tiles, ground, hideGates])
+    paintMapArt(
+      ctx,
+      map.tiles.map((row, y) => row.map((kind, x) => (kind === 'gate' && hidden.has(`${x},${y}`) ? 'path' : kind))),
+      colors,
+      ground,
+    )
+  }, [map, colors, ground, hideGates])
 
   return (
     <canvas
@@ -1519,7 +1491,6 @@ function MapCanvas({
       style={{
         width: map.width * TILE * scale,
         height: map.height * TILE * scale,
-        imageRendering: 'pixelated',
         display: 'block',
       }}
       aria-hidden="true"
@@ -1527,21 +1498,23 @@ function MapCanvas({
   )
 }
 
-function drawSprite(
-  ctx: CanvasRenderingContext2D,
-  sprite: { palette: Record<string, string>; rows: string[] },
-  originX: number,
-  originY: number,
-): void {
-  sprite.rows.forEach((row, y) => {
-    [...row].forEach((char, x) => {
-      if (char === '.') return
-      const color = sprite.palette[char]
-      if (!color) return
-      ctx.fillStyle = color
-      ctx.fillRect(originX + x, originY + y, 1, 1)
-    })
-  })
+/**
+ * MỘT ô cảnh vẽ tay - bụi cỏ rung lên khi quái sắp nhảy ra.
+ *
+ * Cùng bộ vẽ với cả bản đồ, nên ô rung khớp nét với chỗ nó đứng thay vì là một
+ * ô pixel lạc giữa cảnh vẽ tay.
+ */
+function TileArt({ kind, colors, ground, size }: { kind: TileKind; colors: TerrainColors; ground: TileKind; size: number }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = ref.current
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return
+    canvas.width = ART_TILE
+    canvas.height = ART_TILE
+    paintMapArt(ctx, [[kind]], colors, ground)
+  }, [kind, colors, ground])
+  return <canvas ref={ref} style={{ width: size, height: size, display: 'block' }} aria-hidden="true" />
 }
 
 /** Dấu hiệu trên cổng: đã xong, đang mở, hay còn khoá. */

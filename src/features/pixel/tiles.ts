@@ -406,7 +406,7 @@ function sandTile(c: TerrainColors): Sprite {
  * `amount` dương là kéo về phía trắng, âm là kéo về phía đen. Dùng cho độ cao:
  * cùng một mặt đất, ba nấc sáng.
  */
-function shade(hex: string, amount: number): string {
+export function shade(hex: string, amount: number): string {
   const m = /^#([0-9a-f]{6})$/i.exec(hex.trim())
   if (!m) return hex
   const value = parseInt(m[1]!, 16)

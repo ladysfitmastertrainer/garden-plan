@@ -19,6 +19,7 @@ import { heroViewFor } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
 import { HABITAT_TILE, type TerrainColors, type TileKind } from '../pixel/tiles'
 import { ART_TILE, paintForeground, paintMapArt } from './tile-art'
+import { lightningSpot } from '../../content/event2010'
 import type { Habitat, Subject } from '../../content/types'
 import { HABITAT_PLACE } from '../../content/bestiary'
 import type { MapNode } from '../../content/worldmap'
@@ -367,6 +368,14 @@ interface Props {
   startAt?: { x: number; y: number } | null
   /** Báo mỗi khi nhân vật bước sang ô mới, để bên ngoài nhớ lại chỗ đứng. */
   onPosition?: (pos: { x: number; y: number }) => void
+  /**
+   * DẤU TIA SÉT của sự kiện 20/10 trong vùng đất này - xem `content/event2010.ts`.
+   *
+   * `seed` quyết định chỗ in dấu (cố định theo từng em). `live` là đang trong
+   * ngày sự kiện: chỉ lúc ấy giẫm lên mới gọi `onStep`. Trước đó dấu vẫn nằm
+   * đó, mờ mờ, cho em nào tinh mắt tìm ra trước.
+   */
+  eventMark?: { seed: string; live: boolean; onStep: () => void } | null
 }
 
 /**
@@ -408,6 +417,7 @@ export function Overworld({
   follower,
   startAt,
   onPosition,
+  eventMark,
 }: Props) {
   const crowd = friends ?? EMPTY_FRIENDS
   const bossIndex = nodes.findIndex((node) => node.kind === 'boss')
@@ -416,6 +426,18 @@ export function Overworld({
       buildRouteMap(slots ?? nodes.length, seed, routeOptionsFor(biome, bossIndex)),
     [slots, nodes.length, seed, biome, bossIndex],
   )
+
+  /** Ô in dấu tia sét, nếu vùng này có trùm ẩn đang nấp - xem `eventMark`. */
+  const markSpot = useMemo(
+    () => (eventMark ? lightningSpot(map, eventMark.seed) : null),
+    [map, eventMark?.seed],
+  )
+  // Đọc qua ref trong hàm bước đi, để hàm ấy không phải dựng lại mỗi lần cha
+  // render một đối tượng `eventMark` mới.
+  const markSpotRef = useRef(markSpot)
+  markSpotRef.current = markSpot
+  const eventMarkRef = useRef(eventMark)
+  eventMarkRef.current = eventMark
 
   const bossNode = bossIndex >= 0 ? nodes[bossIndex] : undefined
 
@@ -845,6 +867,14 @@ export function Overworld({
         // trẻ tưởng mình bấm hụt.
         const tile = map.tiles[next.y]?.[next.x]
 
+        // Dấu tia sét đứng ĐẦU hàng ưu tiên trong ngày sự kiện: tìm ra được nó
+        // là cả một công đi tìm, không để cửa nhà hay quái hoang chen ngang.
+        const spot = markSpotRef.current
+        if (spot && spot.x === next.x && spot.y === next.y && eventMarkRef.current?.live) {
+          eventMarkRef.current.onStep()
+          return
+        }
+
         /*
           Cửa nhà và ô quái ẩn đứng TRƯỚC quái hoang trong hàng ưu tiên.
 
@@ -1069,6 +1099,43 @@ export function Overworld({
               </div>
             </div>
           ))}
+
+          {/*
+            DẤU TIA SÉT khắc mờ dưới mặt đất - chỗ trùm ẩn sẽ hiện ra.
+
+            Cố ý KHÓ THẤY: cùng tông nâu với nét viền của bản đồ, nhạt, nằm nghiêng
+            trong một góc khuất (xem `lightningSpot`). Trong ngày sự kiện, đứng
+            cách nó hai ô trở lại thì nó phập phồng sáng lên - phần thưởng cho em
+            đã lần tới đúng góc ấy.
+          */}
+          {markSpot && (
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                left: markSpot.x * TILE * scale,
+                top: markSpot.y * TILE * scale,
+                width: TILE * scale,
+                height: TILE * scale,
+                zIndex: 0,
+              }}
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 20 20"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  transform: 'rotate(-14deg) scale(0.7)',
+                  opacity: 0.22,
+                  ...(eventMark?.live && Math.abs(pos.x - markSpot.x) + Math.abs(pos.y - markSpot.y) <= 2
+                    ? { animation: 'mark-pulse 1.2s ease-in-out infinite', filter: 'drop-shadow(0 0 3px #ffe27a)' }
+                    : {}),
+                }}
+              >
+                <polygon points="11,1 4,11 9,11 7,19 16,8 11,8 13,1" fill="#3b2a20" />
+              </svg>
+            </div>
+          )}
 
           {/* Đàn quái canh từng chặng */}
           {alive.map((m) => (

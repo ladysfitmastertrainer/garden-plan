@@ -13,7 +13,7 @@
  * nhận chạm, và chỗ gọi không dựng nó khi máy bật giảm chuyển động.
  */
 
-export type AuraKind = 'runes' | 'fire' | 'sound' | 'shadow' | 'leader'
+export type AuraKind = 'runes' | 'fire' | 'sound' | 'shadow' | 'leader' | 'storm'
 
 export interface AuraSpec {
   kind: AuraKind
@@ -24,7 +24,9 @@ export interface AuraSpec {
 /** To hơn quái thường bao nhiêu lần: trùm 1,6, đầu đàn 1,25. */
 export function auraGrow(spec: AuraSpec | undefined): number {
   if (!spec) return 1
-  return spec.kind === 'leader' ? 1.25 : 1.6
+  if (spec.kind === 'leader') return 1.25
+  // Trùm ẩn của sự kiện: to nhất trong mọi loại quái.
+  return spec.kind === 'storm' ? 1.7 : 1.6
 }
 
 /**
@@ -43,6 +45,7 @@ export function CreatureAura({ spec, width, layer }: { spec: AuraSpec; width: nu
       {kind === 'sound' && <Sound color={color} width={width} layer={layer} />}
       {kind === 'shadow' && <Shadow width={width} layer={layer} />}
       {kind === 'leader' && <Leader color={color} width={width} layer={layer} />}
+      {kind === 'storm' && <Storm color={color} width={width} layer={layer} />}
     </div>
   )
 }
@@ -321,6 +324,85 @@ function Leader({ color, width, layer }: { color: string; width: number; layer: 
           ★
         </span>
       ))}
+    </>
+  )
+}
+
+/**
+ * TRÙM ẨN (sự kiện 20/10): BÃO SÉT.
+ *
+ * Khác hẳn hai loại kia: trùm có một kiểu theo con vật của nó, đầu đàn có sao
+ * vàng; trùm ẩn thì sét giáng thật quanh người - từng tia zíc zắc loé lên rồi
+ * tắt ở những chỗ khác nhau, một vòng điện xoay dưới chân, và cả vầng sáng
+ * chớp theo nhịp sét. Cùng dấu tia sét in dưới mặt đất nơi nó nấp.
+ */
+function Storm({ color, width, layer }: { color: string; width: number; layer: 'back' | 'front' }) {
+  const bolts =
+    layer === 'back'
+      ? [
+          { x: 0.02, h: 0.9, delay: 0 },
+          { x: 0.92, h: 1.0, delay: 0.55 },
+          { x: 0.3, h: 0.7, delay: 1.15 },
+          { x: 0.72, h: 0.8, delay: 1.7 },
+        ]
+      : [
+          { x: 0.15, h: 0.55, delay: 0.85 },
+          { x: 0.85, h: 0.5, delay: 2.0 },
+        ]
+  return (
+    <>
+      {layer === 'back' && (
+        // Vòng điện NẰM PHẲNG trên mặt đất: khối ngoài ép dẹt cố định, vòng tròn
+        // bên trong mới xoay - xoay thẳng một hình bầu dục thì nó dựng đứng lên.
+        <div
+          className="absolute left-1/2"
+          style={{
+            bottom: -width * 0.5,
+            width: width * 1.3,
+            height: width * 1.3,
+            marginLeft: -width * 0.65,
+            transform: 'scaleY(0.28)',
+          }}
+        >
+          <div
+            className="h-full w-full rounded-full"
+            style={{
+              border: `${Math.max(4, width * 0.04)}px dashed #b9f3ff`,
+              boxShadow: `0 0 16px 4px ${color}, inset 0 0 14px ${color}`,
+              animation: 'storm-spin 2.4s linear infinite',
+            }}
+          />
+        </div>
+      )}
+      {bolts.map((bolt, i) => (
+        <svg
+          key={i}
+          className="absolute"
+          viewBox="0 0 20 100"
+          preserveAspectRatio="none"
+          style={{
+            left: `${bolt.x * 100}%`,
+            bottom: layer === 'back' ? '15%' : '-5%',
+            width: Math.max(14, width * 0.12),
+            height: width * bolt.h,
+            marginLeft: -Math.max(7, width * 0.06),
+            filter: `drop-shadow(0 0 6px ${color}) drop-shadow(0 0 2px #ffffff)`,
+            animation: `storm-bolt 2.4s steps(1, end) ${bolt.delay}s infinite`,
+            opacity: 0,
+          }}
+          aria-hidden="true"
+        >
+          <polyline
+            points="12,0 4,38 13,40 3,72 11,74 6,100"
+            fill="none"
+            stroke="#fff7c2"
+            strokeWidth="4"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        </svg>
+      ))}
+      {layer === 'back' && <Rising width={width} color={color} core="#e9fbff" count={6} duration={1.6} />}
     </>
   )
 }

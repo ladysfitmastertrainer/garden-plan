@@ -99,6 +99,11 @@ export interface Enemy {
    * vẽ nó bằng hình đầu đàn riêng chứ không phải hình quái thường của bầy.
    */
   leader?: number
+  /**
+   * TRÙM ẨN của sự kiện (xem `content/event2010.ts`). Giao diện vẽ nó bằng hình
+   * riêng và hiệu ứng bão sét riêng - khác cả trùm vùng đất lẫn đầu đàn.
+   */
+  hidden?: boolean
 
   /*
     ---- Bốn nét dưới đây làm nên ĐỘ KHÓ THẬT, và chỉ trùm trong tháp mới có ----

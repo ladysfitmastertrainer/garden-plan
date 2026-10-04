@@ -10,6 +10,15 @@
 
 import { create } from 'zustand'
 import { LEADERS, createEnemy } from '../content/bestiary'
+import {
+  EVENT_GOLD,
+  HIDDEN_BOSSES,
+  beatenKey,
+  curseBattle,
+  eventNow,
+  eventPhase,
+  hiddenBossBeaten,
+} from '../content/event2010'
 import { useUi } from './ui'
 import type { Enemy, PlayerStats } from '../engine/battle'
 import { getSkill } from '../content/curriculum'
@@ -104,6 +113,28 @@ function withLeader(
   return { ...enemy, leader, name: template.name, emoji: template.emoji }
 }
 
+/** Đang dựng trận trùm ẩn - lúc ấy không gieo lời nguyền, xem `startEventBattle`. */
+let summoning = false
+
+/**
+ * Gieo LỜI NGUYỀN của trùm ẩn lên trận vừa dựng, nếu có.
+ *
+ * Chỉ trong ngày sự kiện, chỉ ở vùng đất mà trùm ẩn đang nấp (môn ấy, đúng lớp
+ * của trẻ - chỗ dấu tia sét được in), và chỉ khi trẻ chưa hạ nó. Hạ rồi thì lời
+ * nguyền tan - đó là phần thưởng thứ hai, ngoài món đồ.
+ */
+function applyEventCurse(
+  get: () => GameState,
+  set: (partial: Partial<GameState>) => void,
+  subject: Subject,
+  grade: Grade,
+): void {
+  const { battle, student, progress } = get()
+  if (summoning || !battle || !student || grade !== student.grade) return
+  if (eventPhase(eventNow()) !== 'live' || hiddenBossBeaten(progress.eventBeaten, subject)) return
+  set({ battle: curseBattle(battle, HIDDEN_BOSSES[subject].curse) })
+}
+
 /**
  * Loại trận đang đánh.
  *
@@ -169,7 +200,7 @@ function enemyFor(kind: 'wild' | 'mini' | 'secret', enemy: Enemy): Enemy {
  * bạ. Hai chỗ phải biết điều đó - `commitBattleStep` và `closeBattle` - đều
  * kiểm tra đúng cái tên này.
  */
-export type BattleKind = 'node' | 'wild' | 'mini' | 'secret' | 'tower' | 'tutorial'
+export type BattleKind = 'node' | 'wild' | 'mini' | 'secret' | 'tower' | 'tutorial' | 'event'
 
 /**
  * Thứ nhận được sau khi thắng một trận đấu trường.
@@ -295,6 +326,11 @@ interface GameState {
    * `pvpClaimed`. Lần sau trả về `null`.
    */
   claimPvpReward: (matchId: string, foePetId: string | null) => PvpReward | null
+  /**
+   * Gặp TRÙM ẨN của sự kiện 20/10 - trẻ vừa giẫm lên dấu tia sét trong vùng đất
+   * của môn này. Xem `content/event2010.ts`.
+   */
+  startEventBattle: (subject: Subject) => void
   /**
    * Đặt một món xuống ô (cột, hàng). Trả vàng ngay.
    *
@@ -635,6 +671,7 @@ export const useGame = create<GameState>((set, get) => ({
       queueIndex: 0,
       summary: null,
     })
+    applyEventCurse(get, set, subject, target)
   },
 
   startWildBattle(subject, grade, kind = 'wild', variant, habitat) {
@@ -721,6 +758,7 @@ export const useGame = create<GameState>((set, get) => ({
       queueIndex: 0,
       summary: null,
     })
+    applyEventCurse(get, set, subject, target)
   },
 
   startTowerBattle(subject, grade) {
@@ -1065,6 +1103,54 @@ export const useGame = create<GameState>((set, get) => ({
     if (advanced.phase === 'victory') playEffect('victory')
   },
 
+  startEventBattle(subject) {
+    const { student, progress } = get()
+    if (!student || eventPhase(eventNow()) !== 'live' || hiddenBossBeaten(progress.eventBeaten, subject)) return
+
+    /*
+      Dựng như trận TRÙM CUỐI của vùng đất lớp này - cùng bộ câu khó, cùng đồng
+      hồ, cùng sức mạnh - rồi thay con trùm bằng trùm ẩn và gắn kỹ năng riêng.
+      Nhờ vậy nó mạnh NGANG trùm bàn ở mọi lớp mà không cần bảng số riêng.
+
+      `summoning` chặn lời nguyền: trận với chính con trùm gieo lời nguyền thì
+      không nguyền thêm - nó đã là thử thách khó nhất vùng rồi.
+    */
+    const bossNode = get().worldMap(subject, student.grade).nodes.find((node) => node.kind === 'boss')
+    if (!bossNode) return
+    summoning = true
+    try {
+      get().startBattle(subject, bossNode, student.grade)
+    } finally {
+      summoning = false
+    }
+    const started = get().battle
+    if (!started) return
+
+    const def = HIDDEN_BOSSES[subject]
+    const enemy: Enemy = {
+      ...started.enemy,
+      ...def.mechanics(started.enemy.maxHp),
+      id: `event-${subject}`,
+      name: def.name,
+      emoji: def.emoji,
+      isBoss: true,
+      hidden: true,
+    }
+    set({
+      battle: {
+        ...started,
+        enemy,
+        enemyHp: enemy.maxHp,
+        enemyElement: enemy.element,
+        log: [...started.log, `⚡ ${def.name} - kỹ năng ${def.skill}: ${def.skillText}`],
+      },
+      // Không gắn với chặng nào: thắng không mở chặng, chỉ phát phần thưởng sự kiện.
+      battleNode: null,
+      battleKind: 'event',
+      lastFight: { subject, grade: student.grade, node: null, kind: 'event' },
+    })
+  },
+
   /**
    * Đánh lại đúng con quái vừa thua.
    *
@@ -1084,6 +1170,10 @@ export const useGame = create<GameState>((set, get) => ({
     }
     if (lastFight.kind === 'tower') {
       get().startTowerBattle(lastFight.subject, lastFight.grade)
+      return
+    }
+    if (lastFight.kind === 'event') {
+      get().startEventBattle(lastFight.subject)
       return
     }
     get().startWildBattle(
@@ -1178,8 +1268,16 @@ export const useGame = create<GameState>((set, get) => ({
     }
 
     const rng = createRng(`${student.id}-loot-${battle.enemy.id}-${Date.now()}`)
-    const loot = rollLoot(outcome, rng)
-    const bonuses = bonusAwards(outcome)
+    /*
+      Hạ TRÙM ẨN: món đồ độc quyền của con trùm ấy rơi CHẮC CHẮN, thay cho lượt
+      quay đồ thường, cộng thêm một khoản vàng lớn. Món ấy không rơi ở đâu khác.
+    */
+    const hiddenBoss = victory && battleKind === 'event' ? HIDDEN_BOSSES[battleSubject] : null
+    const loot = (hiddenBoss && findLootItem(hiddenBoss.rewardItemId)) || rollLoot(outcome, rng)
+    const bonuses = [
+      ...bonusAwards(outcome),
+      ...(hiddenBoss ? [{ label: `Hạ trùm ẩn ${hiddenBoss.name}!`, gold: EVENT_GOLD, xp: 100 }] : []),
+    ]
     const bonusGold = bonuses.reduce((sum, b) => sum + b.gold, 0)
     const bonusXp = bonuses.reduce((sum, b) => sum + b.xp, 0)
 
@@ -1287,6 +1385,9 @@ export const useGame = create<GameState>((set, get) => ({
       petXp,
       petNature,
       inventory: loot ? [...progress.inventory, loot.id] : progress.inventory,
+      eventBeaten: hiddenBoss
+        ? [...new Set([...(progress.eventBeaten ?? []), beatenKey(battleSubject)])]
+        : progress.eventBeaten,
       battlesPlayed: progress.battlesPlayed + 1,
       battlesWon: progress.battlesWon + (victory ? 1 : 0),
     }

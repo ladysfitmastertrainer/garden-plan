@@ -882,3 +882,28 @@ ART STYLE: polished 2D vector cartoon for a modern mobile monster-collecting gam
 
 IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 characters standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Characters must never touch or overlap, and no tail, wing, horn, weapon or effect may reach into a neighbour's column. Every character is fully visible and never cut off by the image edge. Every character is drawn in three-quarter view, body and face turned toward the LEFT side of the image. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no stone base, no pedestal, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image.
 ```
+
+## Sự kiện 20/10 - Bốn Trùm Sấm (1 tờ)
+
+### 43. Trùm ẩn - Bốn Trùm Sấm
+
+**Tên file:** `event-bosses.png` · **Thứ tự trái → phải:** Kỳ Lân Sấm Số (Toán), Giao Long Mực Sấm (Tiếng Việt), Lôi Điểu Trống Đồng (Âm nhạc), Bạch Hổ Sấm Sét (Đạo đức)
+
+Bốn con trùm ẨN chỉ xuất hiện đúng ngày 20/10. Phải oai ngang trùm cuối bàn, và cả bốn
+cùng một chủ đề SẤM SÉT (khớp với dấu tia sét in dưới đất nơi chúng nấp) để nhìn ra
+ngay là một bộ. Cách làm như các tờ quái: đính kèm tờ trùm đẹp nhất làm mẫu nét vẽ.
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading, proportions and color intensity. Do NOT copy any of its characters.
+
+These are 4 HIDDEN THUNDER BOSSES for a one-day special event - legendary, rare and powerful-looking, as impressive as a final boss, but still cute and chibi. All 4 share one theme: THUNDER AND LIGHTNING - glowing electric-blue and gold lightning marks on their bodies, small crackling sparks around them, a lightning-bolt shaped emblem somewhere on each one. The 4 characters must look completely different from each other.
+
+1. Kỳ Lân Sấm Số - a majestic thunder qilin (Asian unicorn) with a single crystal horn shaped like a lightning bolt, a mane made of floating golden geometric shapes (triangles, squares, circles), electric-blue cloud-swirl patterns on its body. Palette: gold, electric blue and white.
+2. Giao Long Mực Sấm - a long Asian water dragon made of swirling ink, with lightning crackling along its spine, flowing calligraphy-brush whiskers, ink droplets floating around it. Palette: ink black, deep pink and electric blue.
+3. Lôi Điểu Trống Đồng - a proud thunderbird whose spread wings carry the sun-and-bird patterns of an ancient Vietnamese Dong Son bronze drum, lightning crackling at its wingtips, a bronze crest. Palette: bronze, violet and electric gold.
+4. Bạch Hổ Sấm Sét - a noble white tiger spirit with glowing electric-blue stripes shaped like lightning bolts, a small cloud-shaped collar, sparks around its paws. Palette: white, sky blue and gold.
+
+ART STYLE: polished 2D vector cartoon for a modern mobile monster-collecting game. Chibi proportions: big round head, oversized shiny eyes (large dark pupils with a white highlight), short stubby limbs, chunky rounded silhouette that reads clearly even when small. Thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Bright, saturated, candy-like colors. Cute and friendly, made for children aged 6-10; even villains look mischievous, never scary or gory.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 characters standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Characters must never touch or overlap, and no tail, wing, horn, lightning bolt or effect may reach into a neighbour's column. Every character is fully visible and never cut off by the image edge. Every character is drawn in three-quarter view, body and face turned toward the LEFT side of the image. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no stone base, no pedestal, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image.
+```

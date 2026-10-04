@@ -45,6 +45,8 @@ export const SHEETS = [
   ...HABITATS.map((h) => ({ file: `habitat-${h}.png`, ids: four(`habitat-${h}`) })),
   // Nhân vật của trẻ: mặt trước, mặt nghiêng (nhìn sang trái), mặt sau.
   ...HEROES.map((h) => ({ file: `hero-${h}.png`, ids: [`hero-${h}-down`, `hero-${h}-side`, `hero-${h}-up`] })),
+  // Trùm ẩn của sự kiện 20/10 - xem `content/event2010.ts`.
+  { file: 'event-bosses.png', ids: ['event-math', 'event-vietnamese', 'event-music', 'event-ethics'] },
   // Đầu đàn trong hang - xem `LEADERS` trong `content/bestiary.ts`.
   { file: 'leaders-1.png', ids: ['leader-math-1', 'leader-math-2', 'leader-vietnamese-1', 'leader-vietnamese-2'] },
   { file: 'leaders-2.png', ids: ['leader-music-1', 'leader-music-2', 'leader-ethics-1', 'leader-ethics-2'] },

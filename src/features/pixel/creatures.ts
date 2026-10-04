@@ -1394,6 +1394,30 @@ for (const [habitat, family] of Object.entries(HABITAT_FAMILY)) {
   family.forEach((sprite, i) => (sprite.art = { id: `habitat-${habitat}-${i + 1}`, mirrored: true, alive: true }))
 }
 
+const HIDDEN_CACHE = new Map<Subject, Sprite>()
+
+/**
+ * Hình TRÙM ẨN của sự kiện 20/10: `public/art/event-<môn>.webp`.
+ *
+ * Chưa có hình riêng thì mượn hình trùm của môn, nhuộm sang tông tím điện - đủ
+ * khác để trẻ không tưởng mình đang đánh lại con trùm cuối bàn.
+ */
+export function hiddenBossSpriteFor(subject: Subject): Sprite {
+  const hit = HIDDEN_CACHE.get(subject)
+  if (hit) return hit
+  const base = BOSS_SPRITE[subject]
+  const id = `event-${subject}`
+  const sprite: Sprite = {
+    rows: base.rows,
+    palette: base.palette,
+    art: ART_MANIFEST[id]
+      ? { id, mirrored: true, alive: true }
+      : base.art && { ...base.art, filter: 'hue-rotate(200deg) saturate(1.5) brightness(1.05)' },
+  }
+  HIDDEN_CACHE.set(subject, sprite)
+  return sprite
+}
+
 const LEADER_CACHE = new Map<string, Sprite>()
 
 /**

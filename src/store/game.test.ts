@@ -602,3 +602,68 @@ describe('nuôi thú và tiến hoá', () => {
     expect(after.pet.name).not.toBe(before.pet.name)
   })
 })
+
+describe('sự kiện 20/10: trùm ẩn', () => {
+  const LIVE = Date.UTC(2026, 9, 20, 3, 0, 0) // 10h sáng 20/10 giờ Việt Nam
+  const BEFORE = Date.UTC(2026, 9, 10, 3, 0, 0)
+
+  const withClock = async (at: number, run: () => Promise<void>) => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(at)
+    try {
+      await run()
+    } finally {
+      vi.useRealTimers()
+    }
+  }
+
+  it('chưa tới ngày thì không gặp được trùm ẩn, và trận thường không bị nguyền', async () => {
+    await withClock(BEFORE, async () => {
+      await newStudent(2)
+      useGame.getState().startEventBattle('math')
+      expect(useGame.getState().battle).toBeNull()
+
+      const node = useGame.getState().worldMap('math').nodes[0]!
+      useGame.getState().startBattle('math', node)
+      const b = useGame.getState().battle!
+      expect(b.log.some((line) => line.includes('Lời nguyền'))).toBe(false)
+    })
+  })
+
+  it('đúng ngày: vùng đất bị nguyền, gặp trùm ẩn, thắng thì nhận đồ độc quyền và lời nguyền tan', async () => {
+    await withClock(LIVE, async () => {
+      await newStudent(2)
+
+      // Trận thường trong vùng đất Toán lớp của em: dính lời nguyền rút sức.
+      const node = useGame.getState().worldMap('math').nodes[0]!
+      useGame.getState().startBattle('math', node)
+      const cursed = useGame.getState().battle!
+      expect(cursed.log.some((line) => line.includes('Lời nguyền'))).toBe(true)
+      expect(cursed.pet.hp).toBeLessThan(cursed.pet.pet.maxHp)
+      useGame.setState({ battle: null })
+
+      // Gặp trùm ẩn.
+      useGame.getState().startEventBattle('math')
+      const fight = useGame.getState().battle!
+      expect(fight.enemy.hidden).toBe(true)
+      expect(fight.enemy.name).toBe('Kỳ Lân Sấm Số')
+      expect(fight.enemy.shiftEvery).toBe(2)
+      // Trận với chính con trùm gieo lời nguyền thì không bị nguyền thêm.
+      expect(fight.log.some((line) => line.includes('Lời nguyền'))).toBe(false)
+
+      useGame.setState({ battle: { ...fight, phase: 'victory', enemyHp: 0 } })
+      await useGame.getState().closeBattle()
+      const { progress, summary, student } = useGame.getState()
+      expect(summary?.loot?.id).toBe('sung-sam-ky-lan')
+      expect(progress.inventory).toContain('sung-sam-ky-lan')
+      expect(progress.eventBeaten).toContain('2010-2026:math')
+      expect(student!.gold).toBeGreaterThanOrEqual(300)
+
+      // Hạ rồi: không gặp lại, và vùng đất hết bị nguyền.
+      useGame.getState().startEventBattle('math')
+      expect(useGame.getState().battle).toBeNull()
+      useGame.getState().startBattle('math', node)
+      expect(useGame.getState().battle!.log.some((line) => line.includes('Lời nguyền'))).toBe(false)
+    })
+  })
+})

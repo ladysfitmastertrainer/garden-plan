@@ -111,12 +111,17 @@ export function enemyScaleFor(
 
 // --- Vật phẩm rơi ------------------------------------------------------------
 
-export type Rarity = 'common' | 'rare' | 'epic'
+/**
+ * `event` là đồ ĐỘC QUYỀN của sự kiện: không bao giờ rơi ngẫu nhiên (trọng số 0
+ * trong `RARITY_WEIGHT`), chỉ có khi hạ trùm ẩn - xem `content/event2010.ts`.
+ */
+export type Rarity = 'common' | 'rare' | 'epic' | 'event'
 
 export const RARITY_LABEL: Record<Rarity, string> = {
   common: 'Thường',
   rare: 'Hiếm',
   epic: 'Cực hiếm',
+  event: 'Sự kiện 20/10',
 }
 
 export interface LootItem {
@@ -136,9 +141,15 @@ const LOOT_TABLE: LootItem[] = [
   { id: 'sao-thanh-am', name: 'Sáo thanh âm', emoji: '🎶', rarity: 'rare', bonus: { bonusPower: 0.15 } },
   { id: 'vuong-mien-so-hoc', name: 'Vương miện Số Học', emoji: '👑', rarity: 'epic', bonus: { bonusHp: 20, bonusPower: 0.25 } },
   { id: 'den-long-tri-tue', name: 'Đèn lồng Trí Tuệ', emoji: '🏮', rarity: 'epic', bonus: { bonusHp: 30, bonusPower: 0.18 } },
+  // Đồ độc quyền sự kiện 20/10 - mạnh hơn đồ cực hiếm một chút, vì phải đi tìm
+  // và hạ một con trùm ẩn mới có, và chỉ có đúng trong một ngày.
+  { id: 'sung-sam-ky-lan', name: 'Sừng Sấm Kỳ Lân', emoji: '⚡', rarity: 'event', bonus: { bonusHp: 25, bonusPower: 0.3 } },
+  { id: 'ngoc-muc-giao-long', name: 'Ngọc Mực Giao Long', emoji: '🔮', rarity: 'event', bonus: { bonusHp: 40, bonusPower: 0.22 } },
+  { id: 'long-vu-loi-dieu', name: 'Lông Vũ Lôi Điểu', emoji: '🪶', rarity: 'event', bonus: { bonusHp: 20, bonusPower: 0.35 } },
+  { id: 'nanh-bach-ho', name: 'Nanh Bạch Hổ', emoji: '🐯', rarity: 'event', bonus: { bonusHp: 45, bonusPower: 0.2 } },
 ]
 
-const RARITY_WEIGHT: Record<Rarity, number> = { common: 70, rare: 25, epic: 5 }
+const RARITY_WEIGHT: Record<Rarity, number> = { common: 70, rare: 25, epic: 5, event: 0 }
 
 export interface BattleOutcome {
   victory: boolean

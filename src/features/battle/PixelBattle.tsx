@@ -20,7 +20,7 @@ import { useReduceMotion } from '../../shell/useReduceMotion'
 import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import type { Subject } from '../../content/types'
 import type { BattleState } from '../../engine/battle'
-import { leaderSpriteFor, monsterSpriteFor, towerSpriteFor } from '../pixel/creatures'
+import { hiddenBossSpriteFor, leaderSpriteFor, monsterSpriteFor, towerSpriteFor } from '../pixel/creatures'
 import type { AuraKind } from './auras'
 import {
   Combatant,
@@ -195,7 +195,9 @@ export function PixelBattle({
   // Mỗi con quái một hình riêng, khớp với cái tên nó mang.
   const enemySprite = battle.enemy.isTower
     ? towerSpriteFor(subject)
-    : battle.enemy.leader !== undefined
+    : battle.enemy.hidden
+      ? hiddenBossSpriteFor(subject)
+      : battle.enemy.leader !== undefined
       ? leaderSpriteFor(subject, battle.enemy.leader)
       : monsterSpriteFor(subject, battle.enemy.variant, battle.enemy.isBoss, battle.enemy.habitat)
 
@@ -363,7 +365,9 @@ export function PixelBattle({
         // Trùm to gấp rưỡi nên đứng nhích lên, để chân vẫn ở chỗ quái thường đứng.
         style={battle.enemy.isBoss ? { ...farSpot(scene), top: '13%' } : farSpot(scene)}
         aura={
-          battle.enemy.isBoss
+          battle.enemy.hidden
+            ? { kind: 'storm', color: '#7fd8ff' }
+            : battle.enemy.isBoss
             ? { kind: BOSS_EFFECT[subject], color: BOSS_AURA[subject] }
             : battle.enemy.leader !== undefined
               ? { kind: 'leader', color: BOSS_AURA[subject] }

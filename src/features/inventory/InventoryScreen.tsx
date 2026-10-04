@@ -17,6 +17,7 @@ const RARITY_COLOR: Record<string, string> = {
   common: 'var(--color-ink-soft)',
   rare: 'var(--color-brand)',
   epic: 'var(--color-gold)',
+  event: '#8b5cf6',
 }
 
 export function InventoryScreen() {

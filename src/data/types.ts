@@ -59,6 +59,13 @@ export interface StudentProgress {
   pvpClaimed?: string[]
 
   /**
+   * Trùm ẩn của sự kiện đã hạ, dạng "<mã sự kiện>:<môn>" - xem
+   * `content/event2010.ts`. Hạ rồi thì lời nguyền trên vùng đất ấy tan, và dấu
+   * tia sét không gọi con trùm ra nữa.
+   */
+  eventBeaten?: string[]
+
+  /**
    * Nết trả lời đã tích được, theo từng con thú - xem `engine/nature.ts`.
    *
    * Theo TỪNG CON vì tính cách là của con thú, không phải của đứa trẻ: con đi

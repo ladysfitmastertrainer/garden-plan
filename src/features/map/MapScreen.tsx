@@ -40,6 +40,8 @@ import { usePvpSync } from '../pvp/usePvpSync'
 import { usePvp } from '../../store/pvp'
 import { challengeInput } from '../pvp/pvp-setup'
 import { CHAT_LINES, chatText } from '../../content/chat'
+import { EventBanner, useEventClock } from '../event/EventBanner'
+import { HIDDEN_BOSSES, eventPhase, hiddenBossBeaten } from '../../content/event2010'
 
 const SUBJECT_STYLE: Record<Subject, { color: string; emoji: string; land: string }> = {
   math: { color: 'var(--color-math)', emoji: '🔢', land: 'Thung lũng Con Số' },
@@ -301,6 +303,17 @@ export function MapScreen() {
       }))
   }, [lobby, region?.subject, region?.grade])
 
+  /*
+    Dải sự kiện 20/10. Đang đứng trong vùng đất có trùm ẩn nấp (đúng môn, đúng
+    lớp của trẻ) thì nó nói thêm lời nguyền của vùng ấy.
+  */
+  const eventBanner = (
+    <EventBanner
+      region={region && region.grade === student.grade ? region.subject : null}
+      beaten={progress.eventBeaten}
+    />
+  )
+
   const mapArea =
     region === null ? (
       <WorldMapScreen
@@ -355,6 +368,7 @@ export function MapScreen() {
     return (
       <div className="pixel-ui map-layout map-immersive">
         {mapArea}
+        {eventBanner}
 
         {/*
           Lối ra của ngăn kéo: một nút GỌI TÊN NƠI NÓ TRẢ VỀ.
@@ -393,6 +407,7 @@ export function MapScreen() {
 
   return (
     <div className="pixel-ui map-layout mx-auto flex min-h-dvh max-w-3xl flex-col gap-4 px-4 py-4">
+      {eventBanner}
       {chrome}
       {mapArea}
     </div>
@@ -651,6 +666,28 @@ function SubjectMap({
    * con đầu đàn thì bấm tiếp là vào trận.
    */
   const [visit, setVisit] = useState<Visit | null>(null)
+
+  /*
+    DẤU TIA SÉT của sự kiện 20/10 - chỉ ở vùng đất đúng lớp của trẻ, và chỉ khi
+    trẻ chưa hạ con trùm ẩn của môn này. Đồng hồ đọc nửa phút một lần là đủ: nó
+    chỉ cần biết sự kiện đã tới chưa, không cần đếm giây.
+  */
+  const startEventBattle = useGame((s) => s.startEventBattle)
+  const eventClock = useEventClock(30_000)
+  const phase = eventPhase(eventClock)
+  const hidden = HIDDEN_BOSSES[subject]
+  const eventMark =
+    phase !== 'over' && grade === student.grade && !hiddenBossBeaten(progress.eventBeaten, subject)
+      ? {
+          seed: `${student.id}-${subject}-g${grade}`,
+          live: phase === 'live',
+          onStep: () =>
+            setVisit({
+              text: `⚡ Dấu tia sét dưới chân con loé sáng... ${hidden.name} hiện ra! Kỹ năng ${hidden.skill}: ${hidden.skillText}`,
+              action: () => startEventBattle(subject),
+            }),
+        }
+      : null
   /**
    * Người bạn trẻ vừa đi vào, và hộp thoại đang mở với bạn ấy.
    *
@@ -843,6 +880,7 @@ function SubjectMap({
         onEnterGate={(node) => (node.kind === 'battle' ? onPlay(node) : setPreview(node))}
         paused={preview !== null || visit !== null || met !== null}
         fill={immersive}
+        eventMark={eventMark}
         /*
           Mũi tên ← và nút ☰ đi VÀO TRONG khung game, hai góc trên.
 

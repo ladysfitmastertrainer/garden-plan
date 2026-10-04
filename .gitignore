@@ -21,3 +21,6 @@ next-env.d.ts
 
 # Ảnh gốc Gemini vẽ - nặng, chỉ để cắt ra public/art bằng `npm run art`.
 art-src/
+
+# Ảnh tham khảo chụp từ game khác - chỉ để viết prompt, không phải của mình.
+ex/

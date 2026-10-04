@@ -21,6 +21,7 @@ import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import type { Subject } from '../../content/types'
 import type { BattleState } from '../../engine/battle'
 import { leaderSpriteFor, monsterSpriteFor, towerSpriteFor } from '../pixel/creatures'
+import type { AuraKind } from './auras'
 import {
   Combatant,
   ENEMY_SCALE,
@@ -163,6 +164,14 @@ const BOSS_AURA: Record<Subject, string> = {
   vietnamese: '#ff6fa8',
   music: '#b07cff',
   ethics: '#7fd8ff',
+}
+
+/** Hiệu ứng riêng của trùm từng môn - theo đúng con vật của nó (xem `auras.tsx`). */
+const BOSS_EFFECT: Record<Subject, AuraKind> = {
+  math: 'runes', // Rồng Số Học: khối hình học vàng lơ lửng
+  vietnamese: 'fire', // Phượng Hoàng Ngôn Từ: lửa cháy quanh người
+  music: 'sound', // Long Vương Thanh Âm: sóng âm loang ra
+  ethics: 'shadow', // Chúa Tể Bóng Đêm: khói tím cuộn lên
 }
 
 export function PixelBattle({
@@ -353,8 +362,13 @@ export function PixelBattle({
         flip
         // Trùm to gấp rưỡi nên đứng nhích lên, để chân vẫn ở chỗ quái thường đứng.
         style={battle.enemy.isBoss ? { ...farSpot(scene), top: '13%' } : farSpot(scene)}
-        aura={battle.enemy.isBoss ? BOSS_AURA[subject] : undefined}
-        grow={battle.enemy.leader !== undefined ? 1.25 : 1}
+        aura={
+          battle.enemy.isBoss
+            ? { kind: BOSS_EFFECT[subject], color: BOSS_AURA[subject] }
+            : battle.enemy.leader !== undefined
+              ? { kind: 'leader', color: BOSS_AURA[subject] }
+              : undefined
+        }
         attacking={live === 'enemy-attacks'}
         hit={live === 'hero-attacks'}
         direction={-1}

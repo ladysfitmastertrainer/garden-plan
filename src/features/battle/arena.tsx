@@ -14,6 +14,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import type { Habitat, Subject } from '../../content/types'
 import type { EffectKind } from '../../engine/pets'
 import { PixelSprite, artOf } from '../pixel/sprite'
+import { CreatureAura, auraGrow, type AuraSpec } from './auras'
 import { heroSprite } from '../pixel/heroes'
 import { ART_MANIFEST } from '../art/manifest'
 
@@ -43,7 +44,11 @@ export function arenaScales(width: number, height: number): { hero: number; enem
 
   // Sàn 4 và 3: dưới mức đó thì con quái nhỏ hơn cái thanh máu của chính nó, và
   // trẻ không còn nhận ra mình đang đánh con gì.
-  return { hero: pick(HERO_SCALE, 4, 12), enemy: pick(ENEMY_SCALE, 3, 9) }
+  //
+  // Trần 22 và 17 thay cho 12 và 9 cũ: trên màn hình rộng sân đấu cao tới gần
+  // 900px, và ở trần cũ thú với quái chỉ còn là hai cái chấm giữa một bức tranh
+  // lớn. Trần chỉ còn chặn những khung khổng lồ - kích cỡ thật vẫn đi theo khung.
+  return { hero: pick(HERO_SCALE, 4, 22), enemy: pick(ENEMY_SCALE, 3, 17) }
 }
 
 
@@ -150,7 +155,6 @@ export function Combatant({
   idleDelay,
   overlay,
   aura,
-  grow = 1,
 }: {
   sprite: Parameters<typeof PixelSprite>[0]['sprite']
   scene: Scene
@@ -185,12 +189,11 @@ export function Combatant({
    * dọc đường. Đây là trận quan trọng nhất của cả lớp học, và nó phải trông
    * như vậy ngay từ giây đầu tiên.
    */
-  aura?: string
-  /** Phóng thêm - đầu đàn to hơn quái thường một bậc, vẫn dưới trùm. */
-  grow?: number
+  aura?: AuraSpec
 }) {
-  // Trùm to gấp 1,6 lần: đủ để thấy ngay là "con này khác", mà vẫn vừa sân đấu.
-  const size = aura ? scale * 1.6 : scale * grow
+  // Trùm to gấp 1,6 lần, đầu đàn 1,25: đủ để thấy ngay là "con này khác", mà
+  // vẫn vừa sân đấu. Xem `auraGrow`.
+  const size = scale * auraGrow(aura)
   const spriteWidth = 16 * size
   const drawn = artOf(sprite) !== null
   /** Quãng lao khi ra đòn: gần trọn một thân sprite - xem nhánh `attacking`. */
@@ -249,7 +252,7 @@ export function Combatant({
       }
     >
       <div className="relative" style={{ width: spriteWidth }}>
-        {aura && !reduceMotion && <BossAura color={aura} width={spriteWidth} />}
+        {aura && !reduceMotion && <CreatureAura spec={aura} width={spriteWidth} layer="back" />}
         {overlay}
         {/* Bệ elip nằm dưới chân, vẽ trước nên luôn ở phía sau nhân vật. */}
         <div
@@ -313,6 +316,7 @@ export function Combatant({
         >
           <PixelSprite sprite={sprite} scale={size} flip={flip} />
         </div>
+        {aura && !reduceMotion && <CreatureAura spec={aura} width={spriteWidth} layer="front" />}
       </div>
     </motion.div>
     </motion.div>
@@ -608,75 +612,5 @@ export function EffectBurst({
         </motion.div>
       )}
     </AnimatePresence>
-  )
-}
-
-/**
- * Hào quang của trùm: một vầng sáng phập phồng sau lưng, và đốm sáng bay lên.
- *
- * Nằm SAU hình (vẽ trước trong khối) và không nhận chạm. Đốm sáng mọc ở những
- * chỗ cố định quanh thân, lệch nhịp nhau, nên nhìn như một luồng khí bốc lên
- * chứ không phải một vòng pháo hoa lặp đi lặp lại.
- */
-function BossAura({ color, width }: { color: string; width: number }) {
-  const sparks = [
-    { x: 0.08, delay: 0 },
-    { x: 0.3, delay: 0.9 },
-    { x: 0.55, delay: 0.35 },
-    { x: 0.78, delay: 1.4 },
-    { x: 0.95, delay: 0.6 },
-    { x: 0.42, delay: 1.9 },
-  ]
-  return (
-    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-      <div
-        className="absolute left-1/2"
-        style={{
-          bottom: '-6%',
-          width: width * 1.5,
-          height: width * 1.3,
-          marginLeft: -width * 0.75,
-          borderRadius: '50%',
-          background: `radial-gradient(closest-side, ${color}, ${color}aa 45%, ${color}33 75%, transparent 100%)`,
-          // Cộng sáng chứ không phủ màu: trên nền sáng vầng sáng vẫn rực lên.
-          mixBlendMode: 'screen',
-          animation: 'boss-aura 2s ease-in-out infinite',
-        }}
-      />
-      {/* Vòng sáng dưới chân, loang ra rồi tan - nhịp tim của trận trùm. */}
-      <div
-        className="absolute left-1/2"
-        style={{
-          bottom: -width * 0.04,
-          width: width * 1.2,
-          height: width * 0.3,
-          marginLeft: -width * 0.6,
-          borderRadius: '50%',
-          border: `${Math.max(3, width * 0.03)}px solid ${color}`,
-          boxShadow: `0 0 12px 2px ${color}`,
-          animation: 'boss-ring 2s ease-out infinite',
-        }}
-      />
-      {sparks.map((spark, i) => (
-        <span
-          key={i}
-          className="absolute"
-          style={
-            {
-              left: `${spark.x * 100}%`,
-              bottom: '10%',
-              width: Math.max(6, width * 0.06),
-              height: Math.max(6, width * 0.06),
-              background: '#fffbe8',
-              boxShadow: `0 0 8px 2px ${color}`,
-              transform: 'rotate(45deg)',
-              '--rise': `${-width * 0.9}px`,
-              animation: `boss-spark 2.4s ease-out ${spark.delay}s infinite`,
-              opacity: 0,
-            } as React.CSSProperties
-          }
-        />
-      ))}
-    </div>
   )
 }

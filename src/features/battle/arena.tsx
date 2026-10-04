@@ -15,6 +15,7 @@ import type { Habitat, Subject } from '../../content/types'
 import type { EffectKind } from '../../engine/pets'
 import { PixelSprite } from '../pixel/sprite'
 import { heroSprite } from '../pixel/heroes'
+import { ART_MANIFEST } from '../art/manifest'
 
 /**
  * Khung trận mà hai con số 8 và 6 dưới đây được vẽ vừa.
@@ -46,12 +47,71 @@ export function arenaScales(width: number, height: number): { hero: number; enem
 }
 
 
-/** Nền trận đấu: hai mảng màu phẳng, không chuyển sắc. */
-export const SCENE_BY_SUBJECT: Record<Subject, { sky: string; ground: string; platform: string; platformEdge: string }> = {
-  math: { sky: '#a8dcf0', ground: '#7cc96a', platform: '#5aab4c', platformEdge: '#3d7f36' },
-  vietnamese: { sky: '#f6c9d8', ground: '#6fbf86', platform: '#4fa06a', platformEdge: '#357a4c' },
-  music: { sky: '#c9c2f5', ground: '#77c6e0', platform: '#4fa3c4', platformEdge: '#357c99' },
-  ethics: { sky: '#bfe6ff', ground: '#8fd98f', platform: '#66b96e', platformEdge: '#468f50' },
+export interface Scene {
+  sky: string
+  ground: string
+  platform: string
+  platformEdge: string
+  /**
+   * Ảnh nền vẽ tay trong `public/art` (xem mục "Nền trận đấu" của
+   * `docs/art/prompts.md`). Chưa có file thì sân đấu vẫn là hai mảng màu phẳng.
+   */
+  art: string
+}
+
+/** Có ảnh nền vẽ tay cho cảnh này chưa. */
+export function hasSceneArt(scene: Scene): boolean {
+  return ART_MANIFEST[scene.art] !== undefined
+}
+
+/**
+ * Nền trận đấu: ảnh vẽ tay nếu có, không thì hai mảng màu phẳng như cũ.
+ *
+ * Màu trời vẫn tô ở khung ngoài (`scene.sky`) - nó là thứ trẻ thấy trong lúc ảnh
+ * còn đang tải, và nó cùng tông với ảnh nên không chớp.
+ */
+export function SceneBackdrop({ scene }: { scene: Scene }) {
+  if (!hasSceneArt(scene)) {
+    return <div className="absolute inset-x-0 bottom-0" style={{ height: '48%', background: scene.ground }} />
+  }
+  return (
+    <img
+      src={`/art/${scene.art}.webp`}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      decoding="async"
+      className="pointer-events-none absolute inset-0 h-full w-full select-none"
+      style={{
+        objectFit: 'cover',
+        // Khung trận thường dẹt hơn ảnh 16:9, nên ảnh bị xén trên dưới. Xén lệch
+        // về phía trời: mặt đất là chỗ hai bên đứng, không được mất.
+        objectPosition: 'center 70%',
+        // Khung ngoài đặt `pixelated` cho sprite điểm ảnh, và thuộc tính này
+        // được kế thừa - ảnh vẽ tay mà để vậy thì nét viền ra răng cưa.
+        imageRendering: 'auto',
+      }}
+    />
+  )
+}
+
+/**
+ * Chỗ đứng của bên phía trên - phải (con quái, hoặc bạn bên kia ở trận tay đôi).
+ *
+ * Trên ảnh nền vẽ tay thì hạ xuống: đường chân trời của ảnh nằm khoảng giữa
+ * khung, và ở chỗ cũ (16% từ trên) con quái đứng lơ lửng giữa trời trên màn
+ * hình điện thoại. Nền hai mảng màu thì không có chân trời nào để lệch.
+ */
+export function farSpot(scene: Scene): React.CSSProperties {
+  return { right: '12%', top: hasSceneArt(scene) ? '23%' : '16%' }
+}
+
+/** Nền trận đấu theo môn. */
+export const SCENE_BY_SUBJECT: Record<Subject, Scene> = {
+  math: { sky: '#a8dcf0', ground: '#7cc96a', platform: '#5aab4c', platformEdge: '#3d7f36', art: 'scene-math' },
+  vietnamese: { sky: '#f6c9d8', ground: '#6fbf86', platform: '#4fa06a', platformEdge: '#357a4c', art: 'scene-vietnamese' },
+  music: { sky: '#c9c2f5', ground: '#77c6e0', platform: '#4fa3c4', platformEdge: '#357c99', art: 'scene-music' },
+  ethics: { sky: '#bfe6ff', ground: '#8fd98f', platform: '#66b96e', platformEdge: '#468f50', art: 'scene-ethics' },
 }
 
 /**
@@ -59,13 +119,13 @@ export const SCENE_BY_SUBJECT: Record<Subject, { sky: string; ground: string; pl
  * đánh con cua thì đứng trong hang. Cùng một khuôn hai mảng màu với nền của môn,
  * chỉ đổi màu - để trẻ vào trận vẫn nhớ mình vừa bước ra từ đâu.
  */
-export const SCENE_BY_HABITAT: Record<Habitat, (typeof SCENE_BY_SUBJECT)[Subject]> = {
-  sea: { sky: '#9fe0f2', ground: '#5fb8e0', platform: '#efe2b4', platformEdge: '#c9b37a' },
-  cave: { sky: '#3b3240', ground: '#6b5f58', platform: '#857871', platformEdge: '#51463f' },
-  forest: { sky: '#bfe8a8', ground: '#4f9e4a', platform: '#b98552', platformEdge: '#8a5d33' },
-  lava: { sky: '#5a2a24', ground: '#5d5654', platform: '#8a3a1c', platformEdge: '#ff6a1f' },
+export const SCENE_BY_HABITAT: Record<Habitat, Scene> = {
+  sea: { sky: '#9fe0f2', ground: '#5fb8e0', platform: '#efe2b4', platformEdge: '#c9b37a', art: 'scene-sea' },
+  cave: { sky: '#3b3240', ground: '#6b5f58', platform: '#857871', platformEdge: '#51463f', art: 'scene-cave' },
+  forest: { sky: '#bfe8a8', ground: '#4f9e4a', platform: '#b98552', platformEdge: '#8a5d33', art: 'scene-forest' },
+  lava: { sky: '#5a2a24', ground: '#5d5654', platform: '#8a3a1c', platformEdge: '#ff6a1f', art: 'scene-lava' },
   // Ngoài khơi: trời xám bão, biển thẫm - trẻ đứng trên một mỏm đá giữa sóng.
-  deep: { sky: '#6f8aa3', ground: '#2a5b96', platform: '#8a8f99', platformEdge: '#5a606b' },
+  deep: { sky: '#6f8aa3', ground: '#2a5b96', platform: '#8a8f99', platformEdge: '#5a606b', art: 'scene-deep' },
 }
 
 
@@ -91,7 +151,7 @@ export function Combatant({
   overlay,
 }: {
   sprite: Parameters<typeof PixelSprite>[0]['sprite']
-  scene: { platform: string; platformEdge: string }
+  scene: Scene
   style: React.CSSProperties
   flip?: boolean
   attacking: boolean
@@ -180,8 +240,11 @@ export function Combatant({
             bottom: scale * 0.5,
             width: spriteWidth * 1.35,
             height: scale * 3,
-            background: scene.platform,
-            border: `3px solid ${scene.platformEdge}`,
+            // Trên ảnh nền vẽ tay, bệ màu đặc thành một cái đĩa lạc lõng giữa
+            // cảnh - ở đó chỉ cần một vệt bóng mờ dưới chân.
+            ...(hasSceneArt(scene)
+              ? { background: 'rgba(30, 20, 10, 0.28)' }
+              : { background: scene.platform, border: `3px solid ${scene.platformEdge}` }),
             borderRadius: '50%',
           }}
           aria-hidden="true"

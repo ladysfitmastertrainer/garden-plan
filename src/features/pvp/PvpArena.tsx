@@ -31,6 +31,8 @@ import {
   HERO_SCALE,
   HpBox,
   SCENE_BY_SUBJECT,
+  SceneBackdrop,
+  farSpot,
   StatusAura,
   Trainer,
   arenaScales,
@@ -167,7 +169,8 @@ export function PvpArena({
       animate={theyHit && !reduceMotion ? { x: [0, -8, 8, -4, 4, 0] } : { x: 0 }}
       transition={{ duration: 0.4, delay: 0.25, ease: 'linear' }}
     >
-      <div className="absolute inset-x-0 bottom-0" style={{ height: '48%', background: scene.ground }} />
+      {/* Nền: ảnh vẽ tay của cảnh này, hoặc hai mảng màu phẳng nếu chưa có. */}
+      <SceneBackdrop scene={scene} />
 
       {/* Bên kia: trên - phải, sprite nhỏ hơn cho cảm giác ở xa. */}
       {foePet && (
@@ -175,7 +178,7 @@ export function PvpArena({
           sprite={petSpriteFor(foePet)}
           scene={scene}
           flip
-          style={{ right: '12%', top: '14%' }}
+          style={farSpot(scene)}
           attacking={theyHit}
           hit={iHit}
           direction={-1}

@@ -46,3 +46,34 @@ export const SHEETS = [
   // Nhân vật của trẻ: mặt trước, mặt nghiêng (nhìn sang trái), mặt sau.
   ...HEROES.map((h) => ({ file: `hero-${h}.png`, ids: [`hero-${h}-down`, `hero-${h}-side`, `hero-${h}-up`] })),
 ]
+
+/**
+ * Logo ngôi sao mờ Gemini đóng vào góc dưới bên phải mọi ảnh 1024×572 - cùng một
+ * chỗ ở cả chín tấm nền.
+ */
+const GEMINI_STAR = { x: 935, y: 481, r: 20, dx: -48, dy: 0 }
+
+/**
+ * Ảnh NỀN TRẬN ĐẤU: một ảnh nguyên vẹn mỗi tấm, không cắt nhân vật.
+ *
+ * `patches` là những chỗ phải xoá: mỗi chỗ là một hình tròn tâm (x, y) bán kính
+ * r, tính bằng điểm ảnh của ẢNH GỐC, được đắp bằng mảng nền lấy lệch (dx, dy) -
+ * như cọ "clone" của trình sửa ảnh. Đo bằng mắt trên từng tấm, nên Gemini vẽ lại
+ * tấm nào thì phải đo lại tấm đó.
+ *
+ * @type {{ file: string, id: string, patches: { x: number, y: number, r: number, dx: number, dy: number }[] }[]}
+ */
+export const SCENES = [...SUBJECTS, ...HABITATS].map((key) => ({
+  file: `scene-${key}.png`,
+  id: `scene-${key}`,
+  patches: [
+    GEMINI_STAR,
+    // Gemini đánh số "1", "2" lên hai chỗ đứng dù prompt cấm chữ và số.
+    ...(key === 'vietnamese'
+      ? [
+          { x: 311, y: 471, r: 15, dx: -34, dy: 0 },
+          { x: 719, y: 403, r: 15, dx: -34, dy: 0 },
+        ]
+      : []),
+  ],
+}))

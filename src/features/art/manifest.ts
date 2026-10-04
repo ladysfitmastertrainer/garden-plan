@@ -103,4 +103,13 @@ export const ART_MANIFEST: Record<string, { w: number; h: number }> = {
   'pet-vet-ke-2': { w: 193, h: 257 },
   'pet-vet-ke-3': { w: 242, h: 418 },
   'pet-vet-ke-4': { w: 495, h: 512 },
+  'scene-cave': { w: 1024, h: 572 },
+  'scene-deep': { w: 1024, h: 572 },
+  'scene-ethics': { w: 1024, h: 572 },
+  'scene-forest': { w: 1024, h: 572 },
+  'scene-lava': { w: 1024, h: 572 },
+  'scene-math': { w: 1024, h: 572 },
+  'scene-music': { w: 1024, h: 572 },
+  'scene-sea': { w: 1024, h: 572 },
+  'scene-vietnamese': { w: 1024, h: 572 },
 }

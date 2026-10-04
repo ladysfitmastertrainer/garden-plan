@@ -18,6 +18,9 @@
  *   4. Mỗi nhân vật lưu một file webp. Cả tờ dùng CHUNG một tỉ lệ thu nhỏ, để con
  *      nấc 1 vẫn bé hơn con nấc 4 đúng như trên tờ hình.
  *
+ * Ảnh NỀN TRẬN ĐẤU (`SCENES`) thì không cắt: chỉ xoá logo Gemini, những thứ nó vẽ
+ * lậu, rồi lưu nguyên tấm - xem `processScene`.
+ *
  * Xong thì ghi lại `src/features/art/manifest.ts` - danh sách hình đang có, để app
  * biết con nào đã có hình mới và con nào còn phải dùng hình pixel cũ.
  */
@@ -26,7 +29,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, parse, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { SHEETS } from './art-sheets.mjs'
+import { SCENES, SHEETS } from './art-sheets.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SRC_DIR = join(ROOT, 'art-src')
@@ -400,6 +403,45 @@ async function writeCheck(sheet, results) {
   await sharp(Buffer.from(svg)).composite(layers).png().toFile(join(CHECK_DIR, `${parse(sheet.file).name}.png`))
 }
 
+/** Cạnh ngang tối đa của ảnh nền trận đấu. Ảnh nhỏ hơn thì giữ nguyên, không phóng. */
+const SCENE_WIDTH = 1280
+
+/**
+ * Ảnh nền trận đấu: xoá logo và những thứ Gemini vẽ lậu (xem `SCENES`), rồi lưu
+ * nguyên tấm. Mỗi chỗ xoá được đắp bằng mảng nền lệch bên cạnh, viền hoà dần
+ * trong một dải mỏng để không lộ mép tròn.
+ */
+async function processScene(scene) {
+  const source = findSource(scene.file)
+  if (!source) return null
+  const { data, info } = await sharp(source).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const { width, height } = info
+  const out = Buffer.from(data)
+  for (const { x: cx, y: cy, r, dx, dy } of scene.patches) {
+    const feather = Math.max(3, r * 0.3)
+    for (let y = Math.max(0, cy - r); y <= Math.min(height - 1, cy + r); y++) {
+      for (let x = Math.max(0, cx - r); x <= Math.min(width - 1, cx + r); x++) {
+        const d = Math.hypot(x - cx, y - cy)
+        if (d > r) continue
+        const sx = Math.min(width - 1, Math.max(0, x + dx))
+        const sy = Math.min(height - 1, Math.max(0, y + dy))
+        const t = Math.min(1, (r - d) / feather)
+        const o = (y * width + x) * 3
+        const i = (sy * width + sx) * 3
+        for (let c = 0; c < 3; c++) out[o + c] = Math.round(data[i + c] * t + data[o + c] * (1 - t))
+      }
+    }
+  }
+  const outW = Math.min(SCENE_WIDTH, width)
+  const outH = Math.round((height * outW) / width)
+  await sharp(out, { raw: { width, height, channels: 3 } })
+    .resize(outW, outH, { kernel: 'lanczos3' })
+    .webp({ quality: 82 })
+    .toFile(join(OUT_DIR, `${scene.id}.webp`))
+  await sharp(join(OUT_DIR, `${scene.id}.webp`)).png().toFile(join(CHECK_DIR, scene.file))
+  return { id: scene.id, w: outW, h: outH }
+}
+
 function writeManifest() {
   const entries = []
   for (const file of readdirSync(OUT_DIR).sort()) {
@@ -414,6 +456,7 @@ async function main() {
   mkdirSync(CHECK_DIR, { recursive: true })
   const only = process.argv.slice(2)
   const sheets = only.length ? SHEETS.filter((s) => only.includes(parse(s.file).name)) : SHEETS
+  const scenes = only.length ? SCENES.filter((s) => only.includes(parse(s.file).name)) : SCENES
 
   const sizes = {}
   let missing = 0
@@ -431,6 +474,13 @@ async function main() {
       failed++
       console.error(`✗ ${error.message}`)
     }
+  }
+
+  for (const scene of scenes) {
+    const result = await processScene(scene)
+    if (!result) continue
+    sizes[result.id] = result
+    console.log(`✓ ${scene.file}: ${result.w}×${result.h}`)
   }
 
   // Manifest liệt kê MỌI file đang nằm trong public/art, kể cả tờ không chạy lần

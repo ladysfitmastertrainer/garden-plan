@@ -29,6 +29,8 @@ import {
   HpBox,
   SCENE_BY_HABITAT,
   SCENE_BY_SUBJECT,
+  SceneBackdrop,
+  farSpot,
   StatusAura,
   Trainer,
   arenaScales,
@@ -306,7 +308,8 @@ export function PixelBattle({
       transition={{ duration: heroHurt ? 0.45 : 0.3, delay: 0.25, ease: 'linear' }}
     >
       {/* Mặt đất: một mảng màu phẳng chiếm nửa dưới */}
-      <div className="absolute inset-x-0 bottom-0" style={{ height: '48%', background: scene.ground }} />
+      {/* Nền: ảnh vẽ tay của cảnh này, hoặc hai mảng màu phẳng nếu chưa có. */}
+      <SceneBackdrop scene={scene} />
 
       {/* Chớp sáng mở màn. Nằm trên nền nhưng DƯỚI hai nhân vật, nên hai bên lao
           vào giữa lúc ánh chớp còn chưa tắt. */}
@@ -329,7 +332,7 @@ export function PixelBattle({
         sprite={enemySprite}
         scene={scene}
         flip
-        style={{ right: '12%', top: '16%' }}
+        style={farSpot(scene)}
         attacking={live === 'enemy-attacks'}
         hit={live === 'hero-attacks'}
         direction={-1}

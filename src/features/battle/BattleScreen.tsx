@@ -385,6 +385,9 @@ export function BattleScreen() {
         style={askFloor ? ({ '--ask-floor': `${askFloor}px` } as React.CSSProperties) : undefined}
         inert={inReady || inWarning}
         aria-hidden={inReady || inWarning || undefined}
+        // Dòng nhắc hiện ở chỗ khung hỏi trong pha chờ - chỉ ở màn hình rộng,
+        // nơi khung hỏi đứng riêng một cột (xem globals.css).
+        data-idle={inWarning ? '⚠️ Quái sắp tấn công - chuẩn bị đỡ đòn!' : inReady ? '⚔️ Bấm “Tấn công!” để ra đòn' : undefined}
       >
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="pixel-font text-lg uppercase" style={{ color: accent }}>

@@ -423,6 +423,66 @@ body {
   overflow-y: auto;
 }
 
+/*
+  MÀN HÌNH RỘNG (máy tính, máy tính bảng nằm ngang): SÂN ĐẤU TRÁI, CÂU HỎI PHẢI.
+
+  Xếp dọc thì sân đấu và khung hỏi giành nhau đúng một chiều cao. Giữ khung hỏi
+  cố định để sân đấu khỏi giật (xem `askFloor` trong BattleScreen) thì sân đấu
+  bé đi cả trận, kể cả lúc không có câu nào trên màn hình; còn để sân đấu nở ra
+  lúc chờ thì nó co giãn mỗi lượt. Trên màn hình rộng thì không phải chọn: bề
+  ngang thừa ra đủ cho hai cột, sân đấu lấy trọn chiều cao và không bao giờ đổi
+  cỡ, khung hỏi đứng riêng một cột bên phải.
+
+  Từ 1000px ngang và cao hơn 560px - thấp hơn thế là máy cầm tay xoay ngang, đã
+  có bố cục khung hỏi nổi của riêng nó ngay dưới.
+*/
+@media (min-width: 1000px) and (min-height: 561px) {
+  .battle-layout.battle-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    max-width: 1560px;
+  }
+  .battle-stage {
+    min-height: 0;
+  }
+  /* Khung hỏi cao đúng bằng câu của nó, đứng giữa cột; câu dài thì tự cuộn. */
+  .battle-ask {
+    flex-basis: auto;
+    align-self: center;
+    max-height: 100%;
+  }
+  /* Không còn chiều cao nào phải giữ cho bằng nhau. */
+  .battle-timer-slot {
+    display: none;
+  }
+  /*
+    Pha chờ: cột phải không để trống trơn - khung hỏi hiện ra, câu kế tiếp vẫn
+    giấu, thay vào đó là một dòng nhắc việc phải làm (`data-idle`).
+  */
+  .battle-ask-idle {
+    visibility: visible;
+    position: relative;
+  }
+  .battle-ask-idle > * {
+    visibility: hidden;
+  }
+  .battle-ask-idle::after {
+    content: attr(data-idle);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-ink-soft);
+  }
+}
+
 @media (orientation: landscape) and (max-height: 560px) {
   /*
     XOAY NGANG: SÂN ĐẤU LẤY CẢ MÀN HÌNH, CÂU HỎI THÀNH KHUNG NỔI.

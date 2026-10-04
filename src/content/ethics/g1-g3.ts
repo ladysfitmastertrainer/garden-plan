@@ -3,7 +3,8 @@
  *
  * Mọi mục đều là thể loại `scenario`: KHÔNG có đáp án đúng/sai, chỉ có ba mức
  * `good` / `ok` / `poor` kèm lời phản hồi giải thích vì sao. Lựa chọn `poor`
- * không trừ máu trong trận đấu - trẻ chỉ mất lượt và được giải thích lại.
+ * thì quái đánh một đòn như mọi môn, nhưng lời nhắn là "chưa ổn" chứ không phải
+ * "sai", và trẻ được giải thích lại.
  */
 
 import { opt, type Bank } from '../bank'

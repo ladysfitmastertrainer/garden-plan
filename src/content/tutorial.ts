@@ -100,6 +100,9 @@ export function tutorialEnemy(): Enemy {
     */
     name: 'Slime Tập Sự',
     emoji: '🟢',
+    // Bàn tập không phản đòn câu sai: trẻ đang học luật hai lượt, và bàn hướng
+    // dẫn đã hứa trước từng bước một - xem `counterAttack` trong engine.
+    noCounter: true,
     /*
       Hệ SỐ HỌC, cùng hệ với vùng đất - và đó là điều kiện để bài học về khắc
       chế diễn ra được.
@@ -317,7 +320,12 @@ export const HANDBOOK: HandbookEntry[] = [
   {
     emoji: '💛',
     title: 'Vùng Đạo đức không chấm đúng sai',
-    body: 'Ở Đồi Ánh Sáng, mỗi tình huống chỉ có lựa chọn hay hơn và lựa chọn chưa hay. Chọn chưa hay thì con KHÔNG bị trừ máu, chỉ mất một lượt và được nghe giải thích.',
+    body: 'Ở Đồi Ánh Sáng, mỗi tình huống chỉ có lựa chọn hay hơn và lựa chọn chưa hay. Chọn chưa hay thì quái nhân cơ hội đánh một đòn, và con được nghe giải thích vì sao lựa chọn kia hay hơn.',
+  },
+  {
+    emoji: '⚔️',
+    title: 'Trả lời sai là quái phản đòn',
+    body: 'Đến lượt con mà trả lời sai, con quái phản đòn ngay - nhưng vòng đó nó không đánh thêm nữa. Trả lời đúng thì thú của con tung chiêu, rồi tới lượt quái: trả lời đúng lần nữa là đỡ được đòn của nó.',
   },
   {
     emoji: '🔥',

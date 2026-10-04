@@ -269,18 +269,47 @@ describe('trả lời đúng rồi tung phép', () => {
 })
 
 describe('submitAnswer - trả lời sai', () => {
-  it('ĐÁNH TRƯỢT thôi - quái không đánh trả ở lượt của con', () => {
+  it('QUÁI PHẢN ĐÒN NGAY câu sai ở lượt của con', () => {
     /*
-      Đây là luật đã đổi, và đổi vì một lý do: giờ quái có lượt riêng ngay sau
-      lượt này. Trừng phạt ở cả hai chỗ là trừng phạt hai lần cho cùng một lỗi,
-      mà tệ hơn là nó xoá mất ý nghĩa của lượt đỡ đòn - ăn đòn rồi thì đỡ hay
-      không cũng thế.
+      Luật đã đổi lần nữa, và đổi vì trẻ thấy: trả lời sai trước mặt con trùm
+      mà con trùm đứng im. Bản trước chỉ cho "đánh trượt" ở đây và để quái đánh
+      ở lượt riêng của nó - nên câu sai đầu tiên không có hậu quả nhìn thấy được.
     */
     const s = answerWrong(start())
-    expect(s.playerHp).toBe(50)
+    expect(s.playerHp).toBe(50 - 12)
     expect(s.combo).toBe(0)
     expect(s.lastDamage!.toEnemy).toBe(0)
+    expect(s.lastDamage!.toPlayer).toBe(12)
+  })
+
+  it('đã phản đòn thì vòng đó BỎ QUA lượt đỡ - một lỗi, đúng một đòn', () => {
+    const next = advance(answerWrong(start()), numericQuestion, NOW)
+    expect(next.phase).toBe('ready')
+    expect(next.stance).toBe('attack')
+    expect(next.questionsAsked).toBe(2)
+  })
+
+  it('trả lời ĐÚNG thì vẫn tới lượt quái như cũ', () => {
+    const next = advance(rightAndCast(start()), numericQuestion, NOW)
+    expect(next.phase).toBe('warning')
+    expect(next.stance).toBe('defend')
+  })
+
+  it('quái đang ĐÓNG BĂNG thì không phản đòn được', () => {
+    const frozen: BattleState = {
+      ...start(),
+      enemyStatus: [{ kind: 'freeze', turnsLeft: 1, perTurn: 0 } as BattleState['enemyStatus'][number]],
+    }
+    const s = answerWrong(frozen)
+    expect(s.playerHp).toBe(50)
     expect(s.lastDamage!.toPlayer).toBe(0)
+  })
+
+  it('trận tập KHÔNG phản đòn - trẻ đang học luật hai lượt', () => {
+    const base = config()
+    const s = answerWrong(beginAttack(createBattle({ ...base, enemy: { ...base.enemy, noCounter: true } }, numericQuestion, NOW), NOW))
+    expect(s.playerHp).toBe(50)
+    expect(advance(s, numericQuestion, NOW).phase).toBe('warning')
   })
 
   it('chuỗi combo đứt khi trả lời sai', () => {
@@ -325,16 +354,22 @@ describe('một con thú đi một mình', () => {
   })
 })
 
-describe('môn Đạo đức không trừ máu', () => {
+describe('môn Đạo đức', () => {
   const ethicsStart = () => beginAttack(createBattle(config(), scenarioQuestion, NOW), NOW)
 
-  it('lựa chọn chưa tốt KHÔNG làm mất máu, chỉ mất lượt', () => {
+  it('lựa chọn chưa tốt CŨNG ăn đòn - không còn trùm nào vô hại', () => {
+    /*
+      Luật miễn trừ cũ ("chọn chưa hay thì không bao giờ mất máu") làm trùm Đạo
+      đức không đánh nổi một đòn: trả lời sai cả trận vẫn đầy máu, không thể
+      thua. Chỉ lời nhắn là nhẹ nhàng - "chưa ổn", không phải "sai".
+    */
     const s = submitAnswer(ethicsStart(), { kind: 'choice', choiceId: 'do-loi' }, NOW + 5_000)
     expect(s.phase).toBe('feedback')
-    expect(s.playerHp).toBe(50)
-    expect(s.lastDamage!.toPlayer).toBe(0)
+    expect(s.playerHp).toBe(50 - 12)
+    expect(s.lastDamage!.toPlayer).toBe(12)
     expect(s.lastDamage!.toEnemy).toBe(0)
     expect(s.combo).toBe(0)
+    expect(s.log.some((line) => line.includes('chưa ổn'))).toBe(true)
   })
 
   it('lựa chọn tốt gây sát thương mạnh hơn lựa chọn tạm được', () => {
@@ -645,28 +680,24 @@ describe('đếm giờ ở trận trùm', () => {
     expect(record?.durationMs).toBe(16_000)
   })
 
-  it('môn Đạo đức KHÔNG được miễn: hết giờ là không chọn gì, không phải chọn chưa hay', () => {
-    /*
-      Luật "Đạo đức không trừ máu" nói về LỰA CHỌN: trẻ cần được phép chọn sai
-      để học. Hết giờ thì không phải một lựa chọn, đó là không chọn gì cả.
+  it('hết giờ ở LƯỢT CỦA CON: quái phản đòn, như trả lời sai', () => {
+    const s = timed()
+    const out = timeUp(s, NOW)
+    expect(out.playerHp).toBeLessThan(s.playerHp)
+    expect(advance(out, numericQuestion, NOW).phase).toBe('ready')
+  })
 
-      Phải thử ở LƯỢT CỦA QUÁI, vì từ bản này sát thương chỉ đi ra từ đó - ở
-      lượt của con, hết giờ chỉ là đánh trượt.
-    */
+  it('môn Đạo đức: chọn chưa hay ở lượt quái cũng ăn đòn, hết giờ cũng vậy', () => {
     const ethics = beginAttack(
       createBattle(config({ timeLimitMs: 16_000 }), scenarioQuestion, NOW),
       NOW,
     )
-    const soft = submitAnswer(ethics, { kind: 'choice', choiceId: 'do-loi' }, NOW + 1_000)
-    expect(soft.playerHp).toBe(ethics.playerHp)
-
-    const enemy = beginDefend(advance(soft, scenarioQuestion, NOW), NOW)
+    const enemy = beginDefend(
+      advance(castSpell(submitAnswer(ethics, { kind: 'choice', choiceId: 'nhan-loi' }, NOW + 1_000), NEUTRAL, NOW), scenarioQuestion, NOW),
+      NOW,
+    )
     expect(enemy.stance).toBe('defend')
-    // Chọn phương án chưa hay ở lượt quái: vẫn không mất máu.
-    expect(
-      submitAnswer(enemy, { kind: 'choice', choiceId: 'do-loi' }, NOW + 1_000).playerHp,
-    ).toBe(enemy.playerHp)
-    // Để hết giờ: mất máu.
+    expect(submitAnswer(enemy, { kind: 'choice', choiceId: 'do-loi' }, NOW + 1_000).playerHp).toBeLessThan(enemy.playerHp)
     expect(timeUp(enemy, NOW).playerHp).toBeLessThan(enemy.playerHp)
   })
 

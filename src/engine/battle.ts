@@ -90,6 +90,11 @@ export interface Enemy {
    */
   isTower?: boolean
   /**
+   * Quái KHÔNG phản đòn câu trả lời sai ở lượt của trẻ - chỉ dành cho trận tập,
+   * nơi trẻ đang học luật hai lượt và bàn hướng dẫn hứa trước từng bước một.
+   */
+  noCounter?: boolean
+  /**
    * Con ĐẦU ĐÀN thứ mấy trong hang (0 hoặc 1). Có số này là đầu đàn: giao diện
    * vẽ nó bằng hình đầu đàn riêng chứ không phải hình quái thường của bầy.
    */
@@ -186,7 +191,8 @@ export type BattlePhase =
 /**
  * Câu hỏi đang hỏi để LÀM GÌ.
  *
- * 'attack' - lượt của con: trả lời đúng thì được tung phép, sai thì đánh trượt.
+ * 'attack' - lượt của con: trả lời đúng thì được tung phép, sai thì quái phản
+ *            đòn ngay và vòng ấy không có lượt đỡ (xem `counterAttack`).
  * 'defend' - lượt của quái: quái đã lao tới, và câu trả lời đúng ĐỠ ĐƯỢC đòn
  *            đó; sai hoặc hết giờ thì ăn đòn.
  *
@@ -617,18 +623,12 @@ export function timeUp(state: BattleState, now: number): BattleState {
     }
   }
 
-  /*
-    Lượt của CON: hết giờ chỉ là đánh trượt, quái KHÔNG đánh trả ở đây.
-
-    Bản trước cho quái đánh trả ngay tại chỗ này, và hồi ấy đúng - quái không có
-    lượt nào khác. Giờ nó có lượt riêng ngay sau đây, nên để nó đánh cả ở đây là
-    đánh hai lần cho cùng một lỗi.
-  */
+  // Lượt của CON: hết giờ cũng như trả lời sai - quái phản đòn ngay, và vòng
+  // này bỏ qua lượt đỡ (xem `counterAttack`).
   return {
     ...base,
     lastJudgement: { correct: false, message: 'Hết giờ mất rồi! Câu sau nhanh hơn nhé.' },
-    lastDamage: { toEnemy: 0, toPlayer: 0 },
-    ...regenAfterMiss(state, [...state.log, '⌛ Hết giờ - con chưa kịp ra đòn.']),
+    ...counterAttack(state, '⌛ Hết giờ - con chưa kịp ra đòn.'),
   }
 }
 
@@ -707,22 +707,12 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
       }
     }
 
-    // Đạo đức: chọn chưa hay thì KHÔNG bao giờ trừ máu - xem ghi chú ở nhánh
-    // dưới. Lượt của quái không phải cái cớ để phá luật ấy.
-    if (isEthics) {
-      return {
-        ...base,
-        phase: 'feedback',
-        blocked: false,
-        combo: 0,
-        lastDamage: { toEnemy: 0, toPlayer: 0 },
-        lastSpell: null,
-        pendingDamage: null,
-        log: [...state.log, '💭 Lựa chọn này chưa ổn, nhưng con không việc gì cả.'],
-      }
-    }
-
-    const hit = applyEnemyAttack(state, enemyAttackOf(state))
+    // Đạo đức cũng ăn đòn - xem `counterAttack`: luật miễn trừ cũ làm trùm Đạo
+    // đức không đánh nổi một đòn nào. Chỉ lời nhắn là nhẹ nhàng hơn.
+    const hit = applyEnemyAttack(
+      isEthics ? { ...state, log: [...state.log, '💭 Lựa chọn này chưa ổn.'] } : state,
+      enemyAttackOf(state),
+    )
     return {
       ...base,
       ...hit,
@@ -764,42 +754,55 @@ export function submitAnswer(state: BattleState, input: AnswerInput, now: number
     }
   }
 
-  /*
-    --- Trả lời chưa đúng ở lượt của CON: ĐÁNH TRƯỢT, không bị đánh trả ---
-
-    Đây là thay đổi lớn nhất của cả tệp này. Trước kia một câu sai vừa mất lượt
-    vừa ăn ngay một đòn, vì quái không có lượt nào khác để đánh. Giờ nó có -
-    ngay sau lượt này - nên trừng phạt ở cả hai chỗ là trừng phạt hai lần cho
-    cùng một lỗi, và tệ hơn: nó xoá mất ý nghĩa của lượt đỡ đòn, vì trẻ đã ăn
-    đòn rồi thì đỡ hay không cũng thế.
-
-    Quái vẫn hút máu ở đây nếu nó biết hút (`regenOnMiss`, luật của trùm): thứ
-    ấy ăn theo CÂU TRẢ LỜI SAI chứ không ăn theo cú đánh.
-  */
-  if (isEthics) {
-    // Lựa chọn chưa tốt: chỉ mất lượt, tuyệt đối không trừ máu.
-    return {
-      ...base,
-      phase: 'feedback',
-      blocked: false,
-      combo: 0,
-      lastDamage: { toEnemy: 0, toPlayer: 0 },
-      lastSpell: null,
-      pendingDamage: null,
-      log: [...state.log, '💭 Lựa chọn này chưa ổn. Con mất một lượt để suy nghĩ lại.'],
-    }
-  }
-
   return {
     ...base,
-    ...regenAfterMiss(state, [...state.log, `❌ Con đánh trượt ${state.enemy.name}.`]),
+    ...counterAttack(
+      state,
+      isEthics ? '💭 Lựa chọn này chưa ổn.' : `❌ Con đánh trượt ${state.enemy.name}.`,
+    ),
     phase: 'feedback',
     blocked: false,
     combo: 0,
-    lastDamage: { toEnemy: 0, toPlayer: 0 },
     lastSpell: null,
     pendingDamage: null,
   }
+}
+
+/*
+  --- Trả lời chưa đúng ở lượt của CON: QUÁI PHẢN ĐÒN NGAY ---
+
+  Bản trước chỉ cho "đánh trượt" ở đây, và để quái đánh ở lượt riêng của nó
+  ngay sau - với lý do không phạt hai lần cho một lỗi. Nhưng nhìn từ phía trẻ thì
+  thành ra: trả lời sai trước mặt con trùm, và con trùm đứng im. Đòn của nó chỉ
+  tới nếu trẻ trả lời sai THÊM một câu nữa ở lượt đỡ, nên câu sai đầu tiên không
+  có hậu quả gì nhìn thấy được.
+
+  Giờ quái phản đòn NGAY câu sai - và vòng ấy BỎ QUA lượt đỡ đòn (xem `advance`):
+  nó đã ra tay rồi. Vẫn đúng một đòn cho một lỗi, chỉ là đòn tới đúng lúc.
+
+  KỂ CẢ ĐẠO ĐỨC. Luật cũ "chọn chưa hay thì không bao giờ mất máu" làm trùm Đạo
+  đức không đánh nổi một đòn nào: trả lời sai cả trận vẫn đầy máu, không thể
+  thua. Lời nhắn vẫn nhẹ nhàng - "lựa chọn này chưa ổn" chứ không phải "sai".
+
+  Hai chỗ quái KHÔNG phản đòn được: đang đóng băng, thì đứng sững; và trận tập,
+  nơi trẻ đang học luật - xem `noCounter`. Quái biết hút máu (`regenOnMiss`, luật
+  của trùm) vẫn hút: thứ ấy ăn theo câu trả lời sai chứ không theo cú đánh.
+*/
+function counterAttack(
+  state: BattleState,
+  missLog: string,
+): Pick<BattleState, 'pet' | 'playerHp' | 'lastDamage' | 'log' | 'enemyHp'> {
+  const log = [...state.log, missLog]
+  if (hasEffect(state, 'freeze') || state.enemy.noCounter) {
+    return {
+      pet: state.pet,
+      playerHp: state.playerHp,
+      lastDamage: { toEnemy: 0, toPlayer: 0 },
+      ...regenAfterMiss(state, log),
+    }
+  }
+  const hit = applyEnemyAttack({ ...state, log }, enemyAttackOf(state))
+  return { ...hit, ...regenAfterMiss(state, hit.log) }
 }
 
 /**
@@ -1082,6 +1085,23 @@ export function advance(
 
     // Vết cháy vừa ăn nốt điểm máu cuối. Trận xong, quái không được đánh nữa.
     if (after.enemyHp <= 0) return toVictory(after)
+
+    /*
+      QUÁI VỪA PHẢN ĐÒN câu sai (xem `counterAttack`): nó đã ra tay ở vòng này,
+      nên không gồng lên đánh thêm lần nữa - thẳng sang vòng sau. Ở lượt của con
+      thì chỉ phản đòn mới làm con mất máu, nên không cần cờ riêng để nhận ra.
+    */
+    if ((state.lastDamage?.toPlayer ?? 0) > 0) {
+      if (outOfQuestions) {
+        return {
+          ...after,
+          phase: 'retreat',
+          question: null,
+          log: [...after.log, '🏡 Hết lượt rồi. Con mang theo toàn bộ phần thưởng về làng.'],
+        }
+      }
+      return openRound(after, nextQuestion!, now, [])
+    }
 
     /*
       ĐÓNG BĂNG: quái mất nguyên lượt đánh.

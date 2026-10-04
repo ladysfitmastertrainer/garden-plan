@@ -3,8 +3,8 @@
  *
  * Quy ước quan trọng với môn Đạo đức: `judge` vẫn trả về `correct` để engine
  * biết có tung chiêu hay không, nhưng lựa chọn kém KHÔNG bị coi là "sai" trong
- * mắt trẻ - `battle.ts` không trừ máu, và thông điệp trả về là lời giải thích
- * chứ không phải "Sai rồi".
+ * mắt trẻ - thông điệp trả về là lời giải thích chứ không phải "Sai rồi". (Quái
+ * vẫn đánh như mọi môn khác - xem `counterAttack` trong `battle.ts`.)
  */
 
 import type {

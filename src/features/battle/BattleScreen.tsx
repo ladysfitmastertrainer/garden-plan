@@ -1,6 +1,6 @@
 /** Màn hình trận đấu: thanh máu, câu hỏi, phản hồi và tổng kết. */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { SUBJECT_LABEL, VIRTUE_LABEL, type Subject, type Virtue } from '../../content/types'
 import type { AnswerInput } from '../../engine/judge'
@@ -99,6 +99,31 @@ export function BattleScreen() {
     const timer = window.setTimeout(defend, WARNING_MS)
     return () => window.clearTimeout(timer)
   }, [warning, defend])
+
+  /*
+    SÂN ĐẤU GIỮ MỘT CỠ SUỐT TRẬN.
+
+    Khung trận nuốt phần còn lại của cột sau khung hỏi (xem `.battle-stage`).
+    Nên mỗi lần khung hỏi đổi chiều cao - biến đi ở pha chờ, rồi câu trắc nghiệm
+    bốn ô cao hơn câu tự gõ - cả sân đấu giãn ra co vào: ảnh nền phóng to thu
+    nhỏ, thú và quái nhảy chỗ ngay giữa lúc vừa ra đòn xong. Nhìn thành một cảnh
+    đánh nhau lẫn vào cảnh khác.
+
+    `askFloor` là chiều cao LỚN NHẤT khung hỏi từng cần trong trận này. Khung
+    hỏi luôn chiếm đúng chừng ấy (`flex-basis`), câu ngắn hơn thì chừa trống ở
+    đáy khung; gặp câu cao hơn thì nâng mốc lên một lần rồi đứng yên. Đổi trận
+    là đo lại từ đầu.
+  */
+  const askRef = useRef<HTMLDivElement>(null)
+  const [askFloor, setAskFloor] = useState(0)
+  const battleId = battle?.enemy.id
+  useEffect(() => setAskFloor(0), [battleId])
+  useLayoutEffect(() => {
+    const el = askRef.current
+    // scrollHeight không tính viền; flex-basis thì có (border-box).
+    const need = el ? el.scrollHeight + el.offsetHeight - el.clientHeight : 0
+    if (need > askFloor) setAskFloor(need)
+  })
 
   if (!battle || !subject || finished) return null
 
@@ -339,15 +364,28 @@ export function BattleScreen() {
         @media của hướng ngang.
       */}
       {/*
-        Pha chờ và pha cảnh báo thì khung hỏi KHÔNG ĐƯỢC DỰNG RA, ở cả hai hướng
-        máy.
+        Pha chờ và pha cảnh báo: khung hỏi VẪN DỰNG, nhưng ẩn và không chạm được.
 
-        Giấu bằng CSS thì ở màn hình dọc nó vẫn giữ nguyên chỗ, và sân đấu vẫn
-        bị ép vào đúng khoảng cũ - trong khi cả điểm của pha chờ là để sân đấu
-        nở ra. Không dựng thì khối co giãn tự trả chỗ ấy về cho sân đấu.
+        Bản trước không dựng nó ra, để sân đấu nở hết cỡ trong pha chờ. Nhưng nở
+        ra rồi co lại mỗi lượt chính là cái làm cả cảnh đánh nhau giật cục (xem
+        `askFloor` ở trên). Ẩn mà vẫn giữ chỗ thì sân đấu đứng yên một cỡ.
+
+        Câu đang nằm trong đó là câu KẾ TIẾP - engine nạp sẵn nó từ pha chờ - nên
+        chỗ giữ đúng bằng khung sắp hiện. `key` đổi khi khung hiện ra để dựng lại
+        từ đầu: ô gõ đáp án tự lấy con trỏ lúc dựng, mà lúc dựng trong pha chờ
+        thì `inert` đã chặn mất lần lấy ấy.
+
+        Máy nằm ngang thì khung hỏi là khung nổi, không chiếm chỗ của ai - ở đó
+        khung ẩn bị tắt hẳn (xem `.battle-ask-idle` trong globals.css).
       */}
-      {!inReady && !inWarning && (
-      <div className={`pixel-panel battle-ask${inFeedback || inSpell ? ' battle-ask-hidden' : ''}`}>
+      <div
+        key={inReady || inWarning ? 'idle' : 'live'}
+        ref={askRef}
+        className={`pixel-panel battle-ask${inFeedback || inSpell ? ' battle-ask-hidden' : ''}${inReady || inWarning ? ' battle-ask-idle' : ''}`}
+        style={askFloor ? ({ '--ask-floor': `${askFloor}px` } as React.CSSProperties) : undefined}
+        inert={inReady || inWarning}
+        aria-hidden={inReady || inWarning || undefined}
+      >
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="pixel-font text-lg uppercase" style={{ color: accent }}>
             {defending ? `🛡️ ${battle.enemy.name} tấn công!` : SUBJECT_LABEL[subject]}
@@ -363,10 +401,25 @@ export function BattleScreen() {
           bị đánh. Một đứa bé bảy tuổi không suy ra được điều ấy từ một cái viền
           đổi màu.
         */}
-        {defending && (
-          <p className="battle-defend-note mb-2">
-            Trả lời kịp giờ thì con đỡ được đòn này. Không kịp là ăn đòn đấy!
-          </p>
+        {/*
+          Lượt ra đòn cũng có một dòng luật, cùng cỡ với dòng của lượt đỡ đòn.
+
+          Một phần để trẻ thấy hai lượt khác nhau ở đâu. Phần nữa là để khung hỏi
+          cao BẰNG NHAU ở cả hai lượt: dòng luật chỉ hiện ở lượt đỡ đòn thì mỗi
+          lần đổi lượt khung hỏi cao thêm một khúc, và sân đấu bên trên co lại
+          ngay giữa cảnh đánh nhau (xem `askFloor`).
+        */}
+        <p className={`battle-defend-note mb-2${defending ? '' : ' is-attack'}`}>
+          {defending
+            ? 'Trả lời kịp giờ thì con đỡ được đòn này. Không kịp là ăn đòn đấy!'
+            : 'Trả lời đúng thì thú của con tung chiêu vào quái!'}
+        </p>
+
+        {/* Lượt không đếm giờ vẫn giữ chỗ cho đồng hồ - cùng lẽ với dòng luật. */}
+        {limitMs === null && (
+          <div className="battle-timer-slot" aria-hidden="true">
+            <BattleTimer limitMs={1} startedAt={0} running={false} defending={false} onExpire={timeUp} />
+          </div>
         )}
 
         {limitMs !== null && (
@@ -412,7 +465,6 @@ export function BattleScreen() {
           </div>
         )}
       </div>
-      )}
 
     </div>
   )

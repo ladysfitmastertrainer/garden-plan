@@ -836,3 +836,49 @@ ART STYLE: polished 2D vector cartoon game props for a modern mobile monster-col
 
 IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 objects standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Objects must never touch or overlap. Every object is fully visible and never cut off by the image edge. Every object is seen from the front and slightly from above, as if standing on a small floating island in a game map. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no grass base, no stone base, no pedestal, no plinth, no little rock or island under the object, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image - not even on books, signs or stones.
 ```
+
+## Đầu đàn (2 tờ)
+
+Con ĐẦU ĐÀN canh hang quái dữ - mỗi môn hai con, vì hang có nhiều nhất hai chỗ đứng.
+Phải nhìn oai hơn hẳn quái thường (có giáp, áo choàng, món đồ riêng) và mỗi con đeo
+một huy hiệu HAI NGÔI SAO vàng - khớp với dấu ★★ trên đầu nó ở bản đồ. Cách làm như
+các tờ quái: đính kèm tờ quái đẹp nhất làm mẫu, tải về, đổi tên đúng dòng "Tên file",
+bỏ vào `art-src/` rồi báo tôi.
+
+### 41. Đầu đàn - Toán và Tiếng Việt
+
+**Tên file:** `leaders-1.png` · **Thứ tự trái → phải:** Hiệp Sĩ Thước Kẻ, Khổng Lồ Hình Khối, Kiếm Sĩ Bút Lông, Hạc Giấy Khổng Lồ
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading, proportions and color intensity. Do NOT copy any of its characters.
+
+These are PACK LEADERS - mini-bosses that guard a monster den. Each one must look clearly more impressive than an ordinary wild monster: a bigger, prouder, more confident pose, a little bit of armor or a cape or a special accessory, and each wears a small golden emblem with TWO stars on it (on the chest, belt, helmet or collar). Still cute and chibi, never scary. The 4 characters must look completely different from each other.
+
+1. a small proud knight whose armor is made of colorful set squares and rulers, a protractor shield and a drawing-compass sword. Palette: amber, steel blue and cream.
+2. a friendly chunky golem built from stacked colorful geometric blocks - a cube body, a pyramid hat, sphere fists - glowing seams between the blocks. Palette: amber, teal and lilac.
+3. a brave little warrior holding a giant calligraphy brush like a spear, a flowing ink-black cape with splashes, a topknot. Palette: rose pink, ink black and paper cream.
+4. a large elegant origami paper crane creature with folded paper wings and ink-brush patterns on its paper, standing tall. Palette: paper cream, rose pink and ink black.
+
+ART STYLE: polished 2D vector cartoon for a modern mobile monster-collecting game. Chibi proportions: big round head, oversized shiny eyes (large dark pupils with a white highlight), short stubby limbs, chunky rounded silhouette that reads clearly even when small. Thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Bright, saturated, candy-like colors. Cute and friendly, made for children aged 6-10; even villains look mischievous, never scary or gory.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 characters standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Characters must never touch or overlap, and no tail, wing, horn, weapon or effect may reach into a neighbour's column. Every character is fully visible and never cut off by the image edge. Every character is drawn in three-quarter view, body and face turned toward the LEFT side of the image. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no stone base, no pedestal, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image.
+```
+
+### 42. Đầu đàn - Âm nhạc và Đạo đức
+
+**Tên file:** `leaders-2.png` · **Thứ tự trái → phải:** Nhạc Trưởng Bão Tố, Đàn Ống Biết Đi, Kỵ Sĩ Mặt Nạ Nứt, Hồ Ly Chín Đuôi
+
+```text
+(Attach the style reference image.) Match ONLY the drawing style of the attached image - its outlines, shading, proportions and color intensity. Do NOT copy any of its characters.
+
+These are PACK LEADERS - mini-bosses that guard a monster den. Each one must look clearly more impressive than an ordinary wild monster: a bigger, prouder, more confident pose, a little bit of armor or a cape or a special accessory, and each wears a small golden emblem with TWO stars on it (on the chest, belt, helmet or collar). Still cute and chibi, never scary. The 4 characters must look completely different from each other.
+
+1. a dramatic little conductor creature with wild windswept hair, a tailcoat and a glowing baton, swirling sound-wave ribbons around it (no music note symbols). Palette: violet, navy and gold.
+2. a sturdy walking pipe-organ beast on four stubby legs, shiny brass pipes rising from its back puffing little round sound bubbles, keyboard teeth grin. Palette: violet, brass gold and wood brown.
+3. a mischievous shadow knight with a cracked white mask, a tattered purple cape and a crooked crown, sneaky grin under the mask. Palette: dark purple, sky blue glow and white.
+4. a cunning nine-tailed fox spirit with nine fluffy tails made of soft swirling smoke, a sly half-smile and a little bell collar. Palette: sky blue, lavender and white.
+
+ART STYLE: polished 2D vector cartoon for a modern mobile monster-collecting game. Chibi proportions: big round head, oversized shiny eyes (large dark pupils with a white highlight), short stubby limbs, chunky rounded silhouette that reads clearly even when small. Thick, uniform, very dark brown outlines around every shape. Flat cel shading: one base color, one darker shadow tone and one small highlight per area - no gradients, no textures, no painterly brushstrokes, no 3D render, no pixel art. Bright, saturated, candy-like colors. Cute and friendly, made for children aged 6-10; even villains look mischievous, never scary or gory.
+
+IMAGE LAYOUT (very important): wide landscape 16:9 image. Exactly 4 characters standing side by side in ONE horizontal row, left to right, on the same baseline, evenly spaced, with a wide empty white gap between neighbours. Characters must never touch or overlap, and no tail, wing, horn, weapon or effect may reach into a neighbour's column. Every character is fully visible and never cut off by the image edge. Every character is drawn in three-quarter view, body and face turned toward the LEFT side of the image. BACKGROUND: pure flat solid white (#FFFFFF), completely empty - no ground, no stone base, no pedestal, no floor shadow, no scenery, no frame, no border. Absolutely NO text, letters, numbers, labels or signature anywhere in the image.
+```

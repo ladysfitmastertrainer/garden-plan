@@ -640,6 +640,8 @@ function SubjectMap({
    * `'mini'` là con đầu đàn trong hang - nó không gắn với chặng nào trên bản đồ.
    */
   const [preview, setPreview] = useState<MapNode | 'mini' | { sea: number } | null>(null)
+  /** Con đầu đàn thứ mấy vừa bị đụng - xem `LEADERS`. */
+  const [leaderIndex, setLeaderIndex] = useState(0)
   const [tab, setTab] = useState<'world' | 'tree'>('world')
   /**
    * Chuyện vừa xảy ra ở một ngôi nhà hoặc một ô quái ẩn.
@@ -718,7 +720,8 @@ function SubjectMap({
         text: HOUSE_MONSTER,
         action: () => {
           onFound(key)
-          onWild('mini')
+          // Đầu đàn nấp trong nhà: nhà nào con nấy, cố định theo chỗ.
+          onWild('mini', (at.x + at.y) % 2)
         },
       })
       return
@@ -816,7 +819,11 @@ function SubjectMap({
         beaten={beaten}
         onMonsterBump={(node, id) => {
           bumpMonster(id ?? null)
-          if (!node) setPreview('mini')
+          if (!node) {
+            // Con đầu đàn nào - để vào trận đúng là con vừa đụng phải.
+            setLeaderIndex(id?.startsWith('mini-') ? Number(id.slice(5)) % 2 : 0)
+            setPreview('mini')
+          }
         }}
         onEnterHouse={enterHouse}
         onSecret={meetSecret}
@@ -1025,7 +1032,7 @@ function SubjectMap({
                       onClick={() => {
                         const target = preview
                         setPreview(null)
-                        if (target === 'mini') onWild('mini')
+                        if (target === 'mini') onWild('mini', leaderIndex)
                         // Thủy quái mạnh ngang đầu đàn, nên đánh theo luật đầu đàn
                         // - chỉ khác con quái là con của biển sâu.
                         else if ('sea' in target) onWild('mini', target.sea, 'deep')

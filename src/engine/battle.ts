@@ -89,6 +89,11 @@ export interface Enemy {
    * là đúng cái bẫy mà cờ `isBoss` sinh ra để tránh.
    */
   isTower?: boolean
+  /**
+   * Con ĐẦU ĐÀN thứ mấy trong hang (0 hoặc 1). Có số này là đầu đàn: giao diện
+   * vẽ nó bằng hình đầu đàn riêng chứ không phải hình quái thường của bầy.
+   */
+  leader?: number
 
   /*
     ---- Bốn nét dưới đây làm nên ĐỘ KHÓ THẬT, và chỉ trùm trong tháp mới có ----

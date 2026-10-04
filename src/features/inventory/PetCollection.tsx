@@ -77,6 +77,8 @@ export function petSpriteFor(pet: Pick<Pet, 'id' | 'sprite' | 'element'>, owned 
           size: STAGE_SIZE[stage - 1],
           // Chưa gặp thì chỉ thấy bóng đen - đúng kiểu ô chưa mở trong sổ thú.
           filter: owned ? undefined : 'brightness(0) opacity(0.45)',
+          // Bóng đen của con chưa gặp thì đứng im - nó là một ô còn khoá.
+          alive: owned,
         }
   return sprite
 }

@@ -16,6 +16,7 @@
 import type { Sprite } from './sprite'
 import type { Habitat, Subject } from '../../content/types'
 import { HABITAT_FAMILY, HABITAT_SPRITES } from './habitat-creatures'
+import { ART_MANIFEST } from '../art/manifest'
 
 // --- Nhân vật của trẻ ---------------------------------------------------------
 
@@ -1127,7 +1128,8 @@ export function towerSpriteFor(subject: Subject): Sprite {
   const sprite = recolor(BOSS_SPRITE[subject], TOWER_TINT)
   // Hình vẽ tay thì không tráo bảng màu được - hoá đá bằng bộ lọc: rút gần hết
   // màu rồi ủ lại một lớp vàng, ra tượng đá dát vàng như bản pixel.
-  if (sprite.art) sprite.art = { ...sprite.art, filter: 'grayscale(0.9) sepia(0.45) saturate(1.6) brightness(1.05)' }
+  // Tượng thì không thở.
+  if (sprite.art) sprite.art = { ...sprite.art, filter: 'grayscale(0.9) sepia(0.45) saturate(1.6) brightness(1.05)', alive: false }
   return sprite
 }
 
@@ -1378,18 +1380,43 @@ export const CREATURE_VIEWS: Record<HeroCreatureId, CreatureViews> = {
 /** Nhân vật mà Gemini vẽ mặt nghiêng quay sang PHẢI, dù prompt dặn quay trái. */
 const SIDE_DRAWN_FACING_RIGHT = new Set<string>(['dragon'])
 for (const [id, views] of Object.entries(CREATURE_VIEWS)) {
-  views.down.art = { id: `hero-${id}-down` }
-  views.up.art = { id: `hero-${id}-up` }
-  views.side.art = { id: `hero-${id}-side`, mirrored: SIDE_DRAWN_FACING_RIGHT.has(id) }
+  views.down.art = { id: `hero-${id}-down`, alive: true }
+  views.up.art = { id: `hero-${id}-up`, alive: true }
+  views.side.art = { id: `hero-${id}-side`, mirrored: SIDE_DRAWN_FACING_RIGHT.has(id), alive: true }
 }
 for (const [subject, family] of Object.entries(MONSTER_FAMILY)) {
-  family.forEach((sprite, i) => (sprite.art = { id: `monster-${subject}-${i + 1}`, mirrored: true }))
+  family.forEach((sprite, i) => (sprite.art = { id: `monster-${subject}-${i + 1}`, mirrored: true, alive: true }))
 }
 for (const [subject, sprite] of Object.entries(BOSS_SPRITE)) {
-  sprite.art = { id: `boss-${subject}`, mirrored: true }
+  sprite.art = { id: `boss-${subject}`, mirrored: true, alive: true }
 }
 for (const [habitat, family] of Object.entries(HABITAT_FAMILY)) {
-  family.forEach((sprite, i) => (sprite.art = { id: `habitat-${habitat}-${i + 1}`, mirrored: true }))
+  family.forEach((sprite, i) => (sprite.art = { id: `habitat-${habitat}-${i + 1}`, mirrored: true, alive: true }))
+}
+
+const LEADER_CACHE = new Map<string, Sprite>()
+
+/**
+ * Hình ĐẦU ĐÀN thứ `index` của một môn: `public/art/leader-<môn>-<n>.webp`.
+ *
+ * Chưa có hình riêng thì mượn hình con dữ nhất bầy - đúng như trước, kể cả hình
+ * vẽ tay của nó, chứ không tụt về lưới điểm ảnh. Giữ một đối tượng cố định cho mỗi con, vì bản đồ và trận đấu so sprite
+ * bằng danh tính.
+ */
+export function leaderSpriteFor(subject: Subject, index: number): Sprite {
+  const key = `${subject}-${index}`
+  const hit = LEADER_CACHE.get(key)
+  if (hit) return hit
+  const base = MONSTER_FAMILY[subject][3]!
+  const sprite: Sprite = {
+    rows: base.rows,
+    palette: base.palette,
+    art: ART_MANIFEST[`leader-${subject}-${index + 1}`]
+      ? { id: `leader-${subject}-${index + 1}`, mirrored: true, alive: true }
+      : base.art,
+  }
+  LEADER_CACHE.set(key, sprite)
+  return sprite
 }
 
 /** Sprite hợp với hướng đang đi. Hướng phải dùng lại hình nghiêng, lật gương. */

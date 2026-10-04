@@ -65,6 +65,19 @@ export interface SpriteArt {
    * trắng như gấu trúc, nơi bộ lọc xoay màu không có màu nào để xoay.
    */
   multiply?: string
+  /**
+   * Sinh vật THỞ: thân nhún lên xuống, phình ra thu vào thật nhẹ (xem
+   * `art-breathe` trong globals.css). Chỉ bật cho nhân vật, quái, thú - đồ vật
+   * như lâu đài hay cây cối mà thở thì cả bản đồ thành ra mềm oặt.
+   */
+  alive?: boolean
+}
+
+/** Độ lệch nhịp thở của một hình, 0..2,4 giây - cố định theo tên hình. */
+function breathOffset(id: string): string {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  return ((Math.abs(h) % 240) / 100).toFixed(2)
 }
 
 /** Hình vẽ tay của sprite này, nếu file đã có. */
@@ -186,7 +199,10 @@ export function PixelSprite({
       >
         {art.multiply && (
           <span
+            // Thở cùng nhịp với hình bên dưới, không thì lớp màu trượt khỏi hình.
+            className={art.alive ? 'art-alive' : undefined}
             style={{
+              animationDelay: art.alive ? `-${breathOffset(art.id)}s` : undefined,
               position: 'absolute',
               bottom: 0,
               left: `${((1 - size) / 2) * 100}%`,
@@ -214,9 +230,13 @@ export function PixelSprite({
           height={meta.h}
           draggable={false}
           decoding="async"
+          className={art.alive ? 'art-alive' : undefined}
           style={{
             width: `${size * 100}%`,
             height: `${size * 100}%`,
+            // Mỗi con lệch nhịp thở một khác, theo tên hình: cả bầy mà thở đều
+            // tăm tắp thì nhìn như một bộ máy chứ không phải những con vật.
+            animationDelay: art.alive ? `-${breathOffset(art.id)}s` : undefined,
             objectFit: 'contain',
             objectPosition: 'bottom',
             filter: art.filter,

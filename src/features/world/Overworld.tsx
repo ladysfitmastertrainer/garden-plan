@@ -14,11 +14,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
-import { monsterSpriteFor } from '../pixel/creatures'
+import { leaderSpriteFor, monsterSpriteFor } from '../pixel/creatures'
 import { heroViewFor } from '../pixel/heroes'
 import { PixelSprite } from '../pixel/sprite'
 import { HABITAT_TILE, type TerrainColors, type TileKind } from '../pixel/tiles'
-import { ART_TILE, paintMapArt } from './tile-art'
+import { ART_TILE, paintForeground, paintMapArt } from './tile-art'
 import type { Habitat, Subject } from '../../content/types'
 import { HABITAT_PLACE } from '../../content/bestiary'
 import type { MapNode } from '../../content/worldmap'
@@ -1085,11 +1085,17 @@ export function Overworld({
               }}
               aria-hidden="true"
             >
+              <span className="ow-shadow" aria-hidden="true" />
               <PixelSprite
                 // Mini boss là CON ĐẦU ĐÀN của bầy, không phải trùm cuối: vẫn hình
                 // quái thường nhưng lấy con dữ nhất bầy, vẽ to hơn và đeo dấu ★★.
                 // Cho nó mượn hình trùm là trẻ tưởng đã gặp trùm ngay giữa đường.
-                sprite={monsterSpriteFor(subject, m.node ? m.node.index : 3, false)}
+                sprite={
+                  m.node
+                    ? monsterSpriteFor(subject, m.node.index, false)
+                    : // Đầu đàn: mỗi chỗ đứng trong hang một con riêng.
+                      leaderSpriteFor(subject, Number(m.id.replace('mini-', '')) % 2)
+                }
                 scale={m.node === null ? scale : scale * 0.85}
               />
               {m.node && <GateBadge node={m.node} x={0} y={0} size={TILE * scale} />}
@@ -1207,6 +1213,7 @@ export function Overworld({
                 zIndex: 1,
               }}
             >
+              <span className="ow-shadow" aria-hidden="true" />
               <PixelSprite sprite={friend.sprite} scale={scale} />
               {/*
                 Tên treo trên đầu, và nó là thứ BẮT BUỘC chứ không phải trang trí.
@@ -1278,18 +1285,40 @@ export function Overworld({
                 cái nút bấm xong mà nửa giây sau mới thấy gì thì trẻ bấm lại. */}
             {says && <SpeechBubble text={says} scale={scale} lift={TILE * scale + 4} />}
 
+            <span className="ow-shadow" aria-hidden="true" />
             <PixelSprite
               sprite={view.sprite}
               scale={scale}
               flip={view.flip}
               style={{
-                // Nhún nhẹ khi bước - hai khung hình, đúng kiểu hoạt cảnh đi bộ
-                // của game thời đó.
-                transform: `${view.flip ? 'scaleX(-1)' : ''} translateY(${stepping ? -2 : 0}px)`,
+                // Nảy lên một nhịp mỗi bước. Bản pixel chỉ nhích 2 điểm ảnh - đủ
+                // cho hai khung hình đi bộ, nhưng hình vẽ tay không có khung đi
+                // bộ nào, nên phải nảy hẳn lên thì mới ra dáng đang bước.
+                transform: `${view.flip ? 'scaleX(-1)' : ''} translateY(${stepping ? -TILE * scale * 0.14 : 0}px)`,
+                transition: 'transform 90ms ease-out',
               }}
             />
           </div>
+
+          {/* Tán cây phía trước - nằm ĐÈ LÊN nhân vật, xem `paintForeground`. */}
+          <ForegroundCanvas map={map} scale={scale} colors={biome.colors} />
         </div>
+
+        {/*
+          Ánh sáng của cả khung nhìn: nắng xiên từ góc trên bên trái, mép khung
+          tối dần. Nằm NGOÀI lớp camera nên đứng yên khi bản đồ trượt - nó là ánh
+          sáng của cảnh, không phải một vệt vẽ trên mặt đất.
+        */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            zIndex: 3,
+            background:
+              'linear-gradient(150deg, rgb(255 244 210 / 0.16), rgb(255 244 210 / 0) 42%),' +
+              'radial-gradient(ellipse at 50% 45%, rgb(18 24 36 / 0) 58%, rgb(18 24 36 / 0.3) 100%)',
+          }}
+          aria-hidden="true"
+        />
 
       </div>
 
@@ -1492,6 +1521,32 @@ function MapCanvas({
         width: map.width * TILE * scale,
         height: map.height * TILE * scale,
         display: 'block',
+      }}
+      aria-hidden="true"
+    />
+  )
+}
+
+/** Lớp tiền cảnh của bản đồ: tán cây che người đi sau nó. */
+function ForegroundCanvas({ map, scale, colors }: { map: RouteMap; scale: number; colors: TerrainColors }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = ref.current
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return
+    canvas.width = map.width * ART_TILE
+    canvas.height = map.height * ART_TILE
+    paintForeground(ctx, map.tiles, colors)
+  }, [map, colors])
+  return (
+    <canvas
+      ref={ref}
+      className="absolute left-0 top-0"
+      style={{
+        width: map.width * TILE * scale,
+        height: map.height * TILE * scale,
+        zIndex: 3,
+        pointerEvents: 'none',
       }}
       aria-hidden="true"
     />

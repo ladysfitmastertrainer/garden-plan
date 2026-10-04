@@ -791,6 +791,32 @@ function wallFaces(
 }
 
 /**
+ * TIỀN CẢNH: phần tán cây trồi lên ô phía trên nó.
+ *
+ * Vẽ trên một lớp riêng nằm ĐÈ LÊN nhân vật. Trẻ đi tới ô ngay trên một cái cây
+ * - tức là ra SAU cái cây - thì tán lá che mất chân mình, đúng như đi sau một
+ * gốc cây thật. Chỉ phần trồi lên mới vào lớp này: phần trong ô của chính cái
+ * cây không ai đứng vào được, và đứng ngay trước cây thì nhân vật phải đè lên
+ * cây chứ không bị cây đè.
+ */
+export function paintForeground(ctx: CanvasRenderingContext2D, tiles: Grid, colors: TerrainColors): void {
+  const h = tiles.length
+  const w = tiles[0]?.length ?? 0
+  ctx.clearRect(0, 0, w * T, h * T)
+  for (let y = 1; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (tiles[y]![x] !== 'tree') continue
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(x * T - T * 0.25, (y - 1) * T, T * 1.5, T)
+      ctx.clip()
+      drawTree(ctx, x, y, colors)
+      ctx.restore()
+    }
+  }
+}
+
+/**
  * Vẽ cả bản đồ lên `ctx`, khổ `ART_TILE` điểm ảnh mỗi ô.
  *
  * `tiles` là lưới ĐÃ thay xong những ô cổng cần giấu - ở đây không biết gì về
@@ -809,6 +835,13 @@ export function paintMapArt(ctx: CanvasRenderingContext2D, tiles: Grid, colors: 
     const path = regionPath(w, h, inside, style.radius ?? T * 0.32)
     const line = edgeOf(style.fill)
     if (style.lift) {
+      // Bóng đổ xuống mặt đất thấp hơn, ngay dưới bờ: thứ cho mắt biết chỗ này
+      // CAO hơn chỗ kia, chứ không chỉ khác màu.
+      ctx.save()
+      ctx.translate(0, style.lift + 8)
+      ctx.fillStyle = 'rgba(20, 15, 10, 0.18)'
+      ctx.fill(path)
+      ctx.restore()
       // Dải tối mép dưới: chính mảng ấy dịch xuống, có viền riêng. Tô theo
       // TỪNG Ô chứ không một màu cho cả mảng: đất liền gồm cả cỏ lẫn cát, và bờ
       // dưới bãi cát mà mang màu cỏ thì nhìn ra ngay là sai.
@@ -867,6 +900,12 @@ export function paintMapArt(ctx: CanvasRenderingContext2D, tiles: Grid, colors: 
     const inside = (x: number, y: number) => surface[y]![x] === kind
     const style = styles[kind]
     const path = regionPath(w, h, inside, style.radius ?? T * 0.2)
+    // Vách cao đổ bóng xuống chân: một dải tối mờ ngay dưới mặt vách.
+    ctx.save()
+    ctx.translate(0, T * 0.22)
+    ctx.fillStyle = 'rgba(20, 15, 10, 0.22)'
+    ctx.fill(path)
+    ctx.restore()
     outline(ctx, path, INK, LINE)
     ctx.fillStyle = style.fill
     ctx.fill(path)

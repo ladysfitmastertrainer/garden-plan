@@ -47,6 +47,34 @@ const BESTIARY: Record<Subject, EnemyTemplate[]> = {
   ],
 }
 
+/**
+ * ĐẦU ĐÀN của từng môn, hai con mỗi môn - hang quái dữ có nhiều nhất hai chỗ
+ * đứng (xem `denSpots` trong `routemap.ts`).
+ *
+ * Tên và hình RIÊNG, không mượn của bầy: trước đây đầu đàn là con quái thứ tư
+ * của bầy gắn thêm chữ "Đầu Đàn", nên trẻ vào hang gặp lại đúng con rô-bốt vừa
+ * đánh ngoài cổng. Thứ tự là hợp đồng với tờ `leaders-*.png` (xem
+ * `docs/art/prompts.md`).
+ */
+export const LEADERS: Record<Subject, [EnemyTemplate, EnemyTemplate]> = {
+  math: [
+    { name: 'Hiệp Sĩ Thước Kẻ', emoji: '📐' },
+    { name: 'Khổng Lồ Hình Khối', emoji: '🧊' },
+  ],
+  vietnamese: [
+    { name: 'Kiếm Sĩ Bút Lông', emoji: '🖌️' },
+    { name: 'Hạc Giấy Khổng Lồ', emoji: '🕊️' },
+  ],
+  music: [
+    { name: 'Nhạc Trưởng Bão Tố', emoji: '🎼' },
+    { name: 'Đàn Ống Biết Đi', emoji: '🎹' },
+  ],
+  ethics: [
+    { name: 'Kỵ Sĩ Mặt Nạ Nứt', emoji: '🎭' },
+    { name: 'Hồ Ly Chín Đuôi', emoji: '🦊' },
+  ],
+}
+
 const BOSSES: Record<Subject, EnemyTemplate> = {
   math: { name: 'Rồng Số Học', emoji: '🐉' },
   vietnamese: { name: 'Phượng Hoàng Ngôn Từ', emoji: '🦅' },

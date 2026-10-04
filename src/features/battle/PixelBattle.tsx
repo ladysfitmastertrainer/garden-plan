@@ -20,7 +20,7 @@ import { useReduceMotion } from '../../shell/useReduceMotion'
 import { useMeasureOnLayout } from '../../shell/useMeasureOnLayout'
 import type { Subject } from '../../content/types'
 import type { BattleState } from '../../engine/battle'
-import { monsterSpriteFor, towerSpriteFor } from '../pixel/creatures'
+import { leaderSpriteFor, monsterSpriteFor, towerSpriteFor } from '../pixel/creatures'
 import {
   Combatant,
   ENEMY_SCALE,
@@ -157,6 +157,14 @@ function SpellBurst({
 
 type Turn = 'hero-attacks' | 'enemy-attacks' | 'no-damage' | null
 
+/** Màu hào quang của trùm, theo môn - cùng tông với nguyên tố của môn ấy. */
+const BOSS_AURA: Record<Subject, string> = {
+  math: '#ffc93c',
+  vietnamese: '#ff6fa8',
+  music: '#b07cff',
+  ethics: '#7fd8ff',
+}
+
 export function PixelBattle({
   battle,
   subject,
@@ -178,7 +186,9 @@ export function PixelBattle({
   // Mỗi con quái một hình riêng, khớp với cái tên nó mang.
   const enemySprite = battle.enemy.isTower
     ? towerSpriteFor(subject)
-    : monsterSpriteFor(subject, battle.enemy.variant, battle.enemy.isBoss, battle.enemy.habitat)
+    : battle.enemy.leader !== undefined
+      ? leaderSpriteFor(subject, battle.enemy.leader)
+      : monsterSpriteFor(subject, battle.enemy.variant, battle.enemy.isBoss, battle.enemy.habitat)
 
   const answerCount = battle.answers.length
   const [turn, setTurn] = useState<{ key: number; kind: Turn }>({ key: -1, kind: null })
@@ -311,6 +321,15 @@ export function PixelBattle({
       {/* Nền: ảnh vẽ tay của cảnh này, hoặc hai mảng màu phẳng nếu chưa có. */}
       <SceneBackdrop scene={scene} />
 
+      {/* Trận trùm: viền sân đấu tối lại, ánh sáng dồn về phía con trùm. */}
+      {battle.enemy.isBoss && (
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse at 72% 42%, transparent 40%, rgba(35, 12, 55, 0.5) 100%)' }}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Chớp sáng mở màn. Nằm trên nền nhưng DƯỚI hai nhân vật, nên hai bên lao
           vào giữa lúc ánh chớp còn chưa tắt. */}
       <AnimatePresence>
@@ -332,7 +351,10 @@ export function PixelBattle({
         sprite={enemySprite}
         scene={scene}
         flip
-        style={farSpot(scene)}
+        // Trùm to gấp rưỡi nên đứng nhích lên, để chân vẫn ở chỗ quái thường đứng.
+        style={battle.enemy.isBoss ? { ...farSpot(scene), top: '13%' } : farSpot(scene)}
+        aura={battle.enemy.isBoss ? BOSS_AURA[subject] : undefined}
+        grow={battle.enemy.leader !== undefined ? 1.25 : 1}
         attacking={live === 'enemy-attacks'}
         hit={live === 'hero-attacks'}
         direction={-1}

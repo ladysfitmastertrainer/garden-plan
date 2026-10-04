@@ -9,7 +9,7 @@
  */
 
 import { create } from 'zustand'
-import { createEnemy } from '../content/bestiary'
+import { LEADERS, createEnemy } from '../content/bestiary'
 import { useUi } from './ui'
 import type { Enemy, PlayerStats } from '../engine/battle'
 import { getSkill } from '../content/curriculum'
@@ -84,6 +84,24 @@ export function getRepository(): Repository {
 
 export function configureRepository(next: Repository): void {
   repository = next
+}
+
+/**
+ * Đầu đàn trong hang (hay trong nhà) mang tên và hình RIÊNG của nó - xem
+ * `LEADERS`. `variant` ở trận 'mini' trên cạn là số thứ tự con đầu đàn; thủy
+ * quái ngoài khơi thì không phải đầu đàn của bầy nào, giữ nguyên.
+ */
+function withLeader(
+  enemy: Enemy,
+  kind: 'wild' | 'mini' | 'secret',
+  subject: Subject,
+  habitat: Habitat | undefined,
+  variant: number | undefined,
+): Enemy {
+  if (kind !== 'mini' || habitat === 'deep') return enemy
+  const leader = Math.abs(variant ?? 0) % 2
+  const template = LEADERS[subject][leader === 1 ? 1 : 0]
+  return { ...enemy, leader, name: template.name, emoji: template.emoji }
 }
 
 /**
@@ -684,7 +702,7 @@ export const useGame = create<GameState>((set, get) => ({
     set({
       battle: createBattle(
         {
-          enemy: enemyFor(kind, enemy),
+          enemy: withLeader(enemyFor(kind, enemy), kind, subject, habitat, variant),
           player: fighterFor(progress, subject, level, bonus).player,
           pet: fighterFor(progress, subject, level, bonus).pet,
           maxQuestions: queue.length,

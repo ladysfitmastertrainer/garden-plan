@@ -1178,6 +1178,54 @@ body {
    trận vẽ ở bội số 6 và 8 - tức cao 96 và 128 điểm ảnh. Nhún 3px trên đó là 2%,
    mắt không thấy được, và nhìn y như đứng im. Đúng cái lỗi đã mắc với cái ghim
    trên bản đồ thế giới. */
+/* Bóng dưới chân nhân vật trên bản đồ đi cảnh: thứ neo nhân vật xuống đất. Thiếu
+   nó thì mọi con đều như dán lên mặt bản đồ. */
+.ow-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 2%;
+  width: 72%;
+  height: 22%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(25, 18, 10, 0.38), rgba(25, 18, 10, 0));
+  pointer-events: none;
+}
+
+/* Sinh vật vẽ tay THỞ: nhón lên, thon lại rồi chùng xuống - mượt, không theo bậc
+   như sprite điểm ảnh. Neo ở CHÂN để nó đứng yên trên đất mà thở, chứ không
+   phình ra từ giữa bụng. Nhịp mỗi con lệch nhau (xem `breathOffset`). */
+@keyframes art-breathe {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-2%) scale(0.975, 1.035); }
+}
+.art-alive {
+  transform-origin: 50% 100%;
+  animation: art-breathe 2.4s ease-in-out infinite;
+}
+
+/* Nhún chờ lượt của sinh vật vẽ tay trong trận: lơ lửng mượt, chậm hơn nhịp thở
+   để hai chuyển động không giẫm lên nhau. */
+@keyframes battle-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(calc(var(--idle, 6px) * -1.5)); }
+}
+
+/* Hào quang của trùm - xem `BossAura` trong arena.tsx. */
+@keyframes boss-aura {
+  0%, 100% { opacity: 0.55; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+@keyframes boss-ring {
+  0% { opacity: 0.9; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+@keyframes boss-spark {
+  0% { opacity: 0; transform: translateY(0) rotate(45deg) scale(0.4); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(var(--rise, -80px)) rotate(45deg) scale(1); }
+}
+
 @keyframes battle-idle {
   0% { transform: translateY(0); }
   33% { transform: translateY(calc(var(--idle, 6px) * -1)); }
